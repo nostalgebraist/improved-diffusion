@@ -110,7 +110,7 @@ class TextEncoder(nn.Module):
 
     def forward(self, tokens):
         self._tokens = tokens
-        return checkpoint(self._forward, (,), self.parameters(), self.use_checkpoint)
+        return checkpoint(self._forward, tuple(), self.parameters(), self.use_checkpoint)
 
     def _forward(self):
         tokens = self._tokens

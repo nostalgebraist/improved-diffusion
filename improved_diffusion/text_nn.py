@@ -196,10 +196,10 @@ class CrossAttention(nn.Module):
 
         attn_output, attn_output_weights = self.attn(q, k, v)
         attn_output = (self.gain_scale * self.gain).exp() * attn_output
-        attn_output = rearrange(attn_output, 'b (h w) c -> b c h w', h=spatial[0])
+        attn_output = rearrange(attn_output, 'b (h w) c -> b c h w', h=self.emb_res)
 
         if self.resid:
-            tgt = tgt.reshape(b, c, *spatial)
+            tgt = tgt.reshape(b, c, self.emb_res, self.emb_res)
             # with torch.no_grad():
             #     norm_in = torch.linalg.norm(tgt).item()
             #     norm_add = torch.linalg.norm(attn_output).item()

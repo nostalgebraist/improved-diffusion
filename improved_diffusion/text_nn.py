@@ -120,14 +120,12 @@ class TextEncoder(nn.Module):
             out = self.model.decoder.net(tgt, context=enc, return_embeddings=True)
             out = rearrange(out, 'b (h w) c -> b h w c', h=self.decoder_sqrt_ntok)
             # out = self.proj(out)
-            self._tokens = None
             return out
         else:
             out = self.model(tokens, return_embeddings=True)
             if not self.return_sequences:
                 out = out[:, 0, :]
             # out = self.proj(out)
-            self._tokens = None
             return out
 
 

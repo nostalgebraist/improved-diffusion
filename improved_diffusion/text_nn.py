@@ -176,9 +176,7 @@ class CrossAttention(nn.Module):
             tgt_pos_emb = tgt_pos_embs[str(self.emb_res)]
         if tgt_pos_emb is None:
             raise ValueError('must pass tgt_pos_emb')
-        return checkpoint(self._forward, (src, tgt, tgt_pos_emb,), self.parameters(), self.use_checkpoint)
 
-    def _forward(self, src, tgt, tgt_pos_emb):
         b, c, *spatial = tgt.shape
         tgt = tgt.reshape(b, c, -1)
         tgt_in = self.tgt_ln(tgt)
@@ -186,6 +184,9 @@ class CrossAttention(nn.Module):
 
         tgt_in = tgt_in + tgt_pos_emb(tgt_in)
 
+        return checkpoint(self._forward, (src, tgt_in), self.parameters(), self.use_checkpoint)
+
+    def _forward(self, src, tgt_in):
         q = self.q(tgt_in)
 
         src = self.src_ln(src)

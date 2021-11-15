@@ -466,6 +466,7 @@ class UNetModel(nn.Module):
                             gain_scale = cross_attn_gain_scale,
                             lr_mult=text_lr_mult,
                             needs_tgt_pos_emb=False,
+                            use_checkpoint=use_checkpoint or use_checkpoint_down,
                         )
                     )
 
@@ -550,6 +551,7 @@ class UNetModel(nn.Module):
                             gain_scale = cross_attn_gain_scale,
                             lr_mult=text_lr_mult,
                             needs_tgt_pos_emb=False,
+                            use_checkpoint=use_checkpoint or use_checkpoint_up,
                         )
                     )
                 vprint(f"down | {level} of {len(channel_mult)} | ch {ch} | ds {ds}")

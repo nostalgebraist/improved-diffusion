@@ -7,7 +7,7 @@ from axial_positional_embedding import AxialPositionalEmbedding
 from einops import rearrange
 from x_transformers import TransformerWrapper, Encoder, XTransformer
 
-from .nn import normalization
+from .nn import normalization, checkpoint
 
 
 def make_grad_mult_hook(mult, debug=False):
@@ -132,12 +132,14 @@ class CrossAttention(nn.Module):
         resid=True,
         lr_mult=None,
         needs_tgt_pos_emb=True,
+        use_checkpoint=False,
     ):
         super().__init__()
         print(f"xattn: emb_res {emb_res} | dim {dim} | heads {heads}")
         self.dim = dim
         self.heads = heads
         self.text_dim = text_dim
+        self.use_checkpoint = use_checkpoint
 
         self.q = torch.nn.Linear(self.dim, self.dim, bias=False)
         self.kv = torch.nn.Linear(self.text_dim, 2*self.dim, bias=False)
@@ -168,6 +170,9 @@ class CrossAttention(nn.Module):
             multiply_lr_via_hooks(self, lr_mult)
 
     def forward(self, src, tgt, tgt_pos_embs=None):
+        return checkpoint(self._forward, (src, tgt, tgt_pos_embs,), self.parameters(), self.use_checkpoint)
+
+    def _forward(self, src, tgt, tgt_pos_embs=None):
         b, c, *spatial = tgt.shape
         tgt = tgt.reshape(b, c, -1)
         tgt_in = self.tgt_ln(tgt)

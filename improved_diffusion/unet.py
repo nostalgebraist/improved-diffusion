@@ -337,6 +337,7 @@ class UNetModel(nn.Module):
         use_checkpoint_up=False,
         use_checkpoint_middle=False,
         use_checkpoint_down=False,
+        use_checkpoint_text=False,
         num_heads=1,
         num_heads_upsample=-1,
         use_scale_shift_norm=False,
@@ -396,6 +397,7 @@ class UNetModel(nn.Module):
                 depth=txt_depth,
                 max_seq_len=max_seq_len,
                 lr_mult=text_lr_mult,
+                use_checkpoint=use_checkpoint or use_checkpoint_text
             )
 
         self.tgt_pos_embs = nn.ModuleDict({})

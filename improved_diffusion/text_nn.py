@@ -46,6 +46,7 @@ class TextEncoder(nn.Module):
         encoder_kwargs = {},
         return_sequences=True,
         lr_mult=None,
+        use_checkpoint=False,
     ):
         super().__init__()
 
@@ -56,6 +57,7 @@ class TextEncoder(nn.Module):
 
         self.use_encoder_decoder = use_encoder_decoder
         self.return_sequences = return_sequences
+        self.use_checkpoint = use_checkpoint
 
         if self.use_encoder_decoder:
             enc_kwargs = dict(
@@ -105,6 +107,9 @@ class TextEncoder(nn.Module):
             multiply_lr_via_hooks(self, lr_mult)
 
     def forward(self, tokens):
+        return checkpoint(self._forward, (tokens,), self.parameters(), self.use_checkpoint)
+
+    def _forward(self, tokens):
         if self.use_encoder_decoder:
             tgt = torch.zeros((tokens.shape[0], self.dec_max_seq_len), device=tokens.device, dtype=torch.int)
             enc = self.model.encoder(tokens, return_embeddings = True)

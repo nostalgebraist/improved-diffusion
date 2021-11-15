@@ -170,20 +170,19 @@ class CrossAttention(nn.Module):
             multiply_lr_via_hooks(self, lr_mult)
 
     def forward(self, src, tgt, tgt_pos_embs=None):
-        return checkpoint(self._forward, (src, tgt, tgt_pos_embs,), self.parameters(), self.use_checkpoint)
-
-    def _forward(self, src, tgt, tgt_pos_embs=None):
-        b, c, *spatial = tgt.shape
-        tgt = tgt.reshape(b, c, -1)
-        tgt_in = self.tgt_ln(tgt)
-        tgt_in = tgt_in.transpose(1, 2)
-
         if tgt_pos_embs is None:
             tgt_pos_emb = self.tgt_pos_emb
         else:
             tgt_pos_emb = tgt_pos_embs[str(self.emb_res)]
         if tgt_pos_emb is None:
             raise ValueError('must pass tgt_pos_emb')
+        return checkpoint(self._forward, (src, tgt, tgt_pos_emb,), self.parameters(), self.use_checkpoint)
+
+    def _forward(self, src, tgt, tgt_pos_emb):
+        b, c, *spatial = tgt.shape
+        tgt = tgt.reshape(b, c, -1)
+        tgt_in = self.tgt_ln(tgt)
+        tgt_in = tgt_in.transpose(1, 2)
 
         tgt_in = tgt_in + tgt_pos_emb(tgt_in)
 

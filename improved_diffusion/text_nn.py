@@ -106,22 +106,28 @@ class TextEncoder(nn.Module):
         if lr_mult is not None:
             multiply_lr_via_hooks(self, lr_mult)
 
-    def forward(self, tokens):
-        return checkpoint(self._forward, (tokens,), self.parameters(), self.use_checkpoint)
+        self._tokens = None
 
-    def _forward(self, tokens):
+    def forward(self, tokens):
+        self._tokens = tokens
+        return checkpoint(self._forward, (,), self.parameters(), self.use_checkpoint)
+
+    def _forward(self):
+        tokens = self._tokens
         if self.use_encoder_decoder:
             tgt = torch.zeros((tokens.shape[0], self.dec_max_seq_len), device=tokens.device, dtype=torch.int)
             enc = self.model.encoder(tokens, return_embeddings = True)
             out = self.model.decoder.net(tgt, context=enc, return_embeddings=True)
             out = rearrange(out, 'b (h w) c -> b h w c', h=self.decoder_sqrt_ntok)
             # out = self.proj(out)
+            self._tokens = None
             return out
         else:
             out = self.model(tokens, return_embeddings=True)
             if not self.return_sequences:
                 out = out[:, 0, :]
             # out = self.proj(out)
+            self._tokens = None
             return out
 
 

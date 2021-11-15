@@ -184,9 +184,18 @@ class CrossAttention(nn.Module):
 
         tgt_in = tgt_in + tgt_pos_emb(tgt_in)
 
-        return checkpoint(self._forward, (src, tgt_in), self.parameters(), self.use_checkpoint)
+        attn_output = checkpoint(self._attn_forward, (src, tgt_in), self.parameters(), self.use_checkpoint)
 
-    def _forward(self, src, tgt_in):
+        if self.resid:
+            tgt = tgt.reshape(b, c, self.emb_res, self.emb_res)
+            # with torch.no_grad():
+            #     norm_in = torch.linalg.norm(tgt).item()
+            #     norm_add = torch.linalg.norm(attn_output).item()
+            return tgt + attn_output
+
+        return attn_output
+
+    def _attn_forward(self, src, tgt_in):
         q = self.q(tgt_in)
 
         src = self.src_ln(src)
@@ -197,12 +206,5 @@ class CrossAttention(nn.Module):
         attn_output, attn_output_weights = self.attn(q, k, v)
         attn_output = (self.gain_scale * self.gain).exp() * attn_output
         attn_output = rearrange(attn_output, 'b (h w) c -> b c h w', h=self.emb_res)
-
-        if self.resid:
-            tgt = tgt.reshape(b, c, self.emb_res, self.emb_res)
-            # with torch.no_grad():
-            #     norm_in = torch.linalg.norm(tgt).item()
-            #     norm_add = torch.linalg.norm(attn_output).item()
-            return tgt + attn_output
 
         return attn_output

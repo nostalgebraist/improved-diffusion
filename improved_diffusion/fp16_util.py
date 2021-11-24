@@ -25,6 +25,8 @@ def convert_module_to_f16(l, bf16=False):
             if 'tgt_ln' in n and (not l.avoid_groupnorm):
                 if 'normalization' not in n.partition('tgt_ln')[2]:
                     continue
+            if 'src_ln' in n:
+                continue
             p.data = p.data.to(dtype)
 
 

@@ -8,7 +8,7 @@ from einops import rearrange
 from x_transformers import TransformerWrapper, Encoder, XTransformer
 from x_transformers.x_transformers import AbsolutePositionalEmbedding
 
-from .nn import normalization_1group, timestep_embedding, SiLU, AdaGN
+from .nn import normalization, timestep_embedding, SiLU, AdaGN
 
 
 def make_grad_mult_hook(mult, debug=False):
@@ -161,7 +161,8 @@ class CrossAttention(nn.Module):
         self.kv = torch.nn.Linear(self.text_dim, 2*self.dim, bias=False)
         self.attn = torch.nn.MultiheadAttention(self.dim, self.heads, batch_first=True)
 
-        self.src_ln = torch.nn.LayerNorm(self.text_dim)
+        # self.src_ln = torch.nn.LayerNorm(self.text_dim)
+        self.src_ln = normalization(self.text_dim)
         self.avoid_groupnorm = avoid_groupnorm
         self.q_t_emb = q_t_emb
 
@@ -185,11 +186,11 @@ class CrossAttention(nn.Module):
             self.tgt_ln = AdaGN(
                 emb_channels=time_embed_dim,
                 out_channels=self.dim,
-                num_groups=1,
+                num_groups=32,
                 nonlin_in=True  # TODO: does this matter?
             )
         else:
-            self.tgt_ln = normalization_1group(self.dim)
+            self.tgt_ln = normalization(self.dim)
 
         self.gain_scale = gain_scale
         self.gain = torch.nn.Parameter(torch.as_tensor(np.log(init_gain) / gain_scale))
@@ -245,7 +246,7 @@ class CrossAttention(nn.Module):
 
         q = self.q(tgt_in)
 
-        src = self.src_ln(src)
+        src = self.src_ln(src.transpose(1, 2)).transpose(1, 2)
         kv = self.kv(src)
 
         k, v = kv.chunk(2, dim=-1)

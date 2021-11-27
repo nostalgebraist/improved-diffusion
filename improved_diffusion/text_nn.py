@@ -154,6 +154,7 @@ class CrossAttention(nn.Module):
         rezero_keeps_prenorm=False,
         use_layerscale=False,
         layerscale_init=1e-5,
+        qk_dim=None
     ):
         super().__init__()
         print(
@@ -162,10 +163,13 @@ class CrossAttention(nn.Module):
         self.dim = dim
         self.heads = heads
         self.text_dim = text_dim
+        self.qk_dim = qk_dim
+        if self.qk_dim is None:
+            self.qk_dim = self.dim
 
-        self.q = torch.nn.Linear(self.dim, self.dim, bias=False)
-        self.kv = torch.nn.Linear(self.text_dim, 2*self.dim, bias=False)
-        self.attn = torch.nn.MultiheadAttention(self.dim, self.heads, batch_first=True)
+        self.q = torch.nn.Linear(self.dim, self.qk_dim, bias=False)
+        self.kv = torch.nn.Linear(self.text_dim, 2*self.qk_dim, bias=False)
+        self.attn = torch.nn.MultiheadAttention(self.dim, self.heads, batch_first=True, vdim=self.dim)
 
         self.avoid_groupnorm = avoid_groupnorm
         self.q_t_emb = q_t_emb

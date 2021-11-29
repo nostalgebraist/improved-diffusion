@@ -134,6 +134,73 @@ class TextEncoder(nn.Module):
             return out
 
 
+class BetterMultiheadAttention(torch.nn.MultiheadAttention):
+    def __init__(self, src_embed_dim, tgt_embed_dim, num_heads, dropout=0., batch_first=True, device=None, dtype=None):
+        factory_kwargs = {'device': device, 'dtype': dtype}
+        super(torch.nn.MultiheadAttention, self).__init__()
+        self.src_embed_dim = src_embed_dim
+        self.tgt_embed_dim = tgt_embed_dim
+        self.embed_dim = self.src_embed_dim
+        self.kdim = src_embed_dim
+        self.vdim = src_embed_dim
+        self._qkv_same_embed_dim = self.src_embed_dim == self.tgt_embed_dim
+
+        self.num_heads = num_heads
+        self.dropout = dropout
+        self.batch_first = batch_first
+        self.head_dim = src_embed_dim // num_heads
+        assert self.head_dim * num_heads == self.src_embed_dim, "src_embed_dim must be divisible by num_heads"
+
+        self.q = torch.nn.Linear(tgt_embed_dim, src_embed_dim, bias=False)
+        self.k = torch.nn.Linear(src_embed_dim, src_embed_dim, bias=False)
+        self.v = torch.nn.Linear(src_embed_dim, src_embed_dim, bias=False)
+
+        # self.fake_proj_weight = torch.nn.Parameter(torch.eye(src_embed_dim))
+        # self.fake_proj_weight.requires_grad_(False)
+
+        self.register_parameter('in_proj_weight', None)
+        self.register_parameter('in_proj_bias', None)
+
+        self.out_proj = torch.nn.modules.linear.NonDynamicallyQuantizableLinear(src_embed_dim, tgt_embed_dim, bias=False, **factory_kwargs)
+
+        self.bias_k = self.bias_v = None
+        self.add_zero_attn = False
+
+        self._reset_parameters()
+
+    def _reset_parameters(self):
+        torch.nn.init.xavier_uniform_(self.q.weight)
+        torch.nn.init.xavier_uniform_(self.k.weight)
+        torch.nn.init.xavier_uniform_(self.v.weight)
+
+    def forward(self, query, key, value,
+                need_weights: bool = True):
+        if self.batch_first:
+            query, key, value = [x.transpose(1, 0) for x in (query, key, value)]
+
+        query = self.q(query)
+        key = self.k(key)
+        value = self.v(value)
+
+        fake_proj_weight = torch.eye(self.src_embed_dim, dtype=query.dtype, device=query.device)
+
+        attn_output, attn_output_weights = torch.nn.functional.multi_head_attention_forward(
+            query, key, value, self.embed_dim, self.num_heads,
+            self.in_proj_weight, self.in_proj_bias,
+            self.bias_k, self.bias_v, self.add_zero_attn,
+            self.dropout, self.out_proj.weight, self.out_proj.bias,
+            training=self.training,
+            key_padding_mask=None, need_weights=need_weights,
+            attn_mask=None, use_separate_proj_weight=True,
+            q_proj_weight=fake_proj_weight, k_proj_weight=fake_proj_weight,
+            v_proj_weight=fake_proj_weight)
+        del fake_proj_weight
+
+        if self.batch_first:
+            return attn_output.transpose(1, 0), attn_output_weights
+        else:
+            return attn_output, attn_output_weights
+
 class CrossAttention(nn.Module):
     def __init__(
         self,
@@ -163,9 +230,9 @@ class CrossAttention(nn.Module):
         self.heads = heads
         self.text_dim = text_dim
 
-        self.q = torch.nn.Linear(self.dim, self.dim, bias=False)
-        self.kv = torch.nn.Linear(self.text_dim, 2*self.dim, bias=False)
-        self.attn = torch.nn.MultiheadAttention(self.dim, self.heads, batch_first=True)
+        # self.q = torch.nn.Linear(self.dim, self.dim, bias=False)
+        # self.kv = torch.nn.Linear(self.text_dim, 2*self.dim, bias=False)
+        self.attn = BetterMultiheadAttention(self.text_dim, self.dim, self.heads, batch_first=True)
 
         self.avoid_groupnorm = avoid_groupnorm
         self.q_t_emb = q_t_emb
@@ -222,8 +289,8 @@ class CrossAttention(nn.Module):
             torch.nn.init.orthogonal_(self.kv.weight)
             torch.nn.init.orthogonal_(self.attn.out_proj.weight)
 
-        if lr_mult is not None:
-            multiply_lr_via_hooks(self, lr_mult)
+        # if lr_mult is not None:
+        #     multiply_lr_via_hooks(self, lr_mult)
 
     def effective_gain(self):
         g = self.gain_scale * self.gain
@@ -270,12 +337,14 @@ class CrossAttention(nn.Module):
             # pos emb after ln, so the GroupNorm doesn't avg it away
             tgt_in = tgt_in + tgt_pos_emb(tgt_in)
 
-        q = self.q(tgt_in)
+        # q = self.q(tgt_in)
+        q = tgt_in
 
-        src = self.src_ln(src.transpose(1, 2)).transpose(1, 2)
-        kv = self.kv(src)
-
-        k, v = kv.chunk(2, dim=-1)
+        src_in = self.src_ln(src.transpose(1, 2)).transpose(1, 2)
+        # kv = self.kv(src)
+        # k, v = kv.chunk(2, dim=-1)
+        k = src_in
+        v = src_in
 
         attn_output, attn_output_weights = self.attn(q, k, v)
         attn_output = attn_output * self.effective_gain()

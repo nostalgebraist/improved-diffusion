@@ -516,7 +516,7 @@ class UNetModel(nn.Module):
                 if self.txt and ds in self.txt_resolutions and (not txt_output_layers_only):
                     num_heads_here = num_heads
                     if cross_attn_channels_per_head > 0:
-                        num_heads_here = ch // cross_attn_channels_per_head
+                        num_heads_here = txt_dim // cross_attn_channels_per_head
 
                     emb_res = image_size // ds
                     if emb_res not in self.tgt_pos_embs:
@@ -629,7 +629,7 @@ class UNetModel(nn.Module):
                 if self.txt and ds in self.txt_resolutions:
                     num_heads_here = num_heads
                     if cross_attn_channels_per_head > 0:
-                        num_heads_here = ch // cross_attn_channels_per_head
+                        num_heads_here = txt_dim // cross_attn_channels_per_head
 
                     emb_res = image_size // ds
                     if emb_res not in self.tgt_pos_embs:

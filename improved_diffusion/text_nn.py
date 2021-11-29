@@ -282,7 +282,7 @@ class CrossAttention(nn.Module):
         src = self.src_ln(src)
         kv = self.kv(src)
 
-        k, v = kv.chunk(2, dim=-1)
+        k, v = kv.split([self.qk_dim, self.dim], dim=-1)
 
         attn_output, attn_output_weights = self.attn(q, k, v)
         attn_output = attn_output * self.effective_gain()

@@ -165,11 +165,15 @@ class CrossAttention(nn.Module):
         self.text_dim = text_dim
         self.qk_dim = qk_dim
         if self.qk_dim is None:
-            self.qk_dim = self.dim
+            self.qk_dim = self.text_dim
 
-        self.q = torch.nn.Linear(self.dim, self.qk_dim, bias=False)
-        self.kv = torch.nn.Linear(self.text_dim, 2*self.qk_dim, bias=False)
-        self.attn = torch.nn.MultiheadAttention(self.dim, self.heads, batch_first=True, vdim=self.dim)
+        if self.qk_dim == self.dim:
+            self.q = torch.nn.Identity()
+        else:
+            self.q = torch.nn.Linear(self.dim, self.qk_dim, bias=False)
+
+        self.kv = torch.nn.Linear(self.text_dim, self.qk_dim + self.dim, bias=False)
+        self.attn = torch.nn.MultiheadAttention(self.qk_dim, self.heads, batch_first=True, vdim=self.dim)
 
         self.avoid_groupnorm = avoid_groupnorm
         self.q_t_emb = q_t_emb
@@ -194,7 +198,6 @@ class CrossAttention(nn.Module):
                 axial_shape=(emb_res, emb_res),
                 axial_dims=(pos_emb_dim, pos_emb_dim),
             )
-
 
         if self.q_t_emb:
             self.tgt_ln = AdaGN(

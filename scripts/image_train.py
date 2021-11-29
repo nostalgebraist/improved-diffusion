@@ -25,7 +25,7 @@ def main():
 
     print(f"args.text_lr: {type(args.text_lr)}, {args.text_lr}")
 
-    if isinstance(args.text_lr, float):
+    if isinstance(args.text_lr, float) and args.text_lr > 0:
         args.text_lr_mult = args.text_lr / args.lr
     else:
         args.text_lr_mult = None
@@ -61,6 +61,7 @@ def main():
         batch_size=args.batch_size,
         microbatch=args.microbatch,
         lr=args.lr,
+        text_lr=args.text_lr,
         ema_rate=args.ema_rate,
         log_interval=args.log_interval,
         save_interval=args.save_interval,

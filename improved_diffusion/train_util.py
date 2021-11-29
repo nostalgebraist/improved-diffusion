@@ -49,6 +49,7 @@ class TrainLoop:
         weight_decay=0.0,
         lr_anneal_steps=0,
         tokenizer=None,
+        text_lr=None
     ):
         self.model = model
         self.diffusion = diffusion
@@ -56,6 +57,8 @@ class TrainLoop:
         self.batch_size = batch_size
         self.microbatch = microbatch if microbatch > 0 else batch_size
         self.lr = lr
+        self.text_lr = text_lr if text_lr is not None else lr
+        print(f"train loop: text_lr={text_lr}")
         self.ema_rate = (
             [ema_rate]
             if isinstance(ema_rate, float)
@@ -75,7 +78,28 @@ class TrainLoop:
         self.resume_step = 0
         self.global_batch = self.batch_size * dist.get_world_size()
 
-        self.model_params = list(self.model.parameters())
+        text_params, self.text_param_names = [], []
+        xattn_params, self.xattn_param_names = [], []
+        gain_params, self.gain_param_names = [], []
+        other_params, self.other_param_names = [], []
+        for n, p in model.named_parameters():
+            if 'text_encoder' in n:
+                self.text_param_names.append(n)
+                text_params.append(p)
+            elif "cross" in n and "gain" in n:
+                self.gain_param_names.append(n)
+                gain_params.append(p)
+            elif "cross" in n:
+                self.xattn_param_names.append(n)
+                xattn_params.append(p)
+            else:
+                self.other_param_names.append(n)
+                other_params.append(p)
+
+        self.param_name_groups = [self.text_param_names, self.xattn_param_names, self.gain_param_names, self.other_param_names]
+        # self.model_params = list(self.model.parameters())
+        self.model_params = [text_params, xattn_params, gain_params, other_params]
+
         self.master_params = self.model_params
         self.lg_loss_scale = INITIAL_LOG_LOSS_SCALE
         self.sync_cuda = th.cuda.is_available()
@@ -84,9 +108,26 @@ class TrainLoop:
         if self.use_fp16:
             self._setup_fp16()
 
-        self.opt = AdamW(self.master_params, lr=self.lr, weight_decay=self.weight_decay)
+        for p, name in zip(self.master_params, ['text', 'xattn', 'xgain', 'other']):
+            print(f"\t{np.product(p.shape)/1e6:.0f}M {name} params")
+
+        self.opt = AdamW(
+            [
+                {"params": params, "lr": lr, "weight_decay": wd}
+                for params, lr, wd in zip(
+                    self.master_params,
+                    [self.text_lr, self.text_lr, self.lr, self.lr],
+                    [0., 0., 0., self.weight_decay]
+                )
+            ],
+            lr=self.lr,
+            weight_decay=self.weight_decay
+        )
         if self.resume_step:
-            self._load_optimizer_state()
+            try:
+                self._load_optimizer_state()
+            except ValueError:
+                print("couldn't load opt")
             # Model was resumed, either due to a restart or a checkpoint
             # being specified at the command line.
             self.ema_params = [
@@ -175,10 +216,6 @@ class TrainLoop:
             if self.step % self.log_interval == 0:
                 t2 = time.time()
                 print(f"{t2-t1:.2f} sec")
-                # for n, m in self.model.named_modules():
-                #     if hasattr(m, 'gain'):
-                #         gain_val = (getattr(m, 'gain_scale') * getattr(m, 'gain')).exp().item()
-                #         print(f"gain {gain_val:.4f} | {n}")
                 t1 = t2
                 logger.dumpkvs()
             if (self.step % self.save_interval == 0) and (self.step > 0):
@@ -251,13 +288,14 @@ class TrainLoop:
                 loss.backward()
 
     def optimize_fp16(self):
-        if any(not th.isfinite(p.grad).all() for p in self.model_params if p.grad is not None):
+        if any(not th.isfinite(p.grad).all() for ps in self.model_params for p in ps if p.grad is not None):
             self.lg_loss_scale -= 1
             logger.log(f"Found NaN, decreased lg_loss_scale to {self.lg_loss_scale}")
             return
 
         model_grads_to_master_grads(self.model_params, self.master_params)
-        self.master_params[0].grad.mul_(1.0 / (2 ** self.lg_loss_scale))
+        for mp in self.master_params:
+            mp.grad.mul_(1.0 / (2 ** self.lg_loss_scale))
         self._log_grad_norm()
         self._anneal_lr()
         self.opt.step()
@@ -284,17 +322,20 @@ class TrainLoop:
             sqsum += (p.grad ** 2).sum().item()
         logger.logkv_mean("grad_norm", np.sqrt(sqsum))
 
-        if not self.use_fp16:
-            # fp16 master params vs model params break this
-            for n, p in self.model.named_parameters():
-                if 'text_encoder' not in n:
-                    continue
-                if p.grad is None:
-                    continue
-                has_text_encoder = True
-                sqsum_text_encoder += (p.grad ** 2).sum().item()
-            if has_text_encoder:
-                logger.logkv_mean("grad_norm_text_enc", np.sqrt(sqsum_text_encoder))
+        gn_xattn, gn_text = None, None
+
+        for p, name in zip(self.master_params, ['text', 'xattn', 'xgain', 'other']):
+            if p.grad is None:
+                continue
+            gn = np.sqrt((p.grad ** 2).sum().item())
+            if name == 'text':
+                gn_text = gn
+            elif name == 'xattn':
+                gn_xattn = gn
+            logger.logkv_mean(f"grad_norm_{name}", gn)
+
+        if (gn_text is not None) and (gn_xattn is not None):
+            logger.logkv_mean(f"grad_norm_xt_ratio", gn_xattn / max(gn_text, 1e-8))
 
     def _anneal_lr(self):
         if not self.lr_anneal_steps:
@@ -307,8 +348,13 @@ class TrainLoop:
     def log_gain(self):
         for n, m in self.model.named_modules():
             if hasattr(m, 'gain'):
-                gain_val = (getattr(m, 'gain_scale') * getattr(m, 'gain')).exp().item()
-                short_name = ".".join(seg[:3] for seg in n.split("."))
+                # gain_val = (getattr(m, 'gain_scale') * getattr(m, 'gain')).exp().item()
+                gain_val = m.effective_gain()
+                if gain_val.ndim < 1 or len(gain_val) == 1:
+                    gain_val = gain_val.item()
+                else:
+                    gain_val = gain_val.detach().abs().mean().item()
+                short_name = ".".join(seg[:3] for seg in n.split(".") if seg[:3] != 'cro')
                 logger.logkv(f"gain_{short_name}", gain_val)
 
     def log_step(self):
@@ -346,16 +392,24 @@ class TrainLoop:
     def _master_params_to_state_dict(self, master_params):
         if self.use_fp16:
             master_params = unflatten_master_params(
-                list(self.model.parameters()), master_params
+                #list(self.model.parameters()),
+                self.model_params,
+                master_params
             )
         state_dict = self.model.state_dict()
-        for i, (name, _value) in enumerate(self.model.named_parameters()):
-            assert name in state_dict
-            state_dict[name] = master_params[i]
+        names_flat = [name for names in self.param_name_groups for name in names]
+        for i, name in enumerate(names_flat):
+                assert name in state_dict
+                state_dict[name] = master_params[i]
+
+        # for i, (name, _value) in enumerate(self.model.named_parameters()):
+        #     assert name in state_dict
+        #     state_dict[name] = master_params[i]
         return state_dict
 
     def _state_dict_to_master_params(self, state_dict):
-        params = [state_dict[name] for name, _ in self.model.named_parameters()]
+        # params = [state_dict[name] for name, _ in self.model.named_parameters()]
+        params = [[state_dict[name] for name in name_group] for name_group in self.param_name_groups]
         if self.use_fp16:
             return make_master_params(params)
         else:

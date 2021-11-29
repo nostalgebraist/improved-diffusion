@@ -150,9 +150,15 @@ class CrossAttention(nn.Module):
         avoid_groupnorm=False,
         orth_init=False,
         q_t_emb=False,
+        use_rezero=False,
+        rezero_keeps_prenorm=False,
+        use_layerscale=False,
+        layerscale_init=1e-5,
     ):
         super().__init__()
-        print(f"xattn: emb_res {emb_res} | dim {dim} | heads {heads} | avoid_groupnorm {avoid_groupnorm} | q_t_emb {q_t_emb}")
+        print(
+            f"xattn: emb_res {emb_res} | dim {dim} | heads {heads} | avoid_groupnorm {avoid_groupnorm} | q_t_emb {q_t_emb} | use_rezero {use_rezero}"
+        )
         self.dim = dim
         self.heads = heads
         self.text_dim = text_dim
@@ -161,10 +167,16 @@ class CrossAttention(nn.Module):
         self.kv = torch.nn.Linear(self.text_dim, 2*self.dim, bias=False)
         self.attn = torch.nn.MultiheadAttention(self.dim, self.heads, batch_first=True)
 
-        # self.src_ln = torch.nn.LayerNorm(self.text_dim)
-        self.src_ln = normalization(self.text_dim)
         self.avoid_groupnorm = avoid_groupnorm
         self.q_t_emb = q_t_emb
+        self.use_rezero = use_rezero
+        self.use_layerscale = use_layerscale
+        self.no_prenorm = use_rezero and not rezero_keeps_prenorm
+
+        if self.no_prenorm:
+            self.src_ln = nn.Identity()
+        else:
+            self.src_ln = normalization(self.text_dim)
 
         self.emb_res = emb_res
         self.tgt_pos_emb = None
@@ -180,20 +192,28 @@ class CrossAttention(nn.Module):
             )
 
 
-        if avoid_groupnorm:
-            self.tgt_ln = torch.nn.LayerNorm(self.dim)
-        elif self.q_t_emb:
+        if self.q_t_emb:
             self.tgt_ln = AdaGN(
                 emb_channels=time_embed_dim,
                 out_channels=self.dim,
                 num_groups=32,
-                nonlin_in=True  # TODO: does this matter?
+                nonlin_in=True,  # TODO: does this matter?
+                do_norm=not self.no_prenorm,
             )
+        elif self.no_prenorm:
+            self.tgt_ln = nn.Identity()
+        elif avoid_groupnorm:
+            self.tgt_ln = torch.nn.LayerNorm(self.dim)
         else:
             self.tgt_ln = normalization(self.dim)
 
         self.gain_scale = gain_scale
-        self.gain = torch.nn.Parameter(torch.as_tensor(np.log(init_gain) / gain_scale))
+        if self.use_layerscale:
+            self.gain = torch.nn.Parameter(layerscale_init * torch.ones(self.dim))
+        elif self.use_rezero:
+            self.gain = torch.nn.Parameter(torch.zeros(1))
+        else:
+            self.gain = torch.nn.Parameter(torch.as_tensor(np.log(init_gain) / gain_scale))
 
         self.resid = resid
 
@@ -204,6 +224,12 @@ class CrossAttention(nn.Module):
 
         if lr_mult is not None:
             multiply_lr_via_hooks(self, lr_mult)
+
+    def effective_gain(self):
+        g = self.gain_scale * self.gain
+        if not (self.use_rezero or self.use_layerscale):
+            g = g.exp()
+        return g
 
     def forward(self, src, tgt, tgt_pos_embs=None, timestep_emb=None):
         def _to_b_hw_c(x, retdims=True):
@@ -252,7 +278,7 @@ class CrossAttention(nn.Module):
         k, v = kv.chunk(2, dim=-1)
 
         attn_output, attn_output_weights = self.attn(q, k, v)
-        attn_output = (self.gain_scale * self.gain).exp() * attn_output
+        attn_output = attn_output * self.effective_gain()
         attn_output = _to_b_c_h_w(attn_output, spatial)
 
         if self.resid:

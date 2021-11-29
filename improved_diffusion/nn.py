@@ -20,13 +20,13 @@ class GroupNorm32(nn.GroupNorm):
 
 
 class AdaGN(nn.Module):
-    def __init__(self, emb_channels, out_channels, num_groups, nonlin_in=True):
+    def __init__(self, emb_channels, out_channels, num_groups, nonlin_in=True, do_norm=True):
         super().__init__()
         self.emb_layers = nn.Sequential(
             SiLU() if nonlin_in else nn.Identity(),
             nn.Linear(emb_channels, 2 * out_channels)
         )
-        self.normalization = nn.GroupNorm(num_groups, out_channels)
+        self.normalization = nn.GroupNorm(num_groups, out_channels) if do_norm else nn.Identity()
 
     def forward(self, h, emb, side_emb=None):
         emb_out = self.emb_layers(emb).type(h.dtype)

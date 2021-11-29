@@ -8,6 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from axial_positional_embedding import AxialPositionalEmbedding
+from x_transformers.x_transformers import Rezero
 
 from .fp16_util import convert_module_to_f16, convert_module_to_f32
 from .nn import (
@@ -44,9 +45,17 @@ class TextTimestepBlock(nn.Module):
         """
 
 
-class CrossAttentionAdapter(CrossAttention, TextTimestepBlock):
+# class CrossAttentionAdapter(CrossAttention, TextTimestepBlock):
+#     def forward(self, x, emb, txt, tgt_pos_embs=None, timesteps=None):
+#         return super().forward(src=txt, tgt=x, tgt_pos_embs=tgt_pos_embs, timestep_emb=emb)
+class CrossAttentionAdapter(TextTimestepBlock):
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+        self.cross_attn = CrossAttention(*args, **kwargs)
+
     def forward(self, x, emb, txt, tgt_pos_embs=None, timesteps=None):
-        return super().forward(src=txt, tgt=x, tgt_pos_embs=tgt_pos_embs, timestep_emb=emb)
+        return self.cross_attn.forward(src=txt, tgt=x, tgt_pos_embs=tgt_pos_embs, timestep_emb=emb)
+
 
 
 class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
@@ -402,6 +411,10 @@ class UNetModel(nn.Module):
         txt_avoid_groupnorm=False,
         cross_attn_orth_init=False,
         cross_attn_q_t_emb=False,
+        txt_rezero=False,
+        cross_attn_rezero=False,
+        cross_attn_rezero_keeps_prenorm=False,
+        cross_attn_use_layerscale=False,
         verbose=False
     ):
         super().__init__()
@@ -448,6 +461,8 @@ class UNetModel(nn.Module):
                 depth=txt_depth,
                 max_seq_len=max_seq_len,
                 lr_mult=text_lr_mult,
+                use_rezero=txt_rezero,
+                use_scalenorm=not txt_rezero,
             )
 
         self.tgt_pos_embs = nn.ModuleDict({})
@@ -527,6 +542,9 @@ class UNetModel(nn.Module):
                         avoid_groupnorm=txt_avoid_groupnorm,
                         orth_init=cross_attn_orth_init,
                         q_t_emb=cross_attn_q_t_emb,
+                        use_rezero=cross_attn_rezero,
+                        rezero_keeps_prenorm=cross_attn_rezero_keeps_prenorm,
+                        use_layerscale=cross_attn_use_layerscale,
                     )
                     if txt_attn_before_attn and (ds in attention_resolutions):
                         layers.insert(-1, caa)
@@ -637,6 +655,9 @@ class UNetModel(nn.Module):
                         avoid_groupnorm=txt_avoid_groupnorm,
                         orth_init=cross_attn_orth_init,
                         q_t_emb=cross_attn_q_t_emb,
+                        use_rezero=cross_attn_rezero,
+                        rezero_keeps_prenorm=cross_attn_rezero_keeps_prenorm,
+                        use_layerscale=cross_attn_use_layerscale,
                     )
                     if txt_attn_before_attn and (ds in attention_resolutions):
                         layers.insert(-1, caa)

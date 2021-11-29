@@ -113,8 +113,12 @@ class TrainLoop:
 
         self.opt = AdamW(
             [
-                {"params": params, "lr": lr}
-                for params, lr in zip(self.master_params, [self.text_lr, self.text_lr, self.lr, self.lr])
+                {"params": params, "lr": lr, "weight_decay": wd}
+                for params, lr, wd in zip(
+                    self.master_params,
+                    [self.text_lr, self.text_lr, self.lr, self.lr],
+                    [0., 0., 0., self.weight_decay]
+                )
             ],
             lr=self.lr,
             weight_decay=self.weight_decay
@@ -346,7 +350,7 @@ class TrainLoop:
             if hasattr(m, 'gain'):
                 # gain_val = (getattr(m, 'gain_scale') * getattr(m, 'gain')).exp().item()
                 gain_val = m.effective_gain()
-                if len(gain_val) == 1:
+                if gain_val.ndim < 1 or len(gain_val) == 1:
                     gain_val = gain_val.item()
                 else:
                     gain_val = gain_val.detach().abs().mean().item()

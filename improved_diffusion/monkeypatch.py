@@ -11,7 +11,6 @@ import bisect
 import math
 
 import torch.autograd.profiler_util
-import torch.autograd.profiler
 
 
 def _build_table(
@@ -264,6 +263,7 @@ def _build_table(
 
 
 torch.autograd.profiler_util.EventList._build_table = _build_table
+import torch.autograd.profiler
 torch.autograd.profiler.EventList = torch.autograd.profiler_util.EventList
 
 

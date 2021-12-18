@@ -24,6 +24,8 @@ from .resample import LossAwareSampler, UniformSampler
 
 from .image_datasets import tokenize
 
+import .monkeypatch
+
 # For ImageNet experiments, this was a good default value.
 # We found that the lg_loss_scale quickly climbed to
 # 20-21 within the first ~1K steps of training.

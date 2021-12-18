@@ -199,10 +199,10 @@ def _build_table(
         row_values = [
             name,
             # Self CPU total %, 0 for async events.
-            _format_time_share(evt.self_cpu_time_total, sum_self_cpu_time_total),
+            torch.autograd.profiler_util.torch.autograd.profiler_util._format_time_share(evt.self_cpu_time_total, sum_self_cpu_time_total),
             evt.self_cpu_time_total_str,  # Self CPU total
             # CPU total %, 0 for async events.
-            _format_time_share(evt.cpu_time_total, sum_self_cpu_time_total) if not evt.is_async else 0,
+            torch.autograd.profiler_util.torch.autograd.profiler_util._format_time_share(evt.cpu_time_total, sum_self_cpu_time_total) if not evt.is_async else 0,
             evt.cpu_time_total_str,  # CPU total
             evt.cpu_time_str,  # CPU time avg
         ]
@@ -210,23 +210,23 @@ def _build_table(
             row_values.extend([
                 evt.self_cuda_time_total_str,
                 # CUDA time total %
-                _format_time_share(evt.self_cuda_time_total, sum_self_cuda_time_total),
+                torch.autograd.profiler_util.torch.autograd.profiler_util._format_time_share(evt.self_cuda_time_total, sum_self_cuda_time_total),
                 evt.cuda_time_total_str,
                 evt.cuda_time_str,  # Cuda time avg
             ])
         if profile_memory:
             row_values.extend([
                 # CPU Mem Total
-                _format_memory(evt.cpu_memory_usage),
+                torch.autograd.profiler_util._format_memory(evt.cpu_memory_usage),
                 # Self CPU Mem Total
-                _format_memory(evt.self_cpu_memory_usage),
+                torch.autograd.profiler_util._format_memory(evt.self_cpu_memory_usage),
             ])
             if has_cuda_mem:
                 row_values.extend([
                     # CUDA Mem Total
-                    _format_memory(evt.cuda_memory_usage),
+                    torch.autograd.profiler_util._format_memory(evt.cuda_memory_usage),
                     # Self CUDA Mem Total
-                    _format_memory(evt.self_cuda_memory_usage),
+                    torch.autograd.profiler_util._format_memory(evt.self_cuda_memory_usage),
                 ])
         row_values.append(
             evt.count,  # Number of calls
@@ -256,9 +256,9 @@ def _build_table(
             append(row_format.format(*empty_headers))
 
     append(header_sep)
-    append("Self CPU time total: {}".format(_format_time(sum_self_cpu_time_total)))
+    append("Self CPU time total: {}".format(torch.autograd.profiler_util._format_time(sum_self_cpu_time_total)))
     if has_cuda_time:
-        append("Self CUDA time total: {}".format(_format_time(sum_self_cuda_time_total)))
+        append("Self CUDA time total: {}".format(torch.autograd.profiler_util._format_time(sum_self_cuda_time_total)))
     return ''.join(result)
 
 

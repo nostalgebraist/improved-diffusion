@@ -276,9 +276,13 @@ class TrainLoop:
             batch, cond = next(self.data)
 
             if self.use_profiler:
-                with th.profiler.profile(with_stack=True) as _p:
+                with th.profiler.profile(record_shapes=True, with_stack=True) as _p:
                     self.run_step(batch, cond, verbose = (self.step % self.log_interval == 0))
-                print(_p.key_averages(group_by_stack_n=15).table(sort_by="self_cuda_time_total", row_limit=50))
+                print(
+                    _p.key_averages(
+                        group_by_input_shape=True, group_by_stack_n=15
+                        ).table(sort_by="self_cuda_time_total", row_limit=50, max_src_column_width=200)
+                )
             else:
                 self.run_step(batch, cond, verbose = (self.step % self.log_interval == 0))
 

@@ -25,6 +25,7 @@ from .resample import LossAwareSampler, UniformSampler
 from .image_datasets import tokenize
 
 import improved_diffusion.monkeypatch
+from improved_diffusion.monkeypatch import _build_table
 
 # For ImageNet experiments, this was a good default value.
 # We found that the lg_loss_scale quickly climbed to
@@ -281,15 +282,11 @@ class TrainLoop:
                 with th.profiler.profile(record_shapes=True, with_stack=True) as _p:
                     self.run_step(batch, cond, verbose = (self.step % self.log_interval == 0))
                 print(
-                    _p.key_averages(
-                        group_by_input_shape=True, group_by_stack_n=15
-                        ).table(sort_by="self_cuda_time_total", row_limit=200, max_src_column_width=200)
+                    _build_table(
+                        _p.key_averages(group_by_input_shape=True, group_by_stack_n=15),
+                        sort_by="self_cuda_time_total", row_limit=200, max_src_column_width=200
+                    )
                 )
-                # print(
-                #     _p.key_averages(
-                #         group_by_input_shape=True, group_by_stack_n=15
-                #         ).table(sort_by="self_cpu_time_total", row_limit=30, max_src_column_width=200)
-                # )
             else:
                 self.run_step(batch, cond, verbose = (self.step % self.log_interval == 0))
 

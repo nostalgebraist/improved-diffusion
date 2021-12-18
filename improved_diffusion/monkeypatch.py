@@ -269,7 +269,8 @@ torch.autograd.profiler.EventList = torch.autograd.profiler_util.EventList
 
 def key_averages(self, group_by_input_shape: bool = False, group_by_stack_n: int = 0):
     print('in monkeypatch key_averages')
-    assert self.profiler
-    return self.profiler.key_averages(group_by_input_shape, group_by_stack_n)
+    self._check_finish()
+    assert self.function_events is not None, "Expected profiling results"
+    return self.function_events.key_averages(group_by_input_shape, group_by_stack_n)
 
 torch.autograd.profiler.profile.key_averages = key_averages

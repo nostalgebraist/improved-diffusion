@@ -24,7 +24,7 @@ from .resample import LossAwareSampler, UniformSampler
 
 from .image_datasets import tokenize
 
-import .monkeypatch
+from .monkeypatch import pfu
 
 # For ImageNet experiments, this was a good default value.
 # We found that the lg_loss_scale quickly climbed to

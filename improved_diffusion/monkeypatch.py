@@ -264,7 +264,7 @@ def _build_table(
 
 
 torch.autograd.profiler_util.EventList._build_table = _build_table
-torch.autograd.profiler = torch.autograd.profiler_util.EventList
+torch.autograd.profiler.EventList = torch.autograd.profiler_util.EventList
 
 
 def key_averages(self, group_by_input_shape: bool = False, group_by_stack_n: int = 0):

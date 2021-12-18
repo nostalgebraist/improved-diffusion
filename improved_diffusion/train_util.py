@@ -4,6 +4,8 @@ import os
 import time
 from collections import defaultdict
 
+import improved_diffusion.monkeypatch
+
 import blobfile as bf
 import numpy as np
 import torch as th
@@ -23,8 +25,6 @@ from .nn import update_ema
 from .resample import LossAwareSampler, UniformSampler
 
 from .image_datasets import tokenize
-
-from .monkeypatch import pfu
 
 # For ImageNet experiments, this was a good default value.
 # We found that the lg_loss_scale quickly climbed to

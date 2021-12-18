@@ -10,7 +10,7 @@ from typing import Dict, List, Tuple, Optional
 import bisect
 import math
 
-import torch.autograd.profiler_util as pfu
+import torch.autograd.profiler_util
 
 
 def _build_table(
@@ -23,6 +23,7 @@ def _build_table(
         profile_memory=False,
         top_level_events_only=False):
     """Prints a summary of events (which can be a list of FunctionEvent or FunctionEventAvg)."""
+    print("in monkeypatch")
     if len(events) == 0:
         return ""
 
@@ -261,4 +262,4 @@ def _build_table(
     return ''.join(result)
 
 
-pfu.EventList._build_table = _build_table
+torch.autograd.profiler_util.EventList._build_table = _build_table

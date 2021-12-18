@@ -792,9 +792,9 @@ class UNetModel(nn.Module):
         """
         Convert the torso of the model to float16.
         """
-        self.input_blocks.apply(convert_module_to_f16).to(memory_format=th.channels_last)
-        self.middle_block.apply(convert_module_to_f16).to(memory_format=th.channels_last)
-        self.output_blocks.apply(convert_module_to_f16).to(memory_format=th.channels_last)
+        self.input_blocks.apply(convert_module_to_f16)#.to(memory_format=th.channels_last)
+        self.middle_block.apply(convert_module_to_f16)#.to(memory_format=th.channels_last)
+        self.output_blocks.apply(convert_module_to_f16)#.to(memory_format=th.channels_last)
         # if hasattr(self, 'text_encoder'):
         #     self.text_encoder.apply(convert_module_to_f16)
 
@@ -844,7 +844,7 @@ class UNetModel(nn.Module):
             txt, attn_mask = self.text_encoder(txt, timesteps=timesteps)
             txt = txt.type(self.inner_dtype)
 
-        h = x.to(memory_format=th.channels_last)
+        h = x#.to(memory_format=th.channels_last)
 
         if self.monochrome_adapter:
             h = self.mono_to_rgb(h)

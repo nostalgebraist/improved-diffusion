@@ -93,6 +93,7 @@ def main():
         beta1=args.beta1,
         beta2=args.beta2,
         weave_legacy_param_names=args.weave_legacy_param_names,
+        use_profiler=args.use_profiler
     ).run_loop()
 
 
@@ -128,6 +129,7 @@ def create_argparser():
         char_level=False,
         text_encoder_warmstart="",
         weave_legacy_param_names=False,
+        use_profiler=False
     )
     defaults.update(model_and_diffusion_defaults())
     parser = argparse.ArgumentParser()

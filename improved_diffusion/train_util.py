@@ -54,7 +54,8 @@ class TrainLoop:
         lg_loss_scale = INITIAL_LOG_LOSS_SCALE,
         beta1=0.9,
         beta2=0.999,
-        weave_legacy_param_names=False
+        weave_legacy_param_names=False,
+        use_profiler=False
     ):
         self.model = model
         self.diffusion = diffusion
@@ -78,6 +79,7 @@ class TrainLoop:
         self.weight_decay = weight_decay
         self.lr_anneal_steps = lr_anneal_steps
         self.tokenizer = tokenizer
+        self.use_profiler = use_profiler
 
         self.step = 0
         self.resume_step = 0
@@ -273,13 +275,12 @@ class TrainLoop:
         ):
             batch, cond = next(self.data)
 
-            # # yes profiler
-            # with th.profiler.profile(with_stack=True) as _p:
-            #     self.run_step(batch, cond, verbose = (self.step % self.log_interval == 0))
-            # print(_p.key_averages(group_by_stack_n=15).table(sort_by="self_cuda_time_total", row_limit=50))
-
-            # no profiler
-            self.run_step(batch, cond, verbose = (self.step % self.log_interval == 0))
+            if self.use_profiler:
+                with th.profiler.profile(with_stack=True) as _p:
+                    self.run_step(batch, cond, verbose = (self.step % self.log_interval == 0))
+                print(_p.key_averages(group_by_stack_n=15).table(sort_by="self_cuda_time_total", row_limit=50))
+            else:
+                self.run_step(batch, cond, verbose = (self.step % self.log_interval == 0))
 
             if self.step % self.log_interval == 0:
                 t2 = time.time()

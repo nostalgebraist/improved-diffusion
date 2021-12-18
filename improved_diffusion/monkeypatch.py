@@ -33,7 +33,7 @@ def _build_table(
         [(event.input_shapes is not None and len(event.input_shapes) > 0) for event in events])
 
     if sort_by is not None:
-        events = pfu.EventList(sorted(
+        events = torch.autograd.profiler_util.EventList(sorted(
             events, key=lambda evt: getattr(evt, sort_by), reverse=True
         ), use_cuda=has_cuda_time, profile_memory=profile_memory, with_flops=with_flops)
 

@@ -36,7 +36,8 @@ def tokenize(tokenizer, txt):
     return [t.ids for t in tokenizer.encode_batch(txt)]
 
 
-def collate_batch_with_txt(batch, cond, tokenizer):
+def collate_batch_with_txt(data, tokenizer):
+    batch, cond = data
     batch = th.stack(batch, dim=0)
     txts = [entry['txt'] for entry in cond]
     cond = {'txt': th.as_tensor(tokenize(tokenizer, txts))}

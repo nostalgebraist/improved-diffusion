@@ -198,7 +198,7 @@ class TrainLoop:
                 copy.deepcopy(self.master_params) for _ in range(len(self.ema_rate))
             ]
 
-        if th.cuda.is_available():
+        if th.cuda.is_available() and False:
             self.use_ddp = True
             self.ddp_model = DDP(
                 self.model,

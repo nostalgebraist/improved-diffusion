@@ -39,7 +39,7 @@ def tokenize(tokenizer, txt):
 def collate_batch_with_txt(data, tokenizer):
     batch = [b for b, c in data]
     cond = [c for b, c in data]
-    batch = th.stack(th.from_numpy(batch), dim=0)
+    batch = th.as_tensor(np.stack(batch, axis=0))
     txts = [entry['txt'] for entry in cond]
     cond = {'txt': th.as_tensor(tokenize(tokenizer, txts))}
     return batch, cond

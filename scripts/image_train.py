@@ -85,6 +85,7 @@ def main():
         class_cond=args.class_cond,
         txt=args.txt,
         monochrome=args.monochrome,
+        tokenizer=tokenizer
     )
 
     logger.log("training...")

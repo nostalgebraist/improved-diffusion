@@ -310,11 +310,11 @@ class TrainLoop:
             micro = batch[i : i + self.microbatch].to(dist_util.dev())
             micro_cond = {
                 k: v[i : i + self.microbatch].to(dist_util.dev())
-                if k != 'txt'
+                if isinstance(v, th.Tensor)
                 else v[i : i + self.microbatch]
                 for k, v in cond.items()
             }
-            if 'txt' in micro_cond:
+            if 'txt' in micro_cond and not isinstance(micro_cond['txt'], th.Tensor):
                 micro_cond['txt'] = th.as_tensor(tokenize(self.tokenizer, micro_cond['txt']), device=dist_util.dev())
             last_batch = (i + self.microbatch) >= batch.shape[0]
             t, weights = self.schedule_sampler.sample(micro.shape[0], dist_util.dev())

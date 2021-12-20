@@ -1,8 +1,10 @@
+from functools import partial
 import string
 from PIL import Image
 import blobfile as bf
 from mpi4py import MPI
 import numpy as np
+import torch as th
 from torch.utils.data import DataLoader, Dataset
 import torch.nn.functional as F
 import torchvision.transforms as T
@@ -34,9 +36,16 @@ def tokenize(tokenizer, txt):
     return [t.ids for t in tokenizer.encode_batch(txt)]
 
 
+def collate_batch_with_txt(batch, cond, tokenizer):
+    batch = th.stack(batch, dim=0)
+    txts = [entry['txt'] for entry in cond]
+    cond = {'txt': th.as_tensor(tokenize(tokenizer, txts))}
+    return batch, cond
+
+
 def load_data(
     *, data_dir, batch_size, image_size, class_cond=False, deterministic=False,
-    txt=False, monochrome=False, offset=0
+    txt=False, monochrome=False, offset=0, tokenizer=None
 ):
     """
     For a dataset, create a generator over (images, kwargs) pairs.
@@ -77,13 +86,22 @@ def load_data(
         shard=MPI.COMM_WORLD.Get_rank(),
         num_shards=MPI.COMM_WORLD.Get_size(),
     )
+    use_custom_collate = txt and (not class_cond) and (tokenizer is not None)
+    collate_fn = None
+    pin_memory = False
+    if use_custom_collate:
+        print("using custom collate")
+        collate_fn = partial(collate_batch_with_txt, tokenizer=tokenizer)
+        pin_memory = True
     if deterministic:
         loader = DataLoader(
             dataset, batch_size=batch_size, shuffle=False, num_workers=1, drop_last=True,
+            collate_fn=collate_fn, pin_memory=pin_memory
         )
     else:
         loader = DataLoader(
             dataset, batch_size=batch_size, shuffle=True, num_workers=1, drop_last=True,
+            collate_fn=collate_fn, pin_memory=pin_memory
         )
     while True:
         yield from loader

@@ -80,7 +80,7 @@ def main():
     logger.log("creating data loader...")
     data = load_data(
         data_dir=args.data_dir,
-        batch_size=args.batch_size,
+        batch_size=args.microbatch,
         image_size=args.image_size,
         class_cond=args.class_cond,
         txt=args.txt,

@@ -271,15 +271,13 @@ class TrainLoop:
             not self.lr_anneal_steps
             or self.step + self.resume_step < self.lr_anneal_steps
         ):
-            batch, cond = next(self.data)
-
             # # yes profiler
             # with th.profiler.profile(with_stack=True) as _p:
             #     self.run_step(batch, cond, verbose = (self.step % self.log_interval == 0))
             # print(_p.key_averages(group_by_stack_n=15).table(sort_by="self_cuda_time_total", row_limit=50))
 
             # no profiler
-            self.run_step(batch, cond, verbose = (self.step % self.log_interval == 0))
+            self.run_step(verbose = (self.step % self.log_interval == 0))
 
             if self.step % self.log_interval == 0:
                 t2 = time.time()
@@ -296,8 +294,10 @@ class TrainLoop:
         if (self.step - 1) % self.save_interval != 0:
             self.save()
 
-    def run_step(self, batch, cond, verbose=False):
-        self.forward_backward(batch, cond, verbose=verbose)
+    def run_step(self, verbose=False):
+        for i in range(0, self.batch_size // self.microbatch):
+            batch, cond = next(self.data)
+            self.forward_backward(batch, cond, verbose=verbose)
         if self.use_fp16:
             self.optimize_fp16()
         else:
@@ -307,17 +307,16 @@ class TrainLoop:
     def forward_backward(self, batch, cond, verbose=False):
         zero_grad(self.model_params)
         for i in range(0, batch.shape[0], self.microbatch):
-            print(batch.is_pinned())
-            print(cond['txt'].is_pinned())
-            micro = batch[i : i + self.microbatch].to(dist_util.dev())
-            micro_cond = {
-                k: v[i : i + self.microbatch].to(dist_util.dev())
-                if isinstance(v, th.Tensor)
-                else v[i : i + self.microbatch]
-                for k, v in cond.items()
-            }
+            micro = batch.to(dist_util.dev())
+            micro_cond = {k: v.to(dist_util.dev()) for k, v in cond.items()}
+            # micro = batch[i : i + self.microbatch].to(dist_util.dev())
+            # micro_cond = {
+            #     k: v[i : i + self.microbatch].to(dist_util.dev())
+            #     if isinstance(v, th.Tensor)
+            #     else v[i : i + self.microbatch]
+            #     for k, v in cond.items()
+            # }
             if 'txt' in micro_cond and not isinstance(micro_cond['txt'], th.Tensor):
-                print('tokenizing in main process')
                 micro_cond['txt'] = th.as_tensor(tokenize(self.tokenizer, micro_cond['txt']), device=dist_util.dev())
             last_batch = (i + self.microbatch) >= batch.shape[0]
             t, weights = self.schedule_sampler.sample(micro.shape[0], dist_util.dev())

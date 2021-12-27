@@ -8,7 +8,7 @@ from einops import rearrange
 from x_transformers import TransformerWrapper, Encoder, XTransformer
 from x_transformers.x_transformers import AbsolutePositionalEmbedding, Attention, FeedForward, Rezero
 
-from .nn import normalization_1group, timestep_embedding, SiLU, AdaGN
+from .nn import normalization_1group, timestep_embedding, SiLU, AdaGN, checkpoint
 
 
 def make_grad_mult_hook(mult, debug=False):
@@ -66,6 +66,7 @@ class TextEncoder(nn.Module):
         use_line_emb=True,
         tokenizer=None,
         rel_pos_bias=False,
+        use_checkpoint=False
     ):
         super().__init__()
 
@@ -78,6 +79,7 @@ class TextEncoder(nn.Module):
         self.return_sequences = return_sequences
         self.use_line_emb = use_line_emb
         self.dim = inner_dim
+        self.use_checkpoint = use_checkpoint
 
         if tokenizer is not None:
             num_tokens = tokenizer.get_vocab_size()
@@ -113,7 +115,10 @@ class TextEncoder(nn.Module):
             nn.Linear(inner_dim, inner_dim),
         )
 
-    def forward(self, tokens, timesteps=None):
+    def forward(self, tokens, timesteps):
+        return checkpoint(self._forward, (tokens, timesteps), self.parameters(), self.use_checkpoint)
+
+    def _forward(self, tokens, timesteps):
         if self.use_encoder_decoder:
             raise ValueError('no longer supported')
         else:
@@ -128,11 +133,10 @@ class TextEncoder(nn.Module):
                 # le_norm = (le ** 2).sum().sqrt().item()
                 x = x + le
 
-            if timesteps is not None:
-                emb = self.time_embed_scale * self.time_embed(timestep_embedding(timesteps, self.dim))
-                emb = emb.unsqueeze(1).tile((1, x.shape[1], 1))
-                # te_norm = (emb ** 2).sum().sqrt().item()
-                x = x + emb
+            emb = self.time_embed_scale * self.time_embed(timestep_embedding(timesteps, self.dim))
+            emb = emb.unsqueeze(1).tile((1, x.shape[1], 1))
+            # te_norm = (emb ** 2).sum().sqrt().item()
+            x = x + emb
 
             # print((te_norm, tok_norm, pe_norm, le_norm))
 

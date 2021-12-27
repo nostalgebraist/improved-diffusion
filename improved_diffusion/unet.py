@@ -556,7 +556,7 @@ class UNetModel(nn.Module):
             )
 
         self.tgt_pos_embs = nn.ModuleDict({})
-        self.pos_emb_inputs = {}
+        self.pos_emb_inputs = nn.ParameterDict({})
 
         time_embed_dim = model_channels * 4
         self.time_embed = nn.Sequential(

@@ -1,7 +1,7 @@
 """
 Helpers to train with 16-bit precision.
 """
-
+from itertools import chain
 import torch
 import torch.nn as nn
 from torch._utils import _flatten_dense_tensors, _unflatten_dense_tensors
@@ -21,13 +21,13 @@ def convert_module_to_f16(l, bf16=False):
         if l.bias is not None:
             l.bias.data = l.bias.data.to(dtype)
     if isinstance(l, (CrossAttention, TextEncoder)):
-        for n, p in l.named_parameters():
+        for n, p in chain(l.named_parameters(), l.named_buffers()):
             if 'tgt_ln' in n and (not l.avoid_groupnorm):
                 if 'normalization' not in n.partition('tgt_ln')[2]:
                     continue
             p.data = p.data.to(dtype)
     if isinstance(l, ImageToTextCrossAttention):
-        for n, p in l.named_parameters():
+        for n, p in chain(l.named_parameters(), l.named_buffers()):
             if 'src_ln' in n:
                 if 'normalization' not in n.partition('src_ln')[2]:
                     continue

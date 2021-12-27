@@ -312,9 +312,12 @@ class CrossAttention(nn.Module):
 
         tgt_in = tgt
 
+        # b, c, *spatial = tgt_in.shape
+        # pos_emb = tgt_pos_emb(_to_b_hw_c(tgt_in, retdims=False))
+        # pos_emb = _to_b_c_h_w(pos_emb, spatial)
+
         b, c, *spatial = tgt_in.shape
-        pos_emb = tgt_pos_emb(_to_b_hw_c(tgt_in, retdims=False))
-        pos_emb = _to_b_c_h_w(pos_emb, spatial)
+        pos_emb = tgt_pos_emb
 
         tgt_in = self.tgt_ln(h=tgt_in, emb=timestep_emb, side_emb=pos_emb)
 
@@ -456,9 +459,12 @@ class ImageToTextCrossAttention(nn.Module):
         # image
         src_in = src
 
+        # b, c, *spatial = src_in.shape
+        # pos_emb = src_pos_emb(_to_b_hw_c(src_in, retdims=False))
+        # pos_emb = _to_b_c_h_w(pos_emb, spatial)
+
         b, c, *spatial = src_in.shape
-        pos_emb = src_pos_emb(_to_b_hw_c(src_in, retdims=False))
-        pos_emb = _to_b_c_h_w(pos_emb, spatial)
+        pos_emb = src_pos_emb
 
         src_in = self.src_ln(h=src_in, emb=timestep_emb, side_emb=pos_emb)
 

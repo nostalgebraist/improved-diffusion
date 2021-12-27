@@ -7,6 +7,7 @@ import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
 
+from einops import rearrange
 from axial_positional_embedding import AxialPositionalEmbedding
 from x_transformers.x_transformers import Rezero
 
@@ -555,6 +556,7 @@ class UNetModel(nn.Module):
             )
 
         self.tgt_pos_embs = nn.ModuleDict({})
+        self.pos_emb_inputs = {}
 
         time_embed_dim = model_channels * 4
         self.time_embed = nn.Sequential(
@@ -619,6 +621,9 @@ class UNetModel(nn.Module):
                             dim=pos_emb_dim,
                             axial_shape=(emb_res, emb_res),
                         )
+                        pos_emb_input = torch.zeros((1, emb_res * emb_res, 1))
+                        self.register_buffer(f"pos_emb_input_{emb_res}", pos_emb_input)
+                        self.pos_emb_inputs[emb_res] = getattr(self, f"pos_emb_input_{emb_res}")
                     caa_args = dict(
                         use_checkpoint=False,
                         dim=ch,
@@ -742,6 +747,9 @@ class UNetModel(nn.Module):
                             dim=pos_emb_dim,
                             axial_shape=(emb_res, emb_res),
                         )
+                        pos_emb_input = torch.zeros((1, emb_res * emb_res, 1))
+                        self.register_buffer(f"pos_emb_input_{emb_res}", pos_emb_input)
+                        self.pos_emb_inputs[emb_res] = getattr(self, f"pos_emb_input_{emb_res}")
                     caa_args = dict(
                         use_checkpoint=False,
                         dim=ch,
@@ -870,6 +878,13 @@ class UNetModel(nn.Module):
             txt, attn_mask = self.text_encoder(txt, timesteps=timesteps)
             txt = txt.type(self.inner_dtype)
 
+        computed_pos_embs = {}
+        for emb_res in self.tgt_pos_embs:
+            pe = self.tgt_pos_embs[emb_res](self.pos_emb_inputs[emb_res])
+            pe = torch.tile(pe, (x.shape[0], 1, 1))
+            pe = rearrange(pe, 'b (h w) c -> b c h w', h=emb_res)
+            computed_pos_embs[emb_res] = pe
+
         h = x
 
         if self.monochrome_adapter:
@@ -881,9 +896,9 @@ class UNetModel(nn.Module):
         if self.channels_last_mem:
             h = h.to(memory_format=th.channels_last)
         for module in self.input_blocks:
-            h, txt = module((h, txt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs)
+            h, txt = module((h, txt), emb, attn_mask=attn_mask, tgt_pos_embs=computed_pos_embs)
             hs.append(h)
-        h, txt = self.middle_block((h, txt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs)
+        h, txt = self.middle_block((h, txt), emb, attn_mask=attn_mask, tgt_pos_embs=computed_pos_embs)
         for module in self.output_blocks:
             cat_in = th.cat([h, hs.pop()], dim=1)
             h, txt = module((cat_in, txt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs)

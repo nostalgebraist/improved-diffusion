@@ -180,9 +180,7 @@ class CheckpointFunction(th.autograd.Function):
     def forward(ctx, run_function, length, *args):
         ctx.run_function = run_function
         ctx.input_tensors = list(args[:length])
-        print('\nckptfn')
-        for arg in ctx.input_tensors:
-            print(type(arg), None if not isinstance(arg, th.Tensor) else arg.dtype)
+        ctx.input_tensors_require_grad = [t.requires_grad for t in ctx.input_tensors]
         ctx.input_params = list(args[length:])
         with th.no_grad():
             output_tensors = ctx.run_function(*ctx.input_tensors)
@@ -190,7 +188,8 @@ class CheckpointFunction(th.autograd.Function):
 
     @staticmethod
     def backward(ctx, *output_grads):
-        ctx.input_tensors = [x.detach().requires_grad_(True) for x in ctx.input_tensors]
+        ctx.input_tensors = [x.detach().requires_grad_(rg)
+                             for x, rg in zip(ctx.input_tensors, ctx.input_tensors_require_grad)]
         with th.enable_grad():
             # Fixes a bug where the first op in run_function modifies the
             # Tensor storage in place, which is not allowed for detach()'d

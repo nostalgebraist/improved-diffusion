@@ -72,9 +72,6 @@ class WeaveAttentionAdapter(TextTimestepBlock):
 
     def forward(self, x, emb, txt, image_pos_embs=None, attn_mask=None):
         image_pos_emb = image_pos_embs[str(self.weave_attn.emb_res)]
-        print('\nadapter')
-        for arg in (x, emb, txt, image_pos_emb, attn_mask):
-            print(type(arg), None if not isinstance(arg, th.Tensor) else arg.dtype)
         return checkpoint(self._forward, (x, emb, txt, image_pos_emb, attn_mask), self.parameters(), self.use_checkpoint)
 
     def _forward(self, x, emb, txt, image_pos_emb=None, attn_mask=None):

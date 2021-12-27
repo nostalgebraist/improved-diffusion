@@ -558,14 +558,14 @@ class WeaveAttention(nn.Module):
             *[CrossAttention(**text_to_image_kwargs) for _ in range(n_layers)]
         )
 
-    def forward(self, text, image, attn_mask=None, tgt_pos_embs=None, timestep_emb=None):
-        shared_kwargs = dict(attn_mask=attn_mask, timestep_emb=timestep_emb)
+    def forward(self, text, image, image_pos_emb, timestep_emb, attn_mask=None):
+        shared_kwargs = dict(image_pos_emb=image_pos_emb, timestep_emb=timestep_emb, attn_mask=attn_mask)
 
         orig_text = text
 
         for i_to_t, t_to_i in zip(self.image_to_text_layers, self.text_to_image_layers):
-            text, image = i_to_t(src=image, tgt=text, image_pos_embs=tgt_pos_embs, **shared_kwargs)
-            image, text = t_to_i(src=text, tgt=image, tgt_pos_embs=tgt_pos_embs, **shared_kwargs)
+            text, image = i_to_t(src=image, tgt=text, **shared_kwargs)
+            image, text = t_to_i(src=text, tgt=image, **shared_kwargs)
 
         if self.weave_v2:
             return image, text

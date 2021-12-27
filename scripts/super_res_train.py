@@ -141,7 +141,10 @@ def create_argparser():
         verbose=False,
         state_dict_sandwich=0,
         state_dict_sandwich_manual_remaps="",
-        min_filesize=0
+        min_filesize=0,
+        use_checkpoint_down=False,
+        use_checkpoint_middle=False,
+        use_checkpoint_up=False,
     )
     defaults.update(sr_model_and_diffusion_defaults())
     parser = argparse.ArgumentParser()

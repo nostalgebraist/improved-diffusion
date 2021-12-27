@@ -183,6 +183,8 @@ class CheckpointFunction(th.autograd.Function):
         ctx.input_params = list(args[length:])
         with th.no_grad():
             output_tensors = ctx.run_function(*ctx.input_tensors)
+        for t in output_tensors:
+            print(('tf', t.shape))
         return output_tensors
 
     @staticmethod
@@ -196,7 +198,7 @@ class CheckpointFunction(th.autograd.Function):
             output_tensors = ctx.run_function(*shallow_copies)
         include_mask = [og.requires_grad for og in output_grads]
         for t in output_tensors:
-            print(('t', t.shape))
+            print(('tb', t.shape))
         for og in output_grads:
             print(('og', og.shape))
         input_grads = th.autograd.grad(

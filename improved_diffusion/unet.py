@@ -468,9 +468,9 @@ class UNetModel(nn.Module):
         txt_output_layers_only=False,
         monochrome_adapter=False,
         txt_attn_before_attn=False,
-        txt_avoid_groupnorm=False,
+        txt_avoid_groupnorm=False,  # ignored
         cross_attn_orth_init=False,
-        cross_attn_q_t_emb=False,
+        cross_attn_q_t_emb=False,  # ignored
         txt_rezero=False,
         txt_ff_glu=False,
         txt_ff_mult=4,
@@ -614,8 +614,7 @@ class UNetModel(nn.Module):
                     if emb_res not in self.tgt_pos_embs:
                         pos_emb_dim = ch
                         # pos emb in AdaGN
-                        if (not txt_avoid_groupnorm) and cross_attn_q_t_emb:
-                            pos_emb_dim *= 2
+                        pos_emb_dim *= 2
                         self.tgt_pos_embs[str(emb_res)] = AxialPositionalEmbedding(
                             dim=pos_emb_dim,
                             axial_shape=(emb_res, emb_res),
@@ -630,10 +629,7 @@ class UNetModel(nn.Module):
                         init_gain = cross_attn_init_gain,
                         gain_scale = cross_attn_gain_scale,
                         lr_mult=text_lr_mult,
-                        needs_tgt_pos_emb=False,
-                        avoid_groupnorm=txt_avoid_groupnorm,
                         orth_init=cross_attn_orth_init,
-                        q_t_emb=cross_attn_q_t_emb,
                         use_rezero=cross_attn_rezero,
                         rezero_keeps_prenorm=cross_attn_rezero_keeps_prenorm,
                         use_layerscale=cross_attn_use_layerscale,
@@ -741,8 +737,7 @@ class UNetModel(nn.Module):
                     if emb_res not in self.tgt_pos_embs:
                         pos_emb_dim = ch
                         # pos emb in AdaGN
-                        if (not txt_avoid_groupnorm) and cross_attn_q_t_emb:
-                            pos_emb_dim *= 2
+                        pos_emb_dim *= 2
                         self.tgt_pos_embs[str(emb_res)] = AxialPositionalEmbedding(
                             dim=pos_emb_dim,
                             axial_shape=(emb_res, emb_res),
@@ -757,10 +752,7 @@ class UNetModel(nn.Module):
                         init_gain = cross_attn_init_gain,
                         gain_scale = cross_attn_gain_scale,
                         lr_mult=text_lr_mult,
-                        needs_tgt_pos_emb=False,
-                        avoid_groupnorm=txt_avoid_groupnorm,
                         orth_init=cross_attn_orth_init,
-                        q_t_emb=cross_attn_q_t_emb,
                         use_rezero=cross_attn_rezero,
                         rezero_keeps_prenorm=cross_attn_rezero_keeps_prenorm,
                         use_layerscale=cross_attn_use_layerscale,

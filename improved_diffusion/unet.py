@@ -622,7 +622,7 @@ class UNetModel(nn.Module):
                             axial_shape=(emb_res, emb_res),
                         )
                         pos_emb_input = th.zeros((1, emb_res * emb_res, 1))
-                        self.register_buffer(f"pos_emb_input_{emb_res}", pos_emb_input)
+                        self.register_buffer(f"pos_emb_input_{emb_res}", pos_emb_input, persistent=False)
                         self.pos_emb_inputs[emb_res] = getattr(self, f"pos_emb_input_{emb_res}")
                     caa_args = dict(
                         use_checkpoint=False,
@@ -748,7 +748,7 @@ class UNetModel(nn.Module):
                             axial_shape=(emb_res, emb_res),
                         )
                         pos_emb_input = th.zeros((1, emb_res * emb_res, 1))
-                        self.register_buffer(f"pos_emb_input_{emb_res}", pos_emb_input)
+                        self.register_buffer(f"pos_emb_input_{emb_res}", pos_emb_input, persistent=False)
                         self.pos_emb_inputs[emb_res] = getattr(self, f"pos_emb_input_{emb_res}")
                     caa_args = dict(
                         use_checkpoint=False,

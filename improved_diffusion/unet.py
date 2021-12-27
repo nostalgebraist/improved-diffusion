@@ -886,7 +886,7 @@ class UNetModel(nn.Module):
             computed_pos_embs[emb_res] = pe
             print(pe.device)
             print(self.pos_emb_inputs[emb_res].device)
-            print(self.tgt_pos_embs[emb_res].weights[0].device)
+            print(self.tgt_pos_embs[emb_res].weights_0.device)
 
         h = x
 

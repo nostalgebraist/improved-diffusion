@@ -121,7 +121,7 @@ class TextEncoder(nn.Module):
         fwd = partial(self._forward, tokens=tokens, timesteps=timesteps)
         return checkpoint(fwd, tuple(), self.parameters(), self.use_checkpoint)
 
-    def _forward(self, tokens, timesteps):
+    def forward(self, tokens, timesteps):
         if self.use_encoder_decoder:
             raise ValueError('no longer supported')
         else:
@@ -146,7 +146,9 @@ class TextEncoder(nn.Module):
             attn_mask = tokens != 0
             my_attn_mask = torch.tile(attn_mask.unsqueeze(1).unsqueeze(1), (self.n_heads, tokens.shape[1], 1))
 
-            out = self.model(x, attn_mask=my_attn_mask)
+            fwd = partial(self.model, x=x, attn_mask=my_attn_mask)
+            # out = self.model(x, attn_mask=my_attn_mask)
+            out = checkpoint(fwd, tuple(), self.model.parameters(), self.use_checkpoint)
             if not self.return_sequences:
                 out = out[:, 0, :], attn_mask
             return out, attn_mask

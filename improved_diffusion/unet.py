@@ -623,7 +623,7 @@ class UNetModel(nn.Module):
                         )
                         pos_emb_input = th.zeros((1, emb_res * emb_res, 1))
                         self.register_buffer(f"pos_emb_input_{emb_res}", pos_emb_input, persistent=False)
-                        self.pos_emb_inputs[emb_res] = getattr(self, f"pos_emb_input_{emb_res}")
+                        self.pos_emb_inputs[str(emb_res)] = getattr(self, f"pos_emb_input_{emb_res}")
                     caa_args = dict(
                         use_checkpoint=False,
                         dim=ch,
@@ -749,7 +749,7 @@ class UNetModel(nn.Module):
                         )
                         pos_emb_input = th.zeros((1, emb_res * emb_res, 1))
                         self.register_buffer(f"pos_emb_input_{emb_res}", pos_emb_input, persistent=False)
-                        self.pos_emb_inputs[emb_res] = getattr(self, f"pos_emb_input_{emb_res}")
+                        self.pos_emb_inputs[str(emb_res)] = getattr(self, f"pos_emb_input_{emb_res}")
                     caa_args = dict(
                         use_checkpoint=False,
                         dim=ch,
@@ -879,12 +879,10 @@ class UNetModel(nn.Module):
             txt = txt.type(self.inner_dtype)
 
         computed_pos_embs = {}
-        print(self.tgt_pos_embs.keys())
-        print(self.pos_emb_inputs.keys())
         for emb_res in self.tgt_pos_embs:
             pe = self.tgt_pos_embs[emb_res](self.pos_emb_inputs[emb_res])
             pe = th.tile(pe, (x.shape[0], 1, 1))
-            pe = rearrange(pe, 'b (h w) c -> b c h w', h=emb_res)
+            pe = rearrange(pe, 'b (h w) c -> b c h w', h=int(emb_res))
             computed_pos_embs[emb_res] = pe
 
         h = x

@@ -180,6 +180,8 @@ class CheckpointFunction(th.autograd.Function):
     def forward(ctx, run_function, length, *args):
         ctx.run_function = run_function
         ctx.input_tensors = list(args[:length])
+        for arg in ctx.input_tensors:
+            print(type(arg), None if not isinstance(arg, th.Tensor) else arg.dtype)
         ctx.input_params = list(args[length:])
         with th.no_grad():
             output_tensors = ctx.run_function(*ctx.input_tensors)

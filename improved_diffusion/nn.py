@@ -196,9 +196,9 @@ class CheckpointFunction(th.autograd.Function):
             output_tensors = ctx.run_function(*shallow_copies)
         include_mask = [og.requires_grad for og in output_grads]
         for t in output_tensors:
-            print(t.requires_grad)
+            print(('t', t.shape))
         for og in output_grads:
-            print(og is None)
+            print(('og', og.shape))
         input_grads = th.autograd.grad(
             [t for t, og in zip(output_tensors, output_grads) if og is not None],
             ctx.input_tensors + ctx.input_params,

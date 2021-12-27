@@ -22,7 +22,7 @@ def convert_module_to_f16(l, bf16=False):
             l.bias.data = l.bias.data.to(dtype)
     if isinstance(l, (CrossAttention, TextEncoder)):
         for n, p in chain(l.named_parameters(), l.named_buffers()):
-            if 'tgt_ln' in n and (not l.avoid_groupnorm):
+            if 'tgt_ln' in n:
                 if 'normalization' not in n.partition('tgt_ln')[2]:
                     continue
             p.data = p.data.to(dtype)

@@ -172,6 +172,7 @@ def checkpoint(func, inputs, params, flag):
         args = tuple(inputs) + tuple(params)
         return CheckpointFunction.apply(func, len(inputs), *args)
     else:
+        print(('no ckpt', func))
         return func(*inputs)
 
 

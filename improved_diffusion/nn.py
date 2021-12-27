@@ -198,7 +198,7 @@ class CheckpointFunction(th.autograd.Function):
         input_grads = th.autograd.grad(
             [t for t in output_tensors if t.requires_grad],
             ctx.input_tensors + ctx.input_params,
-            [og for t, og in zip(output_tensors, output_grads) if t.requires_grad],,
+            [og for t, og in zip(output_tensors, output_grads) if t.requires_grad],
             allow_unused=True,
         )
         del ctx.input_tensors

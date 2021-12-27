@@ -1,3 +1,5 @@
+from functools import partial
+
 import numpy as np
 
 import torch
@@ -116,7 +118,8 @@ class TextEncoder(nn.Module):
         )
 
     def forward(self, tokens, timesteps):
-        return checkpoint(self._forward, (tokens, timesteps), self.parameters(), self.use_checkpoint)
+        fwd = partial(self._forward, tokens=tokens, timesteps=timesteps)
+        return checkpoint(fwd, tuple(), self.parameters(), self.use_checkpoint)
 
     def _forward(self, tokens, timesteps):
         if self.use_encoder_decoder:

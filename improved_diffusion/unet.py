@@ -621,7 +621,7 @@ class UNetModel(nn.Module):
                             dim=pos_emb_dim,
                             axial_shape=(emb_res, emb_res),
                         )
-                        pos_emb_input = torch.zeros((1, emb_res * emb_res, 1))
+                        pos_emb_input = th.zeros((1, emb_res * emb_res, 1))
                         self.register_buffer(f"pos_emb_input_{emb_res}", pos_emb_input)
                         self.pos_emb_inputs[emb_res] = getattr(self, f"pos_emb_input_{emb_res}")
                     caa_args = dict(
@@ -747,7 +747,7 @@ class UNetModel(nn.Module):
                             dim=pos_emb_dim,
                             axial_shape=(emb_res, emb_res),
                         )
-                        pos_emb_input = torch.zeros((1, emb_res * emb_res, 1))
+                        pos_emb_input = th.zeros((1, emb_res * emb_res, 1))
                         self.register_buffer(f"pos_emb_input_{emb_res}", pos_emb_input)
                         self.pos_emb_inputs[emb_res] = getattr(self, f"pos_emb_input_{emb_res}")
                     caa_args = dict(
@@ -881,7 +881,7 @@ class UNetModel(nn.Module):
         computed_pos_embs = {}
         for emb_res in self.tgt_pos_embs:
             pe = self.tgt_pos_embs[emb_res](self.pos_emb_inputs[emb_res])
-            pe = torch.tile(pe, (x.shape[0], 1, 1))
+            pe = th.tile(pe, (x.shape[0], 1, 1))
             pe = rearrange(pe, 'b (h w) c -> b c h w', h=emb_res)
             computed_pos_embs[emb_res] = pe
 

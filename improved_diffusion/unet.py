@@ -625,7 +625,7 @@ class UNetModel(nn.Module):
                         pos_emb_input = th.zeros((1, emb_res * emb_res, 1))
                         self.register_buffer(f"pos_emb_input_{emb_res}", pos_emb_input, persistent=False)
                     caa_args = dict(
-                        use_checkpoint=use_checkpoint=use_checkpoint or use_checkpoint_down,
+                        use_checkpoint=use_checkpoint or use_checkpoint_down,
                         dim=ch,
                         time_embed_dim=time_embed_dim,
                         heads=num_heads_here,
@@ -750,7 +750,7 @@ class UNetModel(nn.Module):
                         pos_emb_input = th.zeros((1, emb_res * emb_res, 1))
                         self.register_buffer(f"pos_emb_input_{emb_res}", pos_emb_input, persistent=False)
                     caa_args = dict(
-                        use_checkpoint=use_checkpoint=use_checkpoint or use_checkpoint_up,
+                        use_checkpoint=use_checkpoint or use_checkpoint_up,
                         dim=ch,
                         time_embed_dim=time_embed_dim,
                         heads=num_heads_here,

@@ -901,7 +901,7 @@ class UNetModel(nn.Module):
         h, txt = self.middle_block((h, txt), emb, attn_mask=attn_mask, tgt_pos_embs=computed_pos_embs)
         for module in self.output_blocks:
             cat_in = th.cat([h, hs.pop()], dim=1)
-            h, txt = module((cat_in, txt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs)
+            h, txt = module((cat_in, txt), emb, attn_mask=attn_mask, tgt_pos_embs=computed_pos_embs)
         h = h.type(x.dtype)
         h = self.out(h)
 

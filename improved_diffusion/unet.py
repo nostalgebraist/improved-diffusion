@@ -879,6 +879,8 @@ class UNetModel(nn.Module):
             txt = txt.type(self.inner_dtype)
 
         computed_pos_embs = {}
+        print(self.tgt_pos_embs.keys())
+        print(self.pos_emb_inputs.keys())
         for emb_res in self.tgt_pos_embs:
             pe = self.tgt_pos_embs[emb_res](self.pos_emb_inputs[emb_res])
             pe = th.tile(pe, (x.shape[0], 1, 1))

@@ -51,13 +51,12 @@ class CrossAttentionAdapter(TextTimestepBlock):
     def __init__(self, use_checkpoint, *args, **kwargs):
         super().__init__()
         self.use_checkpoint = use_checkpoint
-        # if self.use_checkpoint:
-        #     raise ValueError('grad ckpt for xattn not working yet')
         self.cross_attn = CrossAttention(*args, **kwargs)
 
     def forward(self, x, emb, txt, image_pos_embs=None, attn_mask=None):
         image_pos_emb = image_pos_embs[str(self.cross_attn.emb_res)]
-        return checkpoint(self._forward, (x, emb, txt, image_pos_emb, attn_mask), self.parameters(), self.use_checkpoint)
+        fwd = partial(self._forward, attn_mask=attn_mask)
+        return checkpoint(fwd, (x, emb, txt, image_pos_emb), self.parameters(), self.use_checkpoint)
 
     def _forward(self, x, emb, txt, image_pos_emb, attn_mask):
         return self.cross_attn.forward(src=txt, tgt=x, attn_mask=attn_mask, image_pos_emb=image_pos_emb, timestep_emb=emb)
@@ -67,8 +66,6 @@ class WeaveAttentionAdapter(TextTimestepBlock):
     def __init__(self, use_checkpoint, *args, **kwargs):
         super().__init__()
         self.use_checkpoint = use_checkpoint
-        # if self.use_checkpoint:
-        #     raise ValueError('grad ckpt for xattn not working yet')
         self.weave_attn = WeaveAttention(*args, **kwargs)
 
     def forward(self, x, emb, txt, image_pos_embs=None, attn_mask=None):

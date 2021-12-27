@@ -1,4 +1,5 @@
 from abc import abstractmethod
+from functools import partial
 
 import math
 
@@ -72,7 +73,8 @@ class WeaveAttentionAdapter(TextTimestepBlock):
 
     def forward(self, x, emb, txt, image_pos_embs=None, attn_mask=None):
         image_pos_emb = image_pos_embs[str(self.weave_attn.emb_res)]
-        return checkpoint(self._forward, (x, emb, txt, image_pos_emb, attn_mask), self.parameters(), self.use_checkpoint)
+        fwd = partial(self._forward, attn_mask=attn_mask)
+        return checkpoint(fwd, (x, emb, txt, image_pos_emb), self.parameters(), self.use_checkpoint)
 
     def _forward(self, x, emb, txt, image_pos_emb=None, attn_mask=None):
         return self.weave_attn.forward(text=txt, image=x, image_pos_emb=image_pos_emb, attn_mask=attn_mask, timestep_emb=emb)

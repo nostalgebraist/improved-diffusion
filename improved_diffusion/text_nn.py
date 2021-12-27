@@ -292,7 +292,7 @@ class CrossAttention(nn.Module):
             g = g.exp()
         return g
 
-    def forward(self, src, tgt, attn_mask=None, tgt_pos_embs=None, timestep_emb=None):
+    def forward(self, src, tgt, image_pos_emb, timestep_emb, attn_mask=None):
         def _to_b_hw_c(x, retdims=True):
             b, c, *spatial = x.shape
             xt = x.reshape(b, c, -1).transpose(1, 2)
@@ -303,13 +303,7 @@ class CrossAttention(nn.Module):
         def _to_b_c_h_w(x, spatial):
             return rearrange(x, 'b (h w) c -> b c h w', h=spatial[0])
 
-        if tgt_pos_embs is None:
-            tgt_pos_emb = self.tgt_pos_emb
-        else:
-            tgt_pos_emb = tgt_pos_embs[str(self.emb_res)]
-        if tgt_pos_emb is None:
-            raise ValueError('must pass tgt_pos_emb')
-
+        tgt_pos_emb = image_pos_emb
         tgt_in = tgt
 
         # b, c, *spatial = tgt_in.shape
@@ -443,7 +437,7 @@ class ImageToTextCrossAttention(nn.Module):
             g = g.exp()
         return g
 
-    def forward(self, src, tgt, attn_mask=None, image_pos_embs=None, timestep_emb=None):
+    def forward(self, src, tgt, image_pos_emb, timestep_emb, attn_mask=None):
         def _to_b_hw_c(x, retdims=True):
             b, c, *spatial = x.shape
             xt = x.reshape(b, c, -1).transpose(1, 2)
@@ -454,7 +448,7 @@ class ImageToTextCrossAttention(nn.Module):
         def _to_b_c_h_w(x, spatial):
             return rearrange(x, 'b (h w) c -> b c h w', h=spatial[0])
 
-        src_pos_emb = image_pos_embs[str(self.emb_res)]
+        src_pos_emb = image_pos_emb
 
         # image
         src_in = src
@@ -521,6 +515,7 @@ class WeaveAttention(nn.Module):
         super().__init__()
 
         self.weave_v2 = weave_v2
+        self.emb_res = emb_res
 
         shared_args = dict(
             heads=heads,

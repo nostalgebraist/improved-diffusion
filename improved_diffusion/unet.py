@@ -40,7 +40,7 @@ class TimestepBlock(nn.Module):
 
 class TextTimestepBlock(nn.Module):
     @abstractmethod
-    def forward(self, x, emb, txt, attn_mask=None, tgt_pos_embs=None):
+    def forward(self, x, emb, txt, image_pos_embs=None, attn_mask=None):
         """
         Apply the module to `x` given `txt` texts.
         """
@@ -50,30 +50,32 @@ class CrossAttentionAdapter(TextTimestepBlock):
     def __init__(self, use_checkpoint, *args, **kwargs):
         super().__init__()
         self.use_checkpoint = use_checkpoint
-        if self.use_checkpoint:
-            raise ValueError('grad ckpt for xattn not working yet')
+        # if self.use_checkpoint:
+        #     raise ValueError('grad ckpt for xattn not working yet')
         self.cross_attn = CrossAttention(*args, **kwargs)
 
-    def forward(self, x, emb, txt, attn_mask=None, tgt_pos_embs=None, timesteps=None):
-        return checkpoint(self._forward, (x, emb, txt, attn_mask, tgt_pos_embs, timesteps), self.parameters(), self.use_checkpoint)
+    def forward(self, x, emb, txt, image_pos_embs=None, attn_mask=None):
+        image_pos_emb = image_pos_embs[str(self.cross_attn.emb_res)]
+        return checkpoint(self._forward, (x, emb, txt, image_pos_emb, attn_mask), self.parameters(), self.use_checkpoint)
 
-    def _forward(self, x, emb, txt, attn_mask=None, tgt_pos_embs=None, timesteps=None):
-        return self.cross_attn.forward(src=txt, tgt=x, attn_mask=attn_mask, tgt_pos_embs=tgt_pos_embs, timestep_emb=emb)
+    def _forward(self, x, emb, txt, image_pos_emb, attn_mask):
+        return self.cross_attn.forward(src=txt, tgt=x, attn_mask=attn_mask, image_pos_emb=image_pos_emb, timestep_emb=emb)
 
 
 class WeaveAttentionAdapter(TextTimestepBlock):
     def __init__(self, use_checkpoint, *args, **kwargs):
         super().__init__()
         self.use_checkpoint = use_checkpoint
-        if self.use_checkpoint:
-            raise ValueError('grad ckpt for xattn not working yet')
+        # if self.use_checkpoint:
+        #     raise ValueError('grad ckpt for xattn not working yet')
         self.weave_attn = WeaveAttention(*args, **kwargs)
 
-    def forward(self, x, emb, txt, attn_mask=None, tgt_pos_embs=None, timesteps=None):
-        return checkpoint(self._forward, (x, emb, txt, attn_mask, tgt_pos_embs, timesteps), self.parameters(), self.use_checkpoint)
+    def forward(self, x, emb, txt, image_pos_embs=None, attn_mask=None):
+        image_pos_emb = image_pos_embs[str(self.weave_attn.emb_res)]
+        return checkpoint(self._forward, (x, emb, txt, image_pos_emb, attn_mask), self.parameters(), self.use_checkpoint)
 
-    def _forward(self, x, emb, txt, attn_mask=None, tgt_pos_embs=None, timesteps=None):
-        return self.weave_attn.forward(text=txt, image=x, attn_mask=attn_mask, tgt_pos_embs=tgt_pos_embs, timestep_emb=emb)
+    def _forward(self, x, emb, txt, image_pos_emb=None, attn_mask=None):
+        return self.weave_attn.forward(text=txt, image=x, image_pos_emb=image_pos_emb, attn_mask=attn_mask, timestep_emb=emb)
 
 
 class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
@@ -82,13 +84,13 @@ class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
     support it as an extra input.
     """
 
-    def forward(self, inps, emb, attn_mask=None, tgt_pos_embs=None, timesteps=None):
+    def forward(self, inps, emb, image_pos_embs=None, attn_mask=None):
         x, txt = inps
         for layer in self:
             if isinstance(layer, TimestepBlock):
                 x = layer(x, emb)
             elif isinstance(layer, TextTimestepBlock):
-                x, txt = layer(x, emb, txt, attn_mask=attn_mask, tgt_pos_embs=tgt_pos_embs)
+                x, txt = layer(x, emb, txt, image_pos_embs=image_pos_embs, attn_mask=attn_mask)
             else:
                 x = layer(x)
         return x, txt
@@ -894,12 +896,12 @@ class UNetModel(nn.Module):
         if self.channels_last_mem:
             h = h.to(memory_format=th.channels_last)
         for module in self.input_blocks:
-            h, txt = module((h, txt), emb, attn_mask=attn_mask, tgt_pos_embs=computed_pos_embs)
+            h, txt = module((h, txt), emb, image_pos_embs=computed_pos_embs, attn_mask=attn_mask)
             hs.append(h)
-        h, txt = self.middle_block((h, txt), emb, attn_mask=attn_mask, tgt_pos_embs=computed_pos_embs)
+        h, txt = self.middle_block((h, txt), emb, image_pos_embs=computed_pos_embs, attn_mask=attn_mask)
         for module in self.output_blocks:
             cat_in = th.cat([h, hs.pop()], dim=1)
-            h, txt = module((cat_in, txt), emb, attn_mask=attn_mask, tgt_pos_embs=computed_pos_embs)
+            h, txt = module((cat_in, txt), emb, image_pos_embs=computed_pos_embs, attn_mask=attn_mask)
         h = h.type(x.dtype)
         h = self.out(h)
 

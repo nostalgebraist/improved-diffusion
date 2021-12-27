@@ -148,7 +148,7 @@ class TextEncoder(nn.Module):
 
             fwd = partial(self.model, attn_mask=my_attn_mask)
             # out = self.model(x, attn_mask=my_attn_mask)
-            out = checkpoint(fwd, (x,) self.model.parameters(), self.use_checkpoint)
+            out = checkpoint(fwd, (x,), self.model.parameters(), self.use_checkpoint)
             if not self.return_sequences:
                 out = out[:, 0, :], attn_mask
             return out, attn_mask

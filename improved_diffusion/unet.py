@@ -884,7 +884,7 @@ class UNetModel(nn.Module):
             pe = th.tile(pe, (x.shape[0], 1, 1))
             pe = rearrange(pe, 'b (h w) c -> b c h w', h=int(emb_res))
             computed_pos_embs[emb_res] = pe
-            for t in (pe, self.pos_emb_inputs[emb_res], self.tgt_pos_embs[emb_res].weights_0):
+            for t in (pe, self.pos_emb_inputs[emb_res], getattr(self, f"pos_emb_input_{emb_res}"), self.tgt_pos_embs[emb_res].weights_0):
                 print((t.device, t.dtype))
 
         h = x

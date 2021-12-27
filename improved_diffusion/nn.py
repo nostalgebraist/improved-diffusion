@@ -169,10 +169,11 @@ def checkpoint(func, inputs, params, flag):
     :param flag: if False, disable gradient checkpointing.
     """
     if flag:
+        print('ckpt')
         args = tuple(inputs) + tuple(params)
         return CheckpointFunction.apply(func, len(inputs), *args)
     else:
-        print(('no ckpt', func))
+        print('no ckpt')
         return func(*inputs)
 
 

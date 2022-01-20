@@ -15,8 +15,13 @@ class SiLU(nn.Module):
 
 
 class GroupNorm32(nn.GroupNorm):
-    def forward(self, x):
-        return super().forward(x.float()).type(x.dtype)
+    def forward(self, x, legacy=False):
+        if legacy:
+            return super().forward(x.float()).type(x.dtype)
+
+        with th.cuda.amp.autocast():
+            out = super().forward(x)
+        return out.type(x.dtype)
 
 
 class AdaGN(nn.Module):

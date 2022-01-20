@@ -16,7 +16,7 @@ def convert_module_to_f16(l, bf16=False):
     dtype = torch.float16
     if bf16:
         dtype = torch.bfloat16
-    if isinstance(l, (nn.Conv1d, nn.Conv2d, nn.Conv3d, nn.GroupNorm)):
+    if isinstance(l, (nn.Conv1d, nn.Conv2d, nn.Conv3d, nn.GroupNorm, nn.Linear)):
         print(f'performing fp16 cast for {repr(l)}')
         l.weight.data = l.weight.data.to(dtype)
         if l.bias is not None:

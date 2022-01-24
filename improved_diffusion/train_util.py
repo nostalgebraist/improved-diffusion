@@ -488,7 +488,7 @@ class TrainLoop:
         self._log_grad_norm()
         self._anneal_lr()
         from collections import Counter
-        cntr = Counter
+        cntr = Counter()
         for group in self.opt.param_groups:
             for p in group['params']:
                 cntr[repr(p.dtype)] += 1

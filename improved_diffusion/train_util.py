@@ -487,6 +487,12 @@ class TrainLoop:
         self.grad_scaler.unscale_(self.opt)
         self._log_grad_norm()
         self._anneal_lr()
+        from collections import Counter
+        cntr = Counter
+        for group in self.opt.param_groups:
+            for p in group['params']:
+                cntr[repr(p.dtype)] += 1
+        print(cntr.most_common())
         self.grad_scaler.step(self.opt)
         self.grad_scaler.update()
         for rate, params in zip(self.ema_rate, self.ema_params):

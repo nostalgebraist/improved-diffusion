@@ -492,6 +492,9 @@ class TrainLoop:
         for group in self.opt.param_groups:
             for p in group['params']:
                 cntr[repr(p.dtype)] += 1
+        for n, p in self.model.named_parameters():
+            if p.dtype == th.float64:
+                print(f"float64: {n}")
         print(cntr.most_common())
         self.grad_scaler.step(self.opt)
         self.grad_scaler.update()

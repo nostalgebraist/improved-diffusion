@@ -9,7 +9,8 @@ import numpy as np
 import torch as th
 import torch.distributed as dist
 from torch.nn.parallel.distributed import DistributedDataParallel as DDP
-from torch.optim import AdamW
+# from torch.optim import AdamW
+from apex.optimizers import FusedAdam
 
 from . import dist_util, logger
 from .fp16_util import (
@@ -188,7 +189,7 @@ class TrainLoop:
         print(f"\t{xattn_nparams/1e6:.1f}M xattn params")
         print(f"\t{itot_nparams/1e6:.1f}M itot params")
 
-        self.opt = AdamW(
+        self.opt = FusedAdam(
             [
                 {"params": params, "lr": lr, "weight_decay": wd}
                 for params, lr, wd in zip(

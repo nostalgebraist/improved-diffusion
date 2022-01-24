@@ -350,6 +350,8 @@ class TrainLoop:
                     state_dict['param_groups'][param_ix]['params'] = ours[param_ix]  # set param group to our enumeration
             try:
                 self.opt.load_state_dict(state_dict)
+                for group in self.opt.param_groups:
+                    group['bias_correction'] = 1
             except ValueError as e:
                 print(f"self.opt:\n{repr(ours)}\nloaded:\n{repr(theirs)}\n")
                 raise e

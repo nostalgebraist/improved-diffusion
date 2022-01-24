@@ -239,9 +239,12 @@ class TrainLoop:
                 if p.dtype == th.float64:
                     p.data = p.data.to(th.float32)
 
-        for p in self.ema_params:
-            if p.dtype == th.float64:
-                p.data = p.data.to(th.float32)
+        for rate in self.ema_params:
+            for param in rate:
+                p_ = param if isinstance(param, list) else [param]
+                for p in p_:
+                    if p.dtype == th.float64:
+                        p.data = p.data.to(th.float32)
 
         if th.cuda.is_available():
             self.use_ddp = True

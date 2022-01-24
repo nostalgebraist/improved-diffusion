@@ -158,6 +158,10 @@ class TrainLoop:
 
         self._load_and_sync_parameters()
 
+        for n, p in model.named_parameters():
+            if p.dtype == th.float64:
+                p.data = p.data.to(th.float32)
+
         self.grad_scaler = None
         if self.use_amp:
             self.use_fp16 = False  # avoid all the manual fp16 steps
@@ -229,6 +233,15 @@ class TrainLoop:
             self.ema_params = [
                 copy.deepcopy(self.master_params) for _ in range(len(self.ema_rate))
             ]
+
+        for group in self.opt.param_groups:
+            for p in group['params']:
+                if p.dtype == th.float64:
+                    p.data = p.data.to(th.float32)
+
+        for p in self.ema_params:
+            if p.dtype == th.float64:
+                p.data = p.data.to(th.float32)
 
         if th.cuda.is_available():
             self.use_ddp = True

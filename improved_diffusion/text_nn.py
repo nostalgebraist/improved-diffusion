@@ -171,7 +171,7 @@ class BetterMultiheadAttention(torch.nn.MultiheadAttention):
         self.register_parameter('in_proj_weight', None)
         self.register_parameter('in_proj_bias', None)
 
-        self.out_proj = torch.nn.Linear(self.qkv_dim, tgt_embed_dim, bias=False, **factory_kwargs)
+        self.out_proj = torch.nn.Linear(self.qkv_dim, tgt_embed_dim, bias=False)
 
         self.bias_k = self.bias_v = None
         self.add_zero_attn = False

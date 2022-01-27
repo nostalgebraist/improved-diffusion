@@ -31,6 +31,7 @@ def main():
         return _main(args, use_xla=False)
 
 def _main(index, args, use_xla):
+    print(f'index {index} says hi')
     print(f"args: got txt={args.txt}")
 
     dist_util.setup_dist(use_xla=use_xla)

@@ -84,6 +84,9 @@ def sync_params(params):
     """
     Synchronize a sequence of Tensors across ranks from rank 0.
     """
+    global DIST_XLA
+    if DIST_XLA:
+        return 
     for p in params:
         with th.no_grad():
             dist.broadcast(p, 0)

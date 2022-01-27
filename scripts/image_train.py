@@ -5,6 +5,10 @@ Train a diffusion model on images.
 import argparse, os, json
 import torch as th
 
+import torch_xla.core.xla_model as xm
+import torch_xla.distributed.parallel_loader as pl
+import torch_xla.distributed.xla_multiprocessing as xmp
+
 from improved_diffusion import dist_util, logger
 from improved_diffusion.image_datasets import load_data, load_tokenizer
 from improved_diffusion.resample import create_named_schedule_sampler
@@ -21,9 +25,15 @@ from improved_diffusion.train_util import TrainLoop
 
 def main():
     args = create_argparser().parse_args()
+    if args.use_xla:
+        xmp.spawn(_main, args=(args, True,))
+    else:
+        return _main(args, use_xla=False)
+
+def _main(index, args, use_xla):
     print(f"args: got txt={args.txt}")
 
-    dist_util.setup_dist()
+    dist_util.setup_dist(use_xla=use_xla)
     logger.configure()
 
     # if args.channels_last_mem:
@@ -92,6 +102,9 @@ def main():
         min_filesize=args.min_filesize,
         txt_pdrop=args.txt_pdrop,
     )
+    if use_xla:
+        device = xm.xla_device()
+        mp_device_loader = pl.MpDeviceLoader(data, device)
 
     logger.log("training...")
     TrainLoop(
@@ -120,7 +133,8 @@ def main():
         state_dict_sandwich_manual_remaps=args.state_dict_sandwich_manual_remaps,
         master_on_cpu=args.master_on_cpu,
         use_amp=args.use_amp,
-        use_profiler=args.use_profiler
+        use_profiler=args.use_profiler,
+        use_xla=use_xla
     ).run_loop()
 
 
@@ -161,6 +175,7 @@ def create_argparser():
         master_on_cpu=False,
         use_amp=False,
         use_profiler=False,
+        use_xla=False,
     )
     defaults.update(model_and_diffusion_defaults())
     parser = argparse.ArgumentParser()

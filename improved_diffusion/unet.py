@@ -764,7 +764,7 @@ class UNetModel(nn.Module):
         for level, mult in list(enumerate(channel_mult))[::-1]:
             use_checkpoint_here = (use_checkpoint or use_checkpoint_up)
             use_block_checkpoint_here = use_checkpoint_here and use_block_checkpoints
-            if (ds in self.txt_resolutions:
+            if ds in self.txt_resolutions:
                 use_block_checkpoint_here = False
             use_inner_checkpoint_here = use_checkpoint_here and (not use_block_checkpoint_here)
             for i in range(num_res_blocks + 1):

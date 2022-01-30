@@ -734,7 +734,7 @@ class UNetModel(nn.Module):
                 use_checkpoint_lowcost=use_checkpoint_lowcost,
             ),
             AttentionBlock(ch,
-                           (use_checkpoint or use_checkpoint_middle) and (not use_block_checkpoints),,
+                           (use_checkpoint or use_checkpoint_middle) and (not use_block_checkpoints),
                            num_heads=num_heads,
                            use_checkpoint_lowcost=use_checkpoint_lowcost),
             ResBlock(
@@ -742,7 +742,7 @@ class UNetModel(nn.Module):
                 time_embed_dim,
                 dropout,
                 dims=dims,
-                use_checkpoint=(use_checkpoint or use_checkpoint_middle) and (not use_block_checkpoints),,
+                use_checkpoint=(use_checkpoint or use_checkpoint_middle) and (not use_block_checkpoints),
                 use_scale_shift_norm=use_scale_shift_norm,
                 use_checkpoint_lowcost=use_checkpoint_lowcost,
             ),

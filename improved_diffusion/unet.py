@@ -89,15 +89,16 @@ class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
         self.use_checkpoint = use_checkpoint
 
     def forward(self, inps, emb, attn_mask=None, tgt_pos_embs=None, timesteps=None):
+        x, txt = inps
+        print([type(v) for v in (x, txt, emb, attn_mask, tgt_pos_embs)])
         if self.use_checkpoint:
             tgt_pos_embs = emb
-            print([type(v) for v in (inps, emb, attn_mask, tgt_pos_embs, timesteps)])
+            print([type(v) for v in (x, txt, emb, attn_mask, tgt_pos_embs)])
         return checkpoint(
-            self._forward, (inps, emb, attn_mask, tgt_pos_embs, timesteps), self.parameters(), self.use_checkpoint
+            self._forward, (x, txt, emb, attn_mask, tgt_pos_embs), self.parameters(), self.use_checkpoint
         )
 
-    def _forward(self, inps, emb, attn_mask=None, tgt_pos_embs=None, timesteps=None):
-        x, txt = inps
+    def _forward(self, x, txt, emb, attn_mask=None, tgt_pos_embs=None):
         for layer in self:
             if isinstance(layer, TimestepBlock):
                 x = layer(x, emb)

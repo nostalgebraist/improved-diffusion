@@ -762,6 +762,7 @@ class UNetModel(nn.Module):
 
         self.output_blocks = nn.ModuleList([])
         for level, mult in list(enumerate(channel_mult))[::-1]:
+            use_checkpoint_here = (use_checkpoint or use_checkpoint_up) and ((ds not in self.txt_resolutions) or (not use_block_checkpoints))
             for i in range(num_res_blocks + 1):
                 layers = [
                     ResBlock(
@@ -770,7 +771,7 @@ class UNetModel(nn.Module):
                         dropout,
                         out_channels=model_channels * mult,
                         dims=dims,
-                        use_checkpoint=use_checkpoint or use_checkpoint_up,
+                        use_checkpoint=use_checkpoint_here,
                         use_scale_shift_norm=use_scale_shift_norm,
                         use_checkpoint_lowcost=use_checkpoint_lowcost,
                     )
@@ -783,7 +784,7 @@ class UNetModel(nn.Module):
                     layers.append(
                         AttentionBlock(
                             ch,
-                            use_checkpoint=use_checkpoint or use_checkpoint_up,
+                            use_checkpoint=use_checkpoint_here,
                             num_heads=num_heads_here,
                             use_checkpoint_lowcost=use_checkpoint_lowcost
                         )
@@ -858,7 +859,7 @@ class UNetModel(nn.Module):
                     )
                     ds //= 2
                     vprint(f"down | ds {ds * 2} -> {ds}")
-                self.output_blocks.append(TimestepEmbedSequential(*layers))
+                self.output_blocks.append(TimestepEmbedSequential(*layers, use_checkpoint=use_checkpoint_here))
 
         self.out = nn.Sequential(
             normalization(ch),

@@ -81,6 +81,7 @@ def model_and_diffusion_defaults():
         txt_ff_mult=4,
         weave_v2=False,
         use_checkpoint_lowcost=False,
+        use_block_checkpoints=False,
     )
 
 
@@ -147,7 +148,8 @@ def create_model_and_diffusion(
     txt_ff_glu=False,
     txt_ff_mult=4,
     weave_v2=False,
-    use_checkpoint_lowcost=False
+    use_checkpoint_lowcost=False,
+    use_block_checkpoints=False,
 ):
     print(f"create_model_and_diffusion: got txt={txt}")
     print(f"create_model_and_diffusion: use_checkpoint={use_checkpoint}")
@@ -206,6 +208,7 @@ def create_model_and_diffusion(
         txt_ff_mult=txt_ff_mult,
         weave_v2=weave_v2,
         use_checkpoint_lowcost=use_checkpoint_lowcost,
+        use_block_checkpoints=use_block_checkpoints,
     )
     diffusion = create_gaussian_diffusion(
         steps=diffusion_steps,
@@ -284,6 +287,7 @@ def create_model(
     up_interp_mode="bilinear",
     weave_v2=False,
     use_checkpoint_lowcost=False,
+    use_block_checkpoints=False,
 ):
     text_lr_mult = 1.
     print(
@@ -381,6 +385,7 @@ def create_model(
         up_interp_mode=up_interp_mode,
         weave_v2=weave_v2,
         use_checkpoint_lowcost=use_checkpoint_lowcost,
+        use_block_checkpoints=use_block_checkpoints,
     )
 
 
@@ -462,7 +467,8 @@ def sr_create_model_and_diffusion(
     txt_ff_mult=4,
     up_interp_mode='bilinear',
     weave_v2=False,
-    use_checkpoint_lowcost=False
+    use_checkpoint_lowcost=False,
+    use_block_checkpoints=False,
 ):
     model = sr_create_model(
         large_size,
@@ -519,6 +525,7 @@ def sr_create_model_and_diffusion(
         up_interp_mode=up_interp_mode,
         weave_v2=weave_v2,
         use_checkpoint_lowcost=use_checkpoint_lowcost,
+        use_block_checkpoints=use_block_checkpoints,
     )
     diffusion = create_gaussian_diffusion(
         steps=diffusion_steps,

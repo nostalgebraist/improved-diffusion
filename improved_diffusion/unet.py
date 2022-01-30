@@ -84,13 +84,23 @@ class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
     A sequential module that passes timestep embeddings to the children that
     support it as an extra input.
     """
+    def __init__(self, *args, use_checkpoint=False):
+        super().__init__(*args)
+        self.use_checkpoint = use_checkpoint
 
     def forward(self, inps, emb, attn_mask=None, tgt_pos_embs=None, timesteps=None):
+        return checkpoint(
+            self._forward, (inps, emb, attn_mask, tgt_pos_embs, timesteps), self.parameters(), self.use_checkpoint
+        )
+
+    def _forward(self, inps, emb, attn_mask=None, tgt_pos_embs=None, timesteps=None):
         x, txt = inps
         for layer in self:
             if isinstance(layer, TimestepBlock):
                 x = layer(x, emb)
             elif isinstance(layer, TextTimestepBlock):
+                if self.use_checkpoint:
+                    raise ValueError('block ckpts for txt layers not supported')
                 x, txt = layer(x, emb, txt, attn_mask=attn_mask, tgt_pos_embs=tgt_pos_embs)
             else:
                 x = layer(x)
@@ -513,7 +523,8 @@ class UNetModel(nn.Module):
         channels_last_mem=False,
         up_interp_mode="bilinear",
         weave_v2=False,
-        use_checkpoint_lowcost=False
+        use_checkpoint_lowcost=False,
+        use_block_checkpoints=False,
     ):
         super().__init__()
 
@@ -614,7 +625,7 @@ class UNetModel(nn.Module):
                         dropout,
                         out_channels=mult * model_channels,
                         dims=dims,
-                        use_checkpoint=use_checkpoint or use_checkpoint_down,
+                        use_checkpoint=(use_checkpoint or use_checkpoint_down) and (not use_block_checkpoints),
                         use_scale_shift_norm=use_scale_shift_norm,
                         use_checkpoint_lowcost=use_checkpoint_lowcost,
                     )
@@ -626,7 +637,7 @@ class UNetModel(nn.Module):
                         num_heads_here = ch // channels_per_head
                     layers.append(
                         AttentionBlock(
-                            ch, use_checkpoint=use_checkpoint or use_checkpoint_down, num_heads=num_heads_here,
+                            ch, use_checkpoint=(use_checkpoint or use_checkpoint_down) and (not use_block_checkpoints),
                             use_checkpoint_lowcost=use_checkpoint_lowcost
                         )
                     )
@@ -646,7 +657,7 @@ class UNetModel(nn.Module):
                             axial_shape=(emb_res, emb_res),
                         )
                     caa_args = dict(
-                        use_checkpoint=use_checkpoint or use_checkpoint_down,
+                        use_checkpoint=(use_checkpoint or use_checkpoint_down) and (not use_block_checkpoints),
                         dim=ch,
                         time_embed_dim=time_embed_dim,
                         heads=num_heads_here,
@@ -683,7 +694,7 @@ class UNetModel(nn.Module):
                         layers.append(caa)
 
 
-                self.input_blocks.append(TimestepEmbedSequential(*layers))
+                self.input_blocks.append(TimestepEmbedSequential(*layers, use_checkpoint=use_block_checkpoints))
                 input_block_chans.append(ch)
                 vprint(f"up   | {level} of {len(channel_mult)} | ch {ch} | ds {ds}")
             if level != len(channel_mult) - 1:
@@ -718,21 +729,24 @@ class UNetModel(nn.Module):
                 time_embed_dim,
                 dropout,
                 dims=dims,
-                use_checkpoint=use_checkpoint or use_checkpoint_middle,
+                use_checkpoint=(use_checkpoint or use_checkpoint_middle) and (not use_block_checkpoints),
                 use_scale_shift_norm=use_scale_shift_norm,
                 use_checkpoint_lowcost=use_checkpoint_lowcost,
             ),
-            AttentionBlock(ch, use_checkpoint=use_checkpoint or use_checkpoint_middle, num_heads=num_heads,
+            AttentionBlock(ch,
+                           (use_checkpoint or use_checkpoint_middle) and (not use_block_checkpoints),,
+                           num_heads=num_heads,
                            use_checkpoint_lowcost=use_checkpoint_lowcost),
             ResBlock(
                 ch,
                 time_embed_dim,
                 dropout,
                 dims=dims,
-                use_checkpoint=use_checkpoint or use_checkpoint_middle,
+                use_checkpoint=(use_checkpoint or use_checkpoint_middle) and (not use_block_checkpoints),,
                 use_scale_shift_norm=use_scale_shift_norm,
                 use_checkpoint_lowcost=use_checkpoint_lowcost,
             ),
+            use_checkpoint=use_block_checkpoints
         )
 
         self.output_blocks = nn.ModuleList([])

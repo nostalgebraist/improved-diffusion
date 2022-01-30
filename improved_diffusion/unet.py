@@ -91,7 +91,7 @@ class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
     def forward(self, inps, emb, attn_mask=None, tgt_pos_embs=None, timesteps=None):
         if self.use_checkpoint:
             tgt_pos_embs = emb
-        out = checkpoint(
+        return checkpoint(
             self._forward, (inps, emb, attn_mask, tgt_pos_embs, timesteps), self.parameters(), self.use_checkpoint
         )
 

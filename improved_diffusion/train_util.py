@@ -31,6 +31,16 @@ from .image_datasets import tokenize
 INITIAL_LOG_LOSS_SCALE = 20.0
 
 
+class WrapperForDeepspeed(nn.Module):
+    def __init__(self, model, diffusion):
+        self.model = model
+        self.diffusion = diffusion
+
+    def forward(self, batch, txt, t):
+        losses = self.diffusion.training_losses(self.model, batch, t, {'txt': txt})
+        return losses
+
+
 class TrainLoop:
     def __init__(
         self,
@@ -63,7 +73,8 @@ class TrainLoop:
         use_amp=False,
         use_profiler=False,
         autosave=True,
-        autosave_dir="gs://nost_ar_work/improved-diffusion/"
+        autosave_dir="gs://nost_ar_work/improved-diffusion/",
+        use_deepspeed=False,
     ):
         self.model = model
         self.diffusion = diffusion
@@ -99,7 +110,11 @@ class TrainLoop:
         self.autosave = autosave
         self.autosave_dir = autosave_dir
         self.anneal_log_flag = False
-        print(f"TrainLoop self.master_device: {self.master_device}, use_amp={use_amp}")
+        self.use_deepspeed = use_deepspeed
+        if self.use_deepspeed:
+            self.use_fp16 = False
+            self.use_amp = False
+        print(f"TrainLoop self.master_device: {self.master_device}, use_amp={self.use_amp}, use_deepspeed={self.use_deepspeed}")
 
         self.step = 0
         self.resume_step = 0
@@ -175,6 +190,9 @@ class TrainLoop:
         if self.use_fp16:
             self._setup_fp16()
 
+        if self.use_deepspeed:
+            self._setup_deepspeed()
+
         text_nparams = 0
         xattn_nparams = 0
         itot_nparams = 0
@@ -198,25 +216,26 @@ class TrainLoop:
         print(f"\t{xattn_nparams/1e6:.1f}M xattn params")
         print(f"\t{itot_nparams/1e6:.1f}M itot params")
 
-        self.opt = AdamW(
-            [
-                {"params": params, "lr": lr, "weight_decay": wd}
-                for params, lr, wd in zip(
-                    self.master_params,
-                    [*[self.text_lr for _ in self.text_mods],
-                     *[self.text_lr for _ in self.xattn_mods],
-                     *[self.text_lr for _ in self.itot_mods],
-                      self.gain_lr, self.lr],
-                    [*[0. for _ in self.text_mods],
-                     *[0. for _ in self.xattn_mods],
-                     *[0. for _ in self.itot_mods],
-                      0., self.weight_decay]
-                )
-            ],
-            lr=self.lr,
-            weight_decay=self.weight_decay,
-            betas=(beta1, beta2)
-        )
+        if not self.use_deepspeed:
+            self.opt = AdamW(
+                [
+                    {"params": params, "lr": lr, "weight_decay": wd}
+                    for params, lr, wd in zip(
+                        self.master_params,
+                        [*[self.text_lr for _ in self.text_mods],
+                         *[self.text_lr for _ in self.xattn_mods],
+                         *[self.text_lr for _ in self.itot_mods],
+                          self.gain_lr, self.lr],
+                        [*[0. for _ in self.text_mods],
+                         *[0. for _ in self.xattn_mods],
+                         *[0. for _ in self.itot_mods],
+                          0., self.weight_decay]
+                    )
+                ],
+                lr=self.lr,
+                weight_decay=self.weight_decay,
+                betas=(beta1, beta2)
+            )
         if self.resume_step:
             try:
                 self._load_optimizer_state()
@@ -239,7 +258,7 @@ class TrainLoop:
                 copy.deepcopy(self.master_params) for _ in range(len(self.ema_rate))
             ]
 
-        if th.cuda.is_available():
+        if th.cuda.is_available() and not self.use_deepspeed:
             self.use_ddp = True
             self.ddp_model = DDP(
                 self.model,
@@ -370,6 +389,39 @@ class TrainLoop:
     def _setup_amp(self):
         self.grad_scaler = th.cuda.amp.GradScaler(init_scale=2 ** self.lg_loss_scale, growth_interval=int(1 / self.fp16_scale_growth))
 
+    def _setup_deepspeed(self):
+        import deepspeed
+
+        conf = {
+            "train_batch_size": self.batch_size,
+            "train_batch_size_per_gpu": self.microbatch,
+            "optimizer": {
+              "type": "Adam",
+              "params": {
+                "lr": self.lr
+              }
+            },
+            "fp16": {
+              "enabled": True
+            },
+            "zero_optimization": {
+                  "stage": 2,
+                  "cpu_offload": True,
+                  "contiguous_gradients": True,
+                  "overlap_comm": True
+            }
+        }
+
+        self.wrapped = WrapperForDeepspeed(self.model, self.diffusion)
+
+        model_engine, optimizer, _, _ = deepspeed.initialize(
+            model=self.wrapped,
+            model_parameters=self.model.parameters(),
+            config=conf
+        )
+        self.deepspeed_model_engine = model_engine
+        self.deepspeed_opt = optimizer
+
     def run_loop(self):
         t1 = time.time()
         while (
@@ -385,7 +437,10 @@ class TrainLoop:
                 _p.export_chrome_trace('chromeprof')
                 raise ValueError('done saving')
             else:
-                self.run_step(batch, cond, verbose = (self.step % self.log_interval == 0))
+                if self.use_deepspeed:
+                    self.run_step_deepspeed(batch, cond, verbose = (self.step % self.log_interval == 0))
+                else:
+                    self.run_step(batch, cond, verbose = (self.step % self.log_interval == 0))
 
             if self.step % self.log_interval == 0:
                 t2 = time.time()
@@ -401,6 +456,48 @@ class TrainLoop:
         # Save the last checkpoint if it wasn't already saved.
         if (self.step - 1) % self.save_interval != 0:
             self.save()
+
+    def run_step_deepspeed(self, batch, cond, verbose=False):
+        self.forward_backward_deepspeed(batch, cond, verbose=verbose)
+        self.optimize_deepspeed()
+        self.log_step()
+
+    def forward_backward_deepspeed(self, batch, cond, verbose=False):
+        for i in range(0, batch.shape[0], self.microbatch):
+            micro = batch[i : i + self.microbatch].half().to(dist_util.dev())
+            micro_txt = cond['txt'][i : i + self.microbatch]
+            micro_txt = th.as_tensor(tokenize(self.tokenizer, micro_txt), device=dist_util.dev())
+
+            last_batch = (i + self.microbatch) >= batch.shape[0]
+            t, weights = self.schedule_sampler.sample(micro.shape[0], dist_util.dev())
+
+            losses = self.deepspeed_model_engine(micro, micro_txt, t)
+
+            if isinstance(self.schedule_sampler, LossAwareSampler):
+                self.schedule_sampler.update_with_local_losses(
+                    t, losses["loss"].detach()
+                )
+                if i == 0:
+                    warm = self.schedule_sampler._warmed_up(verbose=verbose)
+                    if warm and verbose:
+                        _weights = self.schedule_sampler.weights()
+                        w_avg = np.average(np.arange(len(_weights)), weights=_weights)
+                        w_avg_ref = np.average(np.arange(len(_weights)), weights=np.ones_like(_weights))
+                        print(f"w_avg: {w_avg:.1f} (vs {w_avg_ref:.1f})")
+
+            loss = (losses["loss"] * weights).mean()
+            log_loss_dict(
+                self.diffusion, t, {k: v * weights for k, v in losses.items()}
+            )
+
+            self.deepspeed_model_engine.backward(loss)
+
+    def optimize_deepspeed(self):
+        self._log_grad_norm()
+        # self._anneal_lr()  # TODO: deepspeed lr sched
+        self.deepspeed_model_engine.step()
+        for rate, params in zip(self.ema_rate, self.ema_params):
+            update_ema(params, self.master_params, rate=rate)
 
     def run_step(self, batch, cond, verbose=False):
         self.forward_backward(batch, cond, verbose=verbose)

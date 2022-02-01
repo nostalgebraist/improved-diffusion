@@ -23,7 +23,8 @@ def main():
     args = create_argparser().parse_args()
     print(f"args: got txt={args.txt}")
 
-    dist_util.setup_dist()
+    if not args.use_deepspeed:
+        dist_util.setup_dist()
     logger.configure()
 
     # if args.channels_last_mem:
@@ -128,7 +129,8 @@ def main():
         master_on_cpu=args.master_on_cpu,
         use_amp=args.use_amp,
         use_profiler=args.use_profiler,
-        autosave=args.autosave
+        autosave=args.autosave,
+        use_deepspeed=args.use_deepspeed,
     ).run_loop()
 
 
@@ -171,6 +173,7 @@ def create_argparser():
         use_amp=False,
         use_profiler=False,
         autosave=True,
+        use_deepspeed=False,
     )
     defaults.update(model_and_diffusion_defaults())
     parser = argparse.ArgumentParser()

@@ -509,7 +509,9 @@ class TrainLoop:
                 self.diffusion, t, {k: v * weights for k, v in losses.items()}
             )
 
-            self.deepspeed_model_engine.backward(loss)
+            grad_acc_scale = micro.shape[0] / self.batch_size
+
+            self.deepspeed_model_engine.backward(grad_acc_scale * loss)
 
     def optimize_deepspeed(self):
         self._log_grad_norm()

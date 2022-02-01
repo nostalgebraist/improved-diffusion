@@ -59,7 +59,8 @@ class SiLU(nn.SiLU):
 
 class GroupNorm32(nn.GroupNorm):
     def __init__(self, *args, use_checkpoint=False,
-                 force_fp32=False,  # !!!!!!! changed for deepspeed, breaking change to non-deepspeed, TODO: fix
+                 # force_fp32=False,  # !!!!!!! changed for deepspeed, breaking change to non-deepspeed, TODO: fix
+                 force_fp32=True,
                  ):
         super().__init__(*args)
         self.use_checkpoint = use_checkpoint
@@ -74,6 +75,9 @@ class GroupNorm32(nn.GroupNorm):
         if self.force_fp32:
             return super().forward(x.float()).type(x.dtype)
         return super().forward(x)
+
+    def half(self):
+        print("GroupNorm32 being asked to halve itself, refusing ;)")
 
 
 class AdaGN(nn.Module):

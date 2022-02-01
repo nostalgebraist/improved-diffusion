@@ -80,7 +80,7 @@ class GroupNorm32(nn.GroupNorm):
         super()._apply(fn)
         if not is_inner:
             print("GroupNorm32 possibly being asked to halve itself, refusing ;)")
-            self._apply(lambda t: t.float())
+            self._apply(lambda t: t.float(), is_inner=True)
 
 
 class AdaGN(nn.Module):

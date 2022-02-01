@@ -900,7 +900,7 @@ class UNetModel(nn.Module):
 
         hs = []
         emb = timestep_embedding(timesteps, self.model_channels).to(self.time_embed[0].weight.dtype)
-        emb = self.time_embed()
+        emb = self.time_embed(emb)
 
         if self.num_classes is not None:
             assert y.shape == (x.shape[0],)

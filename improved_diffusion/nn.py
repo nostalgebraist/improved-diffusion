@@ -58,7 +58,9 @@ class SiLU(nn.SiLU):
 
 
 class GroupNorm32(nn.GroupNorm):
-    def __init__(self, *args, use_checkpoint=False, force_fp32=True):
+    def __init__(self, *args, use_checkpoint=False,
+                 force_fp32=False,  # !!!!!!! changed for deepspeed, breaking change to non-deepspeed, TODO: fix
+                 ):
         super().__init__(*args)
         self.use_checkpoint = use_checkpoint
         self.force_fp32 = force_fp32

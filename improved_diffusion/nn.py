@@ -58,9 +58,10 @@ class SiLU(nn.SiLU):
 
 
 class GroupNorm32(nn.GroupNorm):
-    def __init__(self, *args, use_checkpoint=False):
+    def __init__(self, *args, use_checkpoint=False, force_fp32=True):
         super().__init__(*args)
         self.use_checkpoint = use_checkpoint
+        self.force_fp32 = force_fp32
 
     def forward(self, x):
         return checkpoint(
@@ -68,7 +69,9 @@ class GroupNorm32(nn.GroupNorm):
         )
 
     def _forward(self, x):
-        return super().forward(x.float()).type(x.dtype)
+        if self.force_fp32:
+            return super().forward(x.float()).type(x.dtype)
+        return super().forward(x)
 
 
 class AdaGN(nn.Module):

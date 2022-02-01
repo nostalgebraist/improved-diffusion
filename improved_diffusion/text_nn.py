@@ -139,7 +139,7 @@ class TextEncoder(nn.Module):
                 x = x + le
 
             if timesteps is not None:
-                emb = timestep_embedding(timesteps, self.dim).to(self.time_embed[0].weight.dtype)
+                emb = timestep_embedding(timesteps, self.dim).to(self.time_embed[1].weight.dtype)
                 emb = self.time_embed_scale * self.time_embed(emb)
 
                 # emb = self.time_embed_scale * self.time_embed(timestep_embedding(timesteps, self.dim))

@@ -76,8 +76,11 @@ class GroupNorm32(nn.GroupNorm):
             return super().forward(x.float()).type(x.dtype)
         return super().forward(x)
 
-    def half(self):
-        print("GroupNorm32 being asked to halve itself, refusing ;)")
+    def _apply(self, fn, is_inner=False):
+        super()._apply(fn)
+        if not is_inner:
+            print("GroupNorm32 possibly being asked to halve itself, refusing ;)")
+            self._apply(lambda t: t.float())
 
 
 class AdaGN(nn.Module):

@@ -421,7 +421,9 @@ class TrainLoop:
               }
             },
             "fp16": {
-              "enabled": True
+              "enabled": True,
+              "initial_scale_power": self.lg_loss_scale,
+              "loss_scale_window": int(1 / self.fp16_scale_growth)
             },
             "zero_optimization": {
                   "stage": 2,
@@ -509,7 +511,8 @@ class TrainLoop:
                 self.diffusion, t, {k: v * weights for k, v in losses.items()}
             )
 
-            grad_acc_scale = micro.shape[0] / self.batch_size
+            # grad_acc_scale = micro.shape[0] / self.batch_size
+            grad_acc_scale = 1
 
             self.deepspeed_model_engine.backward(grad_acc_scale * loss)
 

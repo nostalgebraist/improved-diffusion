@@ -929,8 +929,8 @@ class UNetModel(nn.Module):
             cat_in = th.cat([h, hs.pop()], dim=1)
             h, txt = module((cat_in, txt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs)
 
-          # !!!!!!! changed for deepspeed, breaking change to non-deepspeed, TODO: fix
-          if False:
+        # !!!!!!! changed for deepspeed, breaking change to non-deepspeed, TODO: fix
+        if False:
             h = h.type(x.dtype)
 
         h = self.out(h)

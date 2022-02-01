@@ -50,6 +50,7 @@ def get_dist(use_deepspeed):
 
 class WrapperForDeepspeed(th.nn.Module):
     def __init__(self, model, diffusion):
+        super().__init__()
         self.model = model
         self.diffusion = diffusion
 

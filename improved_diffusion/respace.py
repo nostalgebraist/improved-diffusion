@@ -118,6 +118,6 @@ class _WrappedModel:
         map_tensor = th.tensor(self.timestep_map, device=ts.device, dtype=ts.dtype)
         new_ts = map_tensor[ts]
         if self.rescale_timesteps:
-            # new_ts = new_ts.float() * (1000.0 / self.original_num_steps)
-            new_ts = new_ts * (1000.0 / self.original_num_steps)  # removed .float() for deepspeed.  why was it there??
+            new_ts = new_ts.float() * (1000.0 / self.original_num_steps)
+            # new_ts = new_ts * (1000.0 / self.original_num_steps)  # removed .float() for deepspeed.  why was it there??
         return self.model(x, new_ts, **kwargs)

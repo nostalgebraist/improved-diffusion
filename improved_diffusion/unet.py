@@ -899,7 +899,8 @@ class UNetModel(nn.Module):
         ), "must specify txt if and only if the model is text-conditional"
 
         hs = []
-        emb = self.time_embed(timestep_embedding(timesteps, self.model_channels))
+        emb = timestep_embedding(timesteps, self.model_channels).to(self.time_embed[0].weight.dtype)
+        emb = self.time_embed()
 
         if self.num_classes is not None:
             assert y.shape == (x.shape[0],)

@@ -31,7 +31,7 @@ from .image_datasets import tokenize
 INITIAL_LOG_LOSS_SCALE = 20.0
 
 
-class WrapperForDeepspeed(nn.Module):
+class WrapperForDeepspeed(th.nn.Module):
     def __init__(self, model, diffusion):
         self.model = model
         self.diffusion = diffusion

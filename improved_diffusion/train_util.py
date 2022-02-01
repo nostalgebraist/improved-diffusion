@@ -489,7 +489,6 @@ class TrainLoop:
 
             last_batch = (i + self.microbatch) >= batch.shape[0]
             t, weights = self.schedule_sampler.sample(micro.shape[0], dist_util.dev())
-            t = t.half()
 
             losses = self.deepspeed_model_engine(micro, micro_txt, t)
 

@@ -928,7 +928,9 @@ class UNetModel(nn.Module):
         for module in self.output_blocks:
             cat_in = th.cat([h, hs.pop()], dim=1)
             h, txt = module((cat_in, txt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs)
+        print(h.dtype)
         h = h.type(x.dtype)
+        print(h.dtype)
         h = self.out(h)
 
         if self.rgb_adapter:

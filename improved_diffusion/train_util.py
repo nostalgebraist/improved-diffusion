@@ -344,7 +344,8 @@ class TrainLoop:
                 #     for n, p in self.model.named_parameters():
                 #         print(f"{th.linalg.norm(p).item():.3f} | {n in newsd} | {n}")
 
-        dist_util.sync_params(self.model.parameters())
+        if not self.use_deepspeed:
+            dist_util.sync_params(self.model.parameters())
 
     def _load_ema_parameters(self, rate):
         ema_params = copy.deepcopy(self.master_params)

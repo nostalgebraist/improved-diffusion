@@ -433,7 +433,7 @@ class TrainLoop:
                   "stage": 2,
                   "offload_optimizer": {
                       "device": "cpu",
-                      # "pin_memory": True,
+                      "pin_memory": True,
                       },
                   "round_robin_gradients": True,
                   # "offload_param": {

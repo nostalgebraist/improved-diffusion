@@ -460,6 +460,8 @@ class TrainLoop:
         )
         self.deepspeed_model_engine = model_engine
 
+        deepspeed.checkpointing.configure(None)
+
     def run_loop(self):
         t1 = time.time()
         while (

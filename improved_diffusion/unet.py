@@ -362,7 +362,7 @@ class QKVAttention(nn.Module):
         )  # More stable with f16 than dividing afterwards
         weight = th.softmax(weight.float(), dim=-1).type(weight.dtype)
 
-        return = einsum_deepspeed_safe("bts,bcs->bct", weight, v)
+        return einsum_deepspeed_safe("bts,bcs->bct", weight, v)
 
     @staticmethod
     def count_flops(model, _x, y):

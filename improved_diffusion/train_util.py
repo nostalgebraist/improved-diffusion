@@ -431,7 +431,10 @@ class TrainLoop:
             },
             "zero_optimization": {
                   "stage": 2,
-                  "cpu_offload": True,
+                  "offload_optimizer": {
+                      "device": "cpu",
+                      "pin_memory": True,
+                      },
                   "contiguous_gradients": True,
                   "overlap_comm": True
             }

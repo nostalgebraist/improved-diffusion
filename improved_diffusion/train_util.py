@@ -435,6 +435,7 @@ class TrainLoop:
                       "device": "cpu",
                       # "pin_memory": True,
                       },
+                  "round_robin_gradients": True,
                   # "offload_param": {
                   #     "device": "cpu",
                   #     },

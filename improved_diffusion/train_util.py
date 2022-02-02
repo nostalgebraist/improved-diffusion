@@ -417,7 +417,7 @@ class TrainLoop:
 
         conf = {
             "train_batch_size": self.batch_size,
-            "train_batch_size_per_gpu": self.microbatch,
+            "train_micro_batch_size_per_gpu": self.microbatch,
             "optimizer": {
               "type": "Adam",
               "params": {

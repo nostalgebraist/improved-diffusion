@@ -431,10 +431,10 @@ class TrainLoop:
             },
             "zero_optimization": {
                   "stage": 0,
-                  "offload_optimizer": {
-                      "device": "cpu",
-                      # "pin_memory": True,
-                      },
+                  # "offload_optimizer": {
+                  #     "device": "cpu",
+                  #     # "pin_memory": True,
+                  #     },
                   # "offload_param": {
                   #     "device": "cpu",
                   #     },

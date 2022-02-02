@@ -525,15 +525,17 @@ class TrainLoop:
                 self.diffusion, t, {k: v * weights for k, v in losses.items()}
             )
 
-            grad_acc_scale = micro.shape[0] / self.batch_size
-            # grad_acc_scale = 1
+            # grad_acc_scale = micro.shape[0] / self.batch_size
+            grad_acc_scale = 1
 
             self.deepspeed_model_engine.backward(grad_acc_scale * loss)
+
+            self.deepspeed_model_engine.step()  # apparently it wants this even when not at grad acc boundary
 
     def optimize_deepspeed(self):
         self._log_grad_norm()
         # self._anneal_lr()  # TODO: deepspeed lr sched
-        self.deepspeed_model_engine.step()
+        # self.deepspeed_model_engine.step()
         for rate, params in zip(self.ema_rate, self.ema_params):
             update_ema(params, self.master_params, rate=rate)
 

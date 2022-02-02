@@ -440,6 +440,8 @@ class TrainLoop:
                       "device": "cpu",
                       },
                   "stage3_max_live_parameters": 1e7,
+                  "stage3_max_reuse_distance": 1e7,
+                  "stage3_param_persistence_threshold": 1e4,
                   # "contiguous_gradients": True,
                   # "overlap_comm": True
             },

@@ -450,8 +450,8 @@ class TrainLoop:
 
         model_engine, _, _, _ = deepspeed.initialize(
             model=self.wrapped,
-            # model_parameters=self.model.parameters(),
-            model_parameters=self.model_params,
+            model_parameters=self.model.parameters(),
+            # model_parameters=self.model_params,
             config=conf
         )
         self.deepspeed_model_engine = model_engine

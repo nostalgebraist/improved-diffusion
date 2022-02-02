@@ -26,6 +26,8 @@ from .nn import (
 
 from .text_nn import TextEncoder, CrossAttention, WeaveAttention
 
+ORIG_EINSUM = th.einsum  # for deepspeed
+
 
 class TimestepBlock(nn.Module):
     """
@@ -333,7 +335,10 @@ def einsum_deepspeed_safe(*args):
     real_stdout = sys.stdout
     sys.stdout = FAKE_STREAM
 
-    out = th.einsum(*args)
+    # out = th.einsum(*args)
+
+    # completely disable _einsum_flops_compute
+    out = ORIG_EINSUM(*args)
 
     sys.stdout = real_stdout
 

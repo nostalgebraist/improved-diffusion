@@ -439,6 +439,7 @@ class TrainLoop:
                   "offload_param": {
                       "device": "cpu",
                       },
+                  "stage3_max_live_parameters": 3e7,
                   # "contiguous_gradients": True,
                   # "overlap_comm": True
             },

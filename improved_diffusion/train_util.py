@@ -433,10 +433,10 @@ class TrainLoop:
                   "stage": 2,
                   "offload_optimizer": {
                       "device": "cpu",
-                      "pin_memory": True,
+                      # "pin_memory": True,
                       },
-                  "contiguous_gradients": True,
-                  "overlap_comm": True
+                  # "contiguous_gradients": True,
+                  # "overlap_comm": True
             }
         }
 

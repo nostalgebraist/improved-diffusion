@@ -1,6 +1,8 @@
 from abc import abstractmethod
 
 import math
+import io
+import sys
 
 import numpy as np
 import torch as th
@@ -317,6 +319,27 @@ class AttentionBlock(nn.Module):
         return (x + h).reshape(b, c, *spatial)
 
 
+class FakeStream(io.IOBase):
+    def write(self, *args, **kwargs): pass
+
+
+FAKE_STREAM = FakeStream()
+
+
+def einsum_deepspeed_safe(*args):
+    # silence spam that gets print()ed every time deepspeed profiler runs on th.einsum 9_9
+    #
+    # cf. https://github.com/microsoft/DeepSpeed/blob/bea701a1fc87a13f26f9d2f97ff4fd779b5d8b77/deepspeed/profiling/flops_profiler/profiler.py#L719-L739
+    real_stdout = sys.stdout
+    sys.stdout = FAKE_STREAM
+
+    out = th.einsum(*args)
+
+    sys.stdout = real_stdout
+
+    return out
+
+
 class QKVAttention(nn.Module):
     """
     A module which performs QKV attention.
@@ -332,11 +355,14 @@ class QKVAttention(nn.Module):
         ch = qkv.shape[1] // 3
         q, k, v = th.split(qkv, ch, dim=1)
         scale = 1 / math.sqrt(math.sqrt(ch))
-        weight = th.einsum(
+
+
+        weight = einsum_deepspeed_safe(
             "bct,bcs->bts", q * scale, k * scale
         )  # More stable with f16 than dividing afterwards
         weight = th.softmax(weight.float(), dim=-1).type(weight.dtype)
-        return th.einsum("bts,bcs->bct", weight, v)
+
+        return = einsum_deepspeed_safe("bts,bcs->bct", weight, v)
 
     @staticmethod
     def count_flops(model, _x, y):

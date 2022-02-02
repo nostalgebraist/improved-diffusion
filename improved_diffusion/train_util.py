@@ -463,7 +463,7 @@ class TrainLoop:
         deepspeed.checkpointing.configure(
             None,
             partition_activations=True,
-            checkpoint_in_cpu=True,
+            checkpoint_in_cpu=False,
         )
 
     def run_loop(self):

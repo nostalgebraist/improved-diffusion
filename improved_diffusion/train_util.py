@@ -430,15 +430,15 @@ class TrainLoop:
               "loss_scale_window": int(1 / self.fp16_scale_growth)
             },
             "zero_optimization": {
-                  "stage": 2,
-                  "offload_optimizer": {
-                      "device": "cpu",
-                      "pin_memory": True,
-                      },
-                  "round_robin_gradients": True,
-                  "offload_param": {
-                      "device": "cpu",
-                      },
+                  "stage": 0,
+                  # "offload_optimizer": {
+                  #     "device": "cpu",
+                  #     "pin_memory": True,
+                  #     },
+                  # "round_robin_gradients": True,
+                  # "offload_param": {
+                  #     "device": "cpu",
+                  #     },
                   # "stage3_max_live_parameters": 1e7,
                   # "stage3_max_reuse_distance": 1e7,
                   # "stage3_param_persistence_threshold": 1e4,

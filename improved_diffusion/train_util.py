@@ -442,7 +442,7 @@ class TrainLoop:
                   # "overlap_comm": True
             },
             "flops_profiler": {
-                "enabled": True,
+                "enabled": False,
             }
         }
 

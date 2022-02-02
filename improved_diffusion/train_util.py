@@ -489,7 +489,8 @@ class TrainLoop:
 
     def forward_backward_deepspeed(self, batch, cond, verbose=False):
         for i in range(0, batch.shape[0], self.microbatch):
-            micro = batch[i : i + self.microbatch].half().to(dist_util.dev())
+            # micro = batch[i : i + self.microbatch].half().to(dist_util.dev())
+            micro = batch[i : i + self.microbatch].to(dist_util.dev())
             micro_txt = cond['txt'][i : i + self.microbatch]
             micro_txt = th.as_tensor(tokenize(self.tokenizer, micro_txt), device=dist_util.dev())
 

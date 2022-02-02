@@ -430,14 +430,14 @@ class TrainLoop:
               "loss_scale_window": int(1 / self.fp16_scale_growth)
             },
             "zero_optimization": {
-                  "stage": 3,
+                  "stage": 2,
                   "offload_optimizer": {
                       "device": "cpu",
                       # "pin_memory": True,
                       },
-                  "offload_param": {
-                      "device": "cpu",
-                      },
+                  # "offload_param": {
+                  #     "device": "cpu",
+                  #     },
                   # "contiguous_gradients": True,
                   # "overlap_comm": True
             },

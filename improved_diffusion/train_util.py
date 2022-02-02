@@ -440,18 +440,21 @@ class TrainLoop:
                       },
                   # "contiguous_gradients": True,
                   # "overlap_comm": True
+            },
+            "flops_profiler": {
+                "enabled": True,
             }
         }
 
         self.wrapped = WrapperForDeepspeed(self.model, self.diffusion)
 
-        model_engine, optimizer, _, _ = deepspeed.initialize(
+        model_engine, _, _, _ = deepspeed.initialize(
             model=self.wrapped,
-            model_parameters=self.model.parameters(),
+            # model_parameters=self.model.parameters(),
+            model_parameters=self.model_params,
             config=conf
         )
         self.deepspeed_model_engine = model_engine
-        self.deepspeed_opt = optimizer
 
     def run_loop(self):
         t1 = time.time()

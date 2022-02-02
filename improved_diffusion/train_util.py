@@ -460,7 +460,11 @@ class TrainLoop:
         )
         self.deepspeed_model_engine = model_engine
 
-        deepspeed.checkpointing.configure(None)
+        deepspeed.checkpointing.configure(
+            None,
+            partition_activations=True,
+            checkpoint_in_cpu=True,
+        )
 
     def run_loop(self):
         t1 = time.time()

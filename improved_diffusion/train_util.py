@@ -58,6 +58,10 @@ class WrapperForDeepspeed(th.nn.Module):
         losses = self.diffusion.training_losses(self.model, batch, t, {'txt': txt})
         return losses
 
+    def half(self):
+        print('deepspeed called half, overriding ;)')
+        self.model.convert_to_fp16()
+
 
 class TrainLoop:
     def __init__(

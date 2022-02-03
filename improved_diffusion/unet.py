@@ -956,7 +956,10 @@ class UNetModel(nn.Module):
             h, txt = module((h, txt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs)
             hs.append(h)
         h, txt = self.middle_block((h, txt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs)
-        h = h.to(hs[0].device)  # deepspeed
+        # h = h.to(hs[0].device)  # deepspeed
+        print(('h.device', h.device))
+        for hix, hh in enumerate(hs):
+            print((f'h[{hix}].device', h[{hix}].device))
         for hix, module in enumerate(self.output_blocks):
             cat_in = th.cat([h, hs.pop()], dim=1)
             # cat_in = th.cat([h, hs[len(hs) - hix - 1]], dim=1)

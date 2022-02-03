@@ -239,7 +239,16 @@ def checkpoint(func, inputs, params, flag, final_nograd=0):
         import deepspeed
         if deepspeed.checkpointing.is_configured():
             # print('using deepspeed checkpointing')
-            return deepspeed.checkpointing.checkpoint(func, *inputs).cuda()
+            outputs = deepspeed.checkpointing.checkpoint(func, *inputs)
+            try:
+                print outputs.device
+            except:
+                try:
+                    for o in outputs:
+                        print(o.device)
+                except:
+                    pass
+            return outputs
         # print('using native checkpointing')
         # print(f"ckpt final_nograd: {final_nograd}")
         args = tuple(inputs) + tuple(params)

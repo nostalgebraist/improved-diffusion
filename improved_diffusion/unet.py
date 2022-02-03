@@ -959,7 +959,7 @@ class UNetModel(nn.Module):
         # h = h.to(hs[0].device)  # deepspeed
         print(('h.device', h.device))
         for hix, hh in enumerate(hs):
-            print((f'h[{hix}].device', h[hix].device))
+            print((f'hs[{hix}].device', hs[hix].device))
         for hix, module in enumerate(self.output_blocks):
             tocat = hs.pop()
             # h = h.to(tocat.device)

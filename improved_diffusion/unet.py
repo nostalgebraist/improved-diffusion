@@ -957,7 +957,7 @@ class UNetModel(nn.Module):
             hs.append(h)
         h, txt = self.middle_block((h, txt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs)
         for module in self.output_blocks:
-            cat_in = th.cat([h, hs.pop()], dim=1)
+            cat_in = th.cat([h, hs.pop().to(h.device)], dim=1)
             h, txt = module((cat_in, txt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs)
 
         # # !!!!!!! changed for deepspeed, breaking change to non-deepspeed, TODO: fix

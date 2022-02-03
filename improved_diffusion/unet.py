@@ -953,25 +953,12 @@ class UNetModel(nn.Module):
         if self.channels_last_mem:
             h = h.to(memory_format=th.channels_last)
         for module in self.input_blocks:
-            print(("h.device before", h.device))
             h, txt = module((h, txt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs)
-            print(("h.device after", h.device))
-            hs.append(h.clone())
-            print(("hs[-1].device after", hs[-1].device))
-            for hix, hh in enumerate(hs):
-                print((f'hs[{hix}].device', hs[hix].device))
+            hs.append(h.clone())  # clone for deepspeed
         h, txt = self.middle_block((h, txt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs)
-        # h = h.to(hs[0].device)  # deepspeed
-        print(('h.device', h.device))
-        for hix, hh in enumerate(hs):
-            print((f'hs[{hix}].device', hs[hix].device))
         for hix, module in enumerate(self.output_blocks):
             tocat = hs.pop()
-            # h = h.to(tocat.device)
-            print(('h.device', h.device))
-            print(('tocat.device', tocat.device))
             cat_in = th.cat([h, tocat], dim=1)
-            # cat_in = th.cat([h, hs[len(hs) - hix - 1]], dim=1)
             h, txt = module((cat_in, txt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs)
 
         # # !!!!!!! changed for deepspeed, breaking change to non-deepspeed, TODO: fix

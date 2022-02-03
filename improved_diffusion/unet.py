@@ -956,7 +956,7 @@ class UNetModel(nn.Module):
             print(("h.device before", h.device))
             h, txt = module((h, txt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs)
             print(("h.device after", h.device))
-            hs.append(h)
+            hs.append(h.clone())
             print(("hs[-1].device after", hs[-1].device))
             for hix, hh in enumerate(hs):
                 print((f'hs[{hix}].device', hs[hix].device))

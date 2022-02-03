@@ -962,7 +962,9 @@ class UNetModel(nn.Module):
             print((f'h[{hix}].device', h[hix].device))
         for hix, module in enumerate(self.output_blocks):
             tocat = hs.pop()
-            h = h.to(tocat.device)
+            # h = h.to(tocat.device)
+            print(('h.device', h.device))
+            print(('tocat.device', tocat.device))
             cat_in = th.cat([h, tocat], dim=1)
             # cat_in = th.cat([h, hs[len(hs) - hix - 1]], dim=1)
             h, txt = module((cat_in, txt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs)

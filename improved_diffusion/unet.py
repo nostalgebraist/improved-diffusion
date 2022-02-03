@@ -953,7 +953,9 @@ class UNetModel(nn.Module):
         if self.channels_last_mem:
             h = h.to(memory_format=th.channels_last)
         for module in self.input_blocks:
+            print(("h.device before", h.device))
             h, txt = module((h, txt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs)
+            print(("h.device after", h.device))
             hs.append(h)
         h, txt = self.middle_block((h, txt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs)
         # h = h.to(hs[0].device)  # deepspeed

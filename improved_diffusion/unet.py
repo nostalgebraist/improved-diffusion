@@ -958,9 +958,8 @@ class UNetModel(nn.Module):
             print(("h.device after", h.device))
             hs.append(h)
             print(("hs[-1].device after", hs[-1].device))
-        print(('h.device', h.device))
-        for hix, hh in enumerate(hs):
-            print((f'hs[{hix}].device', hs[hix].device))
+            for hix, hh in enumerate(hs):
+                print((f'hs[{hix}].device', hs[hix].device))
         h, txt = self.middle_block((h, txt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs)
         # h = h.to(hs[0].device)  # deepspeed
         print(('h.device', h.device))

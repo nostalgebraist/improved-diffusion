@@ -957,10 +957,10 @@ class UNetModel(nn.Module):
         #     return x.clone(), x.clone()
 
         for module in self.input_blocks:
-            h, txt = module((h, txt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs)
+            h, txt = module((h.clone(), txt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs)
             # h, hh = _beamsplit(h)  # clone for deepspeed
             hs.append(h)
-        h, txt = self.middle_block((h, txt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs)
+        h, txt = self.middle_block((h.clone(), txt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs)
         for hix, module in enumerate(self.output_blocks):
             tocat = hs.pop()
             cat_in = th.cat([h, tocat], dim=1)

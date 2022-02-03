@@ -953,13 +953,13 @@ class UNetModel(nn.Module):
         if self.channels_last_mem:
             h = h.to(memory_format=th.channels_last)
 
-        def _beamsplit(x):
-            return x.clone(), x.clone()
+        # def _beamsplit(x):
+        #     return x.clone(), x.clone()
 
         for module in self.input_blocks:
             h, txt = module((h, txt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs)
-            h, hh = _beamsplit(h)  # clone for deepspeed
-            hs.append(hh)
+            # h, hh = _beamsplit(h)  # clone for deepspeed
+            hs.append(h)
         h, txt = self.middle_block((h, txt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs)
         for hix, module in enumerate(self.output_blocks):
             tocat = hs.pop()

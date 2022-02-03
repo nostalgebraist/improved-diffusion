@@ -952,9 +952,14 @@ class UNetModel(nn.Module):
         h = h.type(self.inner_dtype)
         if self.channels_last_mem:
             h = h.to(memory_format=th.channels_last)
+
+        def _beamsplit(x):
+            return x.clone(), x.clone()
+
         for module in self.input_blocks:
             h, txt = module((h, txt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs)
-            hs.append(h.clone())  # clone for deepspeed
+            h, hh = _beamsplit(h)  # clone for deepspeed
+            hs.append(hh)
         h, txt = self.middle_block((h, txt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs)
         for hix, module in enumerate(self.output_blocks):
             tocat = hs.pop()

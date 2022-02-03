@@ -240,14 +240,16 @@ def checkpoint(func, inputs, params, flag, final_nograd=0):
         if deepspeed.checkpointing.is_configured():
             # print('using deepspeed checkpointing')
             outputs = deepspeed.checkpointing.checkpoint(func, *inputs)
+            print('start ckpt log')
             try:
-                print outputs.device
+                print(outputs.device)
             except:
                 try:
                     for o in outputs:
                         print(o.device)
                 except:
                     pass
+            print('end ckpt log')
             return outputs
         # print('using native checkpointing')
         # print(f"ckpt final_nograd: {final_nograd}")

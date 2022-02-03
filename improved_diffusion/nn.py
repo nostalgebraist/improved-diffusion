@@ -237,11 +237,11 @@ def checkpoint(func, inputs, params, flag, final_nograd=0):
     """
     if flag:
         import deepspeed
-        args = tuple(inputs) + tuple(params)
         if deepspeed.checkpointing.is_configured():
             # print('using deepspeed checkpointing')
-            return deepspeed.checkpointing.checkpoint(func, *args)
+            return deepspeed.checkpointing.checkpoint(func, *inputs)
         # print(f"ckpt final_nograd: {final_nograd}")
+        args = tuple(inputs) + tuple(params)
         return CheckpointFunction.apply(func, len(inputs), final_nograd, *args)
     else:
         return func(*inputs)

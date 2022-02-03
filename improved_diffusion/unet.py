@@ -962,7 +962,7 @@ class UNetModel(nn.Module):
             hs.append(h)
         h, txt = self.middle_block((h, txt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs)
         for hix, module in enumerate(self.output_blocks):
-            tocat = hs.pop().clone().cuda()
+            tocat = hs.pop().cuda().clone()
             cat_in = th.cat([h, tocat], dim=1)
             h, txt = module((cat_in, txt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs)
 

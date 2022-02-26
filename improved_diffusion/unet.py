@@ -25,6 +25,11 @@ from .nn import (
 from .text_nn import TextEncoder, CrossAttention, WeaveAttention
 
 
+def remapped_timestep_embedding():
+    # TODO: write
+    pass
+
+
 class TimestepBlock(nn.Module):
     """
     Any module where forward() takes timestep embeddings as a second argument.

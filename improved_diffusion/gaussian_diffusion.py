@@ -15,6 +15,20 @@ from .nn import mean_flat
 from .losses import normal_kl, discretized_gaussian_log_likelihood
 
 
+def remap_schedule_point(target_schedule, x):
+    asort = np.argsort((target_schedule-x)**2)
+    p1, p2 = asort[0], asort[1]
+    w1, w2 = np.abs(target_schedule[p1]-x), np.abs(target_schedule[p2]-x)
+    n = w1+w2
+    w1 /= n
+    w2 /= n
+    return w1*p1 + w2*p2
+
+
+def remap_schedule(target_schedule, source_schedule):
+    return np.array([remap_schedule_point(target_schedule, x) for x in source_schedule])
+
+
 def get_named_beta_schedule(schedule_name, num_diffusion_timesteps):
     """
     Get a pre-defined beta schedule for the given name.

@@ -81,7 +81,7 @@ class ScalarFunction:
 
     def cumprod(self, dt=1):
         def _new_fn(t):
-            return np.product([self.fn(s) for s in np.arange(0, t+dt, dt)])
+            return np.array([np.product([self.fn(s) for s in np.arange(0, t_+dt, dt)]) for t_ in t])
         return ScalarFunction(_new_fn)
 
 

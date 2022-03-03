@@ -661,6 +661,7 @@ def create_gaussian_diffusion(
             ),
             loss_type=loss_type,
             rescale_timesteps=rescale_timesteps,
+            num_timesteps=steps
         )
     if return_diffusion_factory:
         return diffusion_factory

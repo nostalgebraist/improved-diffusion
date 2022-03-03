@@ -88,6 +88,7 @@ class SpacedDiffusion(GaussianDiffusion):
                 last_alpha_cumprod = base_diffusion.alphas_cumprod(i)
                 self.timestep_map.append(i)
         # kwargs["betas"] = np.array(new_betas) if isinstance(new_betas, list) else new_betas
+        print(repr(self.timestep_map))
         def betafn(t):
             return new_betas[int(t)]
         kwargs["betas"] = ScalarFunction(betafn)

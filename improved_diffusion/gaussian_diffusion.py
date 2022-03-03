@@ -244,7 +244,7 @@ class GaussianDiffusion:
 
         alphas = 1.0 - betas
         if self.using_scalarfunction:
-            self.alphas_cumprod = betas.cumprod()
+            self.alphas_cumprod = alphas.cumprod()
             self.alphas_cumprod_prev = self.alphas_cumprod.shift(-1)
             self.alphas_cumprod_next = self.alphas_cumprod.shift(1)
         else:

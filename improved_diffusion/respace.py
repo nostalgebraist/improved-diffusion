@@ -91,7 +91,7 @@ class SpacedDiffusion(GaussianDiffusion):
         new_betas = np.array(new_betas)
         print(repr(self.timestep_map))
         def betafn(t):
-            return new_betas[int(t)]
+            return new_betas[np.asarray(t).astype(int)]
         kwargs["betas"] = ScalarFunction(betafn)
         kwargs["num_timesteps"] = len(self.timestep_map)
         self.base_diffusion = base_diffusion

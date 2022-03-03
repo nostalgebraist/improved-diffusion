@@ -231,8 +231,8 @@ class GaussianDiffusion:
 
         self.betas = betas
         self.log_betas = np.log(betas)
-        assert len(betas.shape) == 1, "betas must be 1-D"
-        assert (betas > 0).all() and (betas <= 1).all()
+        # assert len(betas.shape) == 1, "betas must be 1-D"
+        # assert (betas > 0).all() and (betas <= 1).all()
 
         if not self.using_scalarfunction:
             self.num_timesteps = int(betas.shape[0])
@@ -1002,7 +1002,10 @@ def _extract_into_tensor(arr, timesteps, broadcast_shape):
                             dimension equal to the length of timesteps.
     :return: a tensor of shape [batch_size, 1, ...] where the shape has K dims.
     """
-    res = th.from_numpy(arr).to(device=timesteps.device)[timesteps].float()
+    if isinstance(arr, ScalarFunction):
+        res = th.from_numpy(arr(timesteps.cpu().numpy())).to(device=timesteps.device).float()
+    else:
+        res = th.from_numpy(arr).to(device=timesteps.device)[timesteps].float()
     while len(res.shape) < len(broadcast_shape):
         res = res[..., None]
     return res.expand(broadcast_shape)

@@ -92,6 +92,7 @@ class SpacedDiffusion(GaussianDiffusion):
         def betafn(t):
             return new_betas[int(t)]
         kwargs["betas"] = ScalarFunction(betafn)
+        kwargs["num_timesteps"] = len(self.timestep_map)
         super().__init__(**kwargs)
 
     def p_mean_variance(

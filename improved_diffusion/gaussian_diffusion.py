@@ -220,13 +220,15 @@ class GaussianDiffusion:
         self.rescale_timesteps = rescale_timesteps
 
         self.using_scalarfunction = False
-        if (isinstance(betas, ScalarFunction) is not None):
+        if isinstance(betas, ScalarFunction):
             assert num_timesteps is not None
             self.num_timesteps = num_timesteps
             self.using_scalarfunction = True
+        else:
+            betas = np.array(betas, dtype=np.float64)
 
         # Use float64 for accuracy.
-        betas = np.array(betas, dtype=np.float64)
+
         self.betas = betas
         self.log_betas = np.log(betas)
         assert len(betas.shape) == 1, "betas must be 1-D"

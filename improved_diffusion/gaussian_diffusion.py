@@ -22,40 +22,44 @@ class ScalarFunction:
     def __call__(self, t):
         return self.fn(t)
 
+    @staticmethod
+    def _lower_other(other, t):
+        return other.fn(t) if isinstance(other, ScalarFunction) else other
+
     def __add__(self, other):
-        def _new_fn(t): return self.fn(t) + other
+        def _new_fn(t): return self.fn(t) + ScalarFunction._lower_other(other, t)
         return ScalarFunction(_new_fn)
 
-    def __radd__(self, other): return self.__add__(other)
+    def __radd__(self, other): return self.__add__(ScalarFunction._lower_other(other, t))
 
     def __sub__(self, other):
-        def _new_fn(t): return self.fn(t) - other
+        def _new_fn(t): return self.fn(t) - ScalarFunction._lower_other(other, t)
         return ScalarFunction(_new_fn)
 
     def __rsub__(self, other):
-        def _new_fn(t): return other - self.fn(t)
+        def _new_fn(t): return ScalarFunction._lower_other(other, t) - self.fn(t)
         return ScalarFunction(_new_fn)
 
     def __mul__(self, other):
-        def _new_fn(t): return self.fn(t) * other
+        def _new_fn(t): return self.fn(t) * ScalarFunction._lower_other(other, t)
         return ScalarFunction(_new_fn)
 
     def __rmul__(self, other): return self.__mul__(other)
 
     def __truediv__(self, other):
-        def _new_fn(t): return self.fn(t) / other
+        def _new_fn(t): return self.fn(t) / ScalarFunction._lower_other(other, t)
         return ScalarFunction(_new_fn)
 
     def __rtruediv__(self, other):
-        def _new_fn(t): return other / self.fn(t)
+        def _new_fn(t): return ScalarFunction._lower_other(other, t) / self.fn(t)
         return ScalarFunction(_new_fn)
 
     def __lt__(self, other):
-        def _new_fn(t): return self.fn(t) < other
+        def _new_fn(t): return self.fn(t) < ScalarFunction._lower_other(other, t)
         return ScalarFunction(_new_fn)
 
     def __gt__(self, other):
-        def _new_fn(t): return self.fn(t) > other
+        def _new_fn(t): return self.fn(t) > ScalarFunction._lower_other(other, t)
         return ScalarFunction(_new_fn)
 
     def log(self):

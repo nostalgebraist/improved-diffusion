@@ -627,7 +627,8 @@ def create_gaussian_diffusion(
     use_v_loss=False,
     use_snr_plus_one_loss=False
 ):
-    betas = gd.get_named_beta_schedule(noise_schedule, steps)
+    # betas = gd.get_named_beta_schedule(noise_schedule, steps)
+    betas = gd.get_schedule_fn(noise_schedule, steps)
     if use_snr_plus_one_loss:
         loss_type = gd.LossType.RESCALED_MSE_SNR_PLUS_ONE
     elif use_v_loss:

@@ -15,6 +15,67 @@ from .nn import mean_flat
 from .losses import normal_kl, discretized_gaussian_log_likelihood
 
 
+class ScalarFunction:
+    def __init__(self, fn):
+        self.fn = fn
+
+    def __call__(self, t):
+        return self.fn(t)
+
+    def __add__(self, other):
+        def _new_fn(t): return self.fn(t) + other
+        return ScalarFunction(_new_fn)
+
+    def __radd__(self, other): return self.__add__(other)
+
+    def __sub__(self, other):
+        def _new_fn(t): return self.fn(t) - other
+        return ScalarFunction(_new_fn)
+
+    def __rsub__(self, other):
+        def _new_fn(t): return other - self.fn(t)
+        return ScalarFunction(_new_fn)
+
+    def __mul__(self, other):
+        def _new_fn(t): return self.fn(t) * other
+        return ScalarFunction(_new_fn)
+
+    def __rmul__(self, other): return self.__mul__(other)
+
+    def __truediv__(self, other):
+        def _new_fn(t): return self.fn(t) / other
+        return ScalarFunction(_new_fn)
+
+    def __rtruediv__(self, other):
+        def _new_fn(t): return other / self.fn(t)
+        return ScalarFunction(_new_fn)
+
+    def __lt__(self, other):
+        def _new_fn(t): return self.fn(t) < other
+        return ScalarFunction(_new_fn)
+
+    def __gt__(self, other):
+        def _new_fn(t): return self.fn(t) > other
+        return ScalarFunction(_new_fn)
+
+    def log(self):
+        def _new_fn(t): return np.log(self.fn(t))
+        return ScalarFunction(_new_fn)
+
+    def sqrt(self):
+        def _new_fn(t): return np.sqrt(self.fn(t))
+        return ScalarFunction(_new_fn)
+
+    def shift(self, dt):
+        def _new_fn(t): return self.fn(t + dt)
+        return ScalarFunction(_new_fn)
+
+    def cliparg(self, a_min=None, a_max=None):
+        def _new_fn(t): return self.fn(np.clip(t, a_min=a_min, a_max=a_max))
+        return ScalarFunction(_new_fn)
+
+
+
 def get_named_beta_schedule(schedule_name, num_diffusion_timesteps):
     """
     Get a pre-defined beta schedule for the given name.
@@ -51,7 +112,8 @@ def get_schedule_fn(schedule_name, num_diffusion_timesteps):
         beta_end = scale * 0.02
         def schedule_fn(t):
             ratio = t / (num_diffusion_timesteps - 1)
-            return beta_start + ratio * (beta_end - beta_start)
+            val = beta_start + ratio * (beta_end - beta_start)
+            return max(0., min(1., val))
         return schedule_fn
     else:
         return None
@@ -145,26 +207,41 @@ class GaussianDiffusion:
         model_var_type,
         loss_type,
         rescale_timesteps=False,
-        schedule_fn=None,
+        alpha_bar_fn=None,
+        num_timesteps=None,
     ):
         self.model_mean_type = model_mean_type
         self.model_var_type = model_var_type
         self.loss_type = loss_type
         self.rescale_timesteps = rescale_timesteps
 
+        self.using_scalarfunction = False
+        if (alpha_bar_fn is not None) and (num_timesteps is not None):
+            self.using_scalarfunction = True
+            betas_ = betas_for_alpha_bar(num_timesteps, alpha_bar_fn)
+            def betafn(t):
+                return betas[t]
+            betas = ScalarFunction(betafn)
+
         # Use float64 for accuracy.
         betas = np.array(betas, dtype=np.float64)
         self.betas = betas
+        self.log_betas = np.log(betas)
         assert len(betas.shape) == 1, "betas must be 1-D"
         assert (betas > 0).all() and (betas <= 1).all()
 
         self.num_timesteps = int(betas.shape[0])
 
         alphas = 1.0 - betas
-        self.alphas_cumprod = np.cumprod(alphas, axis=0)
-        self.alphas_cumprod_prev = np.append(1.0, self.alphas_cumprod[:-1])
-        self.alphas_cumprod_next = np.append(self.alphas_cumprod[1:], 0.0)
-        assert self.alphas_cumprod_prev.shape == (self.num_timesteps,)
+        if self.using_scalarfunction:
+            self.alphas_cumprod = ScalarFunction(alpha_bar_fn)
+            self.alphas_cumprod_prev = self.alphas_cumprod.shift(-1)
+            self.alphas_cumprod_next = self.alphas_cumprod.shift(1)
+        else:
+            self.alphas_cumprod = np.cumprod(alphas, axis=0)
+            self.alphas_cumprod_prev = np.append(1.0, self.alphas_cumprod[:-1])
+            self.alphas_cumprod_next = np.append(self.alphas_cumprod[1:], 0.0)
+            assert self.alphas_cumprod_prev.shape == (self.num_timesteps,)
 
         # calculations for diffusion q(x_t | x_{t-1}) and others
         self.sqrt_alphas_cumprod = np.sqrt(self.alphas_cumprod)
@@ -181,19 +258,25 @@ class GaussianDiffusion:
         )
         # log calculation clipped because the posterior variance is 0 at the
         # beginning of the diffusion chain.
-        self.posterior_log_variance_clipped = np.log(
-            np.append(self.posterior_variance[1], self.posterior_variance[1:])
-        )
+        if self.using_scalarfunction:
+            self.posterior_log_variance_clipped = np.log(self.posterior_variance.cliparg(a_min=1))
+        else:
+            self.posterior_log_variance_clipped = np.log(
+                np.append(self.posterior_variance[1], self.posterior_variance[1:])
+            )
         self.posterior_mean_coef1 = (
             betas * np.sqrt(self.alphas_cumprod_prev) / (1.0 - self.alphas_cumprod)
         )
+        self.recip_posterior_mean_coef1 = 1.0 / self.posterior_mean_coef1
+
         self.posterior_mean_coef2 = (
             (1.0 - self.alphas_cumprod_prev)
             * np.sqrt(alphas)
             / (1.0 - self.alphas_cumprod)
         )
 
-        self.schedule_fn = schedule_fn
+        self.posterior_mean_coef_ratio = self.posterior_mean_coef2 / self.posterior_mean_coef1
+
 
     def q_mean_variance(self, x_start, t):
         """
@@ -206,7 +289,7 @@ class GaussianDiffusion:
         mean = (
             _extract_into_tensor(self.sqrt_alphas_cumprod, t, x_start.shape) * x_start
         )
-        variance = _extract_into_tensor(1.0 - self.alphas_cumprod, t, x_start.shape)
+        variance = _extract_into_tensor(self.one_minus_alphas_cumprod, t, x_start.shape)
         log_variance = _extract_into_tensor(
             self.log_one_minus_alphas_cumprod, t, x_start.shape
         )
@@ -313,7 +396,7 @@ class GaussianDiffusion:
                 min_log = _extract_into_tensor(
                     self.posterior_log_variance_clipped, t, x.shape
                 )
-                max_log = _extract_into_tensor(np.log(self.betas), t, x.shape)
+                max_log = _extract_into_tensor(self.log_betas, t, x.shape)
                 # The model_var_values is [-1, 1] for [min_var, max_var].
                 frac = (model_var_values + 1) / 2
                 model_log_variance = frac * max_log + (1 - frac) * min_log
@@ -389,9 +472,9 @@ class GaussianDiffusion:
     def _predict_xstart_from_xprev(self, x_t, t, xprev):
         assert x_t.shape == xprev.shape
         return (  # (xprev - coef2*x_t) / coef1
-            _extract_into_tensor(1.0 / self.posterior_mean_coef1, t, x_t.shape) * xprev
+            _extract_into_tensor(self.recip_posterior_mean_coef1, t, x_t.shape) * xprev
             - _extract_into_tensor(
-                self.posterior_mean_coef2 / self.posterior_mean_coef1, t, x_t.shape
+                self.posterior_mean_coef_ratio, t, x_t.shape
             )
             * x_t
         )

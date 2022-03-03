@@ -20,7 +20,7 @@ class ScalarFunction:
         self.fn = fn
 
     def __call__(self, t):
-        print(f'called with {repr(t)}')
+        # print(f'called with {repr(t)}')
         return self.fn(t)
 
     @staticmethod

@@ -80,7 +80,8 @@ class SamplingModel(nn.Module):
         clf_free_guidance=False,
         guidance_scale=0.,
         txt_drop_string='<mask><mask><mask><mask>',
-        return_intermediates=False
+        return_intermediates=False,
+        use_prk=False
     ):
         dist_util.setup_dist()
 

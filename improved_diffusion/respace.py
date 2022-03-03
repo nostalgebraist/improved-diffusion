@@ -1,7 +1,7 @@
 import numpy as np
 import torch as th
 
-from .gaussian_diffusion import GaussianDiffusion
+from .gaussian_diffusion import GaussianDiffusion, ScalarFunction
 
 
 def space_timesteps(num_timesteps, section_counts):
@@ -86,7 +86,10 @@ class SpacedDiffusion(GaussianDiffusion):
                 new_betas.append(1 - base_diffusion.alphas_cumprod(i) / last_alpha_cumprod)
                 last_alpha_cumprod = base_diffusion.alphas_cumprod(i)
                 self.timestep_map.append(i)
-        kwargs["betas"] = np.array(new_betas) if isinstance(new_betas, list) else new_betas
+        # kwargs["betas"] = np.array(new_betas) if isinstance(new_betas, list) else new_betas
+        def betafn(t):
+            return new_betas[int(t)]
+        kwargs["betas"] = ScalarFunction(betafn)
         super().__init__(**kwargs)
 
     def p_mean_variance(

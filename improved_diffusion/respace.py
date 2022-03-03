@@ -81,7 +81,7 @@ class SpacedDiffusion(GaussianDiffusion):
         base_diffusion = GaussianDiffusion(**kwargs)  # pylint: disable=missing-kwoa
         last_alpha_cumprod = 1.0
         new_betas = []
-        for i in range(num_timesteps):
+        for i in range(base_diffusion.num_timesteps):
         # for i, alpha_cumprod in enumerate(base_diffusion.alphas_cumprod):
             if i in self.use_timesteps:
                 new_betas.append(1 - base_diffusion.alphas_cumprod(i) / last_alpha_cumprod)

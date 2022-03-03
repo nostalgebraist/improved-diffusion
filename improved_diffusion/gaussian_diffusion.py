@@ -763,7 +763,6 @@ class GaussianDiffusion:
                     clip_denoised=clip_denoised,
                     denoised_fn=denoised_fn,
                     model_kwargs=model_kwargs,
-                    eta=eta,
                 )
                 # yield out
                 img = out["sample"]

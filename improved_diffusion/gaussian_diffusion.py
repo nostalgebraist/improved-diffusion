@@ -74,6 +74,11 @@ class ScalarFunction:
         def _new_fn(t): return self.fn(np.clip(t, a_min=a_min, a_max=a_max))
         return ScalarFunction(_new_fn)
 
+    def cumprod(self, dt=1):
+        def _new_fn(t):
+            return np.product([self.fn(s) for s in np.arange(0, t+dt, dt)])
+        return ScalarFunction(_new_fn)
+
 
 
 def get_named_beta_schedule(schedule_name, num_diffusion_timesteps):
@@ -207,7 +212,6 @@ class GaussianDiffusion:
         model_var_type,
         loss_type,
         rescale_timesteps=False,
-        alpha_bar_fn=None,
         num_timesteps=None,
     ):
         self.model_mean_type = model_mean_type
@@ -216,12 +220,10 @@ class GaussianDiffusion:
         self.rescale_timesteps = rescale_timesteps
 
         self.using_scalarfunction = False
-        if (alpha_bar_fn is not None) and (num_timesteps is not None):
+        if (isinstance(betas, ScalarFunction) is not None):
+            assert num_timesteps is not None
+            self.num_timesteps = num_timesteps
             self.using_scalarfunction = True
-            betas_ = betas_for_alpha_bar(num_timesteps, alpha_bar_fn)
-            def betafn(t):
-                return betas[t]
-            betas = ScalarFunction(betafn)
 
         # Use float64 for accuracy.
         betas = np.array(betas, dtype=np.float64)
@@ -230,11 +232,12 @@ class GaussianDiffusion:
         assert len(betas.shape) == 1, "betas must be 1-D"
         assert (betas > 0).all() and (betas <= 1).all()
 
-        self.num_timesteps = int(betas.shape[0])
+        if not self.using_scalarfunction:
+            self.num_timesteps = int(betas.shape[0])
 
         alphas = 1.0 - betas
         if self.using_scalarfunction:
-            self.alphas_cumprod = ScalarFunction(alpha_bar_fn)
+            self.alphas_cumprod = betas.cumprod()
             self.alphas_cumprod_prev = self.alphas_cumprod.shift(-1)
             self.alphas_cumprod_next = self.alphas_cumprod.shift(1)
         else:

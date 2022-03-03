@@ -74,6 +74,7 @@ class SpacedDiffusion(GaussianDiffusion):
         self.timestep_map = []
         if 'num_timesteps' in kwargs:
             self.original_num_steps = kwargs["num_timesteps"]
+            kwargs["betas"] = ScalarFunction(kwargs["betas"])
         else:
             self.original_num_steps = len(kwargs["betas"])
 

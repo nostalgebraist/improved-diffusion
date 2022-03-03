@@ -112,6 +112,8 @@ class SamplingModel(nn.Module):
                 return {'sample': sample_array, 'xstart': xstart_array}
 
             sample_fn = sample_fn_
+        elif use_prk:
+            sample_fn = self.diffusion.prk_sample_loop
         elif use_ddim:
             sample_fn = self.diffusion.ddim_sample_loop
         else:

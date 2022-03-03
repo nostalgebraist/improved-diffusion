@@ -670,6 +670,105 @@ class GaussianDiffusion:
         sample = mean_pred + nonzero_mask * sigma * noise
         return {"sample": sample, "pred_xstart": out["pred_xstart"]}
 
+    def prk_double_step(
+        self,
+        model,
+        x,
+        t,
+        clip_denoised=True,
+        denoised_fn=None,
+        model_kwargs=None,
+    ):
+        def model_step(x_, t_):
+            out = self.p_mean_variance(
+                model,
+                x_,
+                t_,
+                clip_denoised=clip_denoised,
+                denoised_fn=denoised_fn,
+                model_kwargs=model_kwargs,
+            )
+            eps = out['mean'], out['pred_xstart']
+            return eps
+
+        def transfer(x_, eps, t2_):
+            xstart = self._predict_xstart_from_eps(x_, t2_, eps):
+            alpha_bar_t2 = _extract_into_tensor(self.alphas_cumprod, t2_, x.shape)
+            return (
+                xstart * th.sqrt(alpha_bar_t2) + th.sqrt(1 - alpha_bar_t2) * eps
+            ), xstart
+
+        t1 = t
+        t_mid = t-1
+        t2 = t-2
+
+        print((t1, t_mid, t2))
+
+        eps1 = model_step(x, t1)
+        x1, _ = transfer(x, eps1, t_mid)
+
+        eps2 = model_step(x1, t_mid)
+        x2, _ = transfer(x, eps2, t_mid)
+
+        eps3 = model_step(x2, t_mid)
+        x3, _ = transfer(x, eps3, t2)
+
+        eps4 = model_step(x3, t2)
+
+        eps_prime = (eps_1 + 2 * eps_2 + 2 * eps_3 + eps_4) / 6
+        x_new, pred = transfer(x, eps_prime, t2)
+
+        return {"sample": x_new, "pred_xstart": pred}
+
+    def prk_sample_loop(
+        self,
+        model,
+        shape,
+        noise=None,
+        clip_denoised=True,
+        denoised_fn=None,
+        model_kwargs=None,
+        device=None,
+        progress=False,
+    ):
+        """
+        Use DDIM to sample from the model and yield intermediate samples from
+        each timestep of DDIM.
+
+        Same usage as p_sample_loop_progressive().
+        """
+        if device is None:
+            device = next(model.parameters()).device
+        assert isinstance(shape, (tuple, list))
+        if noise is not None:
+            img = noise
+        else:
+            img = th.randn(*shape, device=device)
+        indices = list(range(self.num_timesteps))[::-1]
+        indices = indices[::2]
+
+        if progress:
+            # Lazy import so that we don't depend on tqdm.
+            from tqdm.auto import tqdm
+
+            indices = tqdm(indices)
+
+        for i in indices:
+            t = th.tensor([i] * shape[0], device=device)
+            with th.no_grad():
+                out = self.prk_double_step(
+                    model,
+                    img,
+                    t,
+                    clip_denoised=clip_denoised,
+                    denoised_fn=denoised_fn,
+                    model_kwargs=model_kwargs,
+                    eta=eta,
+                )
+                # yield out
+                img = out["sample"]
+        return img
+
     def ddim_reverse_sample(
         self,
         model,

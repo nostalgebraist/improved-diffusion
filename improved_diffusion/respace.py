@@ -72,17 +72,21 @@ class SpacedDiffusion(GaussianDiffusion):
     def __init__(self, use_timesteps, **kwargs):
         self.use_timesteps = set(use_timesteps)
         self.timestep_map = []
-        self.original_num_steps = len(kwargs["betas"])
+        if 'num_timesteps' in kwargs:
+            self.original_num_steps = kwargs["num_timesteps"]
+        else:
+            self.original_num_steps = len(kwargs["betas"])
 
         base_diffusion = GaussianDiffusion(**kwargs)  # pylint: disable=missing-kwoa
         last_alpha_cumprod = 1.0
         new_betas = []
-        for i, alpha_cumprod in enumerate(base_diffusion.alphas_cumprod):
+        for i in range(num_timesteps):
+        # for i, alpha_cumprod in enumerate(base_diffusion.alphas_cumprod):
             if i in self.use_timesteps:
-                new_betas.append(1 - alpha_cumprod / last_alpha_cumprod)
-                last_alpha_cumprod = alpha_cumprod
+                new_betas.append(1 - base_diffusion.alphas_cumprod(i) / last_alpha_cumprod)
+                last_alpha_cumprod = base_diffusion.alphas_cumprod(i)
                 self.timestep_map.append(i)
-        kwargs["betas"] = np.array(new_betas)
+        kwargs["betas"] = np.array(new_betas) if isinstance(new_betas, list) else new_betas
         super().__init__(**kwargs)
 
     def p_mean_variance(

@@ -1010,9 +1010,7 @@ def _extract_into_tensor(arr, timesteps, broadcast_shape):
     :return: a tensor of shape [batch_size, 1, ...] where the shape has K dims.
     """
     if isinstance(arr, ScalarFunction):
-        print(repr(arr))
         out = arr(timesteps.cpu().numpy())
-        print(repr(out))
         res = th.from_numpy(out).to(device=timesteps.device).float()
     else:
         res = th.from_numpy(arr).to(device=timesteps.device)[timesteps].float()

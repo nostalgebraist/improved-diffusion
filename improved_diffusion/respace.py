@@ -89,7 +89,6 @@ class SpacedDiffusion(GaussianDiffusion):
                 self.timestep_map.append(i)
         # kwargs["betas"] = np.array(new_betas) if isinstance(new_betas, list) else new_betas
         new_betas = np.array(new_betas)
-        print(repr(self.timestep_map))
         def betafn(t):
             return new_betas[np.asarray(t).astype(int)]
         kwargs["betas"] = ScalarFunction(betafn)
@@ -127,10 +126,8 @@ class _WrappedModel:
         self.original_num_steps = original_num_steps
 
     def __call__(self, x, ts, **kwargs):
-        print(repr(ts))
         map_tensor = th.tensor(self.timestep_map, device=ts.device, dtype=ts.dtype)
         new_ts = map_tensor[ts]
         if self.rescale_timesteps:
             new_ts = new_ts.float() * (1000.0 / self.original_num_steps)
-        print(repr(new_ts))
         return self.model(x, new_ts, **kwargs)

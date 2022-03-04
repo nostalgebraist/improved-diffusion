@@ -675,6 +675,7 @@ class GaussianDiffusion:
         model,
         x,
         t,
+        t2,
         old_eps,
         clip_denoised=True,
         denoised_fn=None,
@@ -705,7 +706,7 @@ class GaussianDiffusion:
         eps = model_step(x, t)
 
         eps_prime = (55 * eps - 59 * old_eps[-1] + 37 * old_eps[-2] - 9 * old_eps[-3]) / 24
-        x_new, pred = transfer(x, eps_prime, t, t-1)
+        x_new, pred = transfer(x, eps_prime, t, t2)
         return {"sample": x_new, "pred_xstart": pred, 'eps': eps_prime}
 
     def prk_double_step(
@@ -836,7 +837,7 @@ class GaussianDiffusion:
             img = th.randn(*shape, device=device)
 
         rk_indices = [self.num_timesteps-1, self.num_timesteps-3, self.num_timesteps-5]
-        indices = list(range(self.num_timesteps-5))[::-1]
+        indices = list(range(2, self.num_timesteps-5, 2))[::-1]
 
         old_eps = []
         for i in rk_indices:
@@ -862,6 +863,7 @@ class GaussianDiffusion:
                     model,
                     img,
                     t,
+                    t2=t-2,
                     old_eps=old_eps,
                     clip_denoised=clip_denoised,
                     denoised_fn=denoised_fn,

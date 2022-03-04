@@ -697,6 +697,7 @@ class GaussianDiffusion:
                 xstart = xstart.clamp(-1, 1)
 
             alpha_bar_t2 = _extract_into_tensor(self.alphas_cumprod, t2_, x.shape)
+            print((t2_, alpha_bar_t2))
             return (
                 xstart * th.sqrt(alpha_bar_t2) + th.sqrt(1 - alpha_bar_t2) * eps
             ), xstart
@@ -717,7 +718,9 @@ class GaussianDiffusion:
         eps4 = model_step(x3, t2)
 
         eps_prime = (eps1 + 2 * eps2 + 2 * eps3 + eps4) / 6
-        print((eps1, eps2, eps3, eps4, eps_prime))
+        print((t, t_mid, t2))
+
+        print(eps_prime)
         # eps_prime = eps1
         x_new, pred = transfer(x, eps_prime, t1, t2)
         # eps_prime = eps1  # debug

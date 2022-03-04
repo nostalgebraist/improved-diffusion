@@ -710,7 +710,7 @@ class GaussianDiffusion:
                 th.sqrt((1-alpha_bar_t1) * alpha_bar_t2)
             )
 
-            return coef_x * x_ + coef_eps * eps
+            return coef_x * x_ + coef_eps * eps, xstart
 
             # coef_xstart = th.sqrt(alpha_bar_t2)
             # coef_eps = th.sqrt(1 - alpha_bar_t2)
@@ -763,7 +763,7 @@ class GaussianDiffusion:
                 th.sqrt((1-alpha_bar_t1) * alpha_bar_t2)
             )
 
-            return coef_x * x_ + coef_eps * eps
+            return coef_x * x_ + coef_eps * eps, xstart
 
         t1 = t
         t_mid = t-1

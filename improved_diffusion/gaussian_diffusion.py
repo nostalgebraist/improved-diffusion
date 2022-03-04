@@ -703,7 +703,7 @@ class GaussianDiffusion:
 
         t1 = t
         t_mid = t-1
-        t2 = t-2
+        # t2 = t-2
 
         eps1 = model_step(x, t1)
         x1, _ = transfer(x, eps1, t_mid)
@@ -717,8 +717,9 @@ class GaussianDiffusion:
         eps4 = model_step(x3, t2)
 
         # eps_prime = (eps1 + 2 * eps2 + 2 * eps3 + eps4) / 6
+        # x_new, pred = transfer(x, eps_prime, t2)
         eps_prime = eps1  # debug
-        x_new, pred = transfer(x, eps_prime, t2)
+        x_new, pred = transfer(x, eps_prime, t_mid)  # debug
 
         return {"sample": x_new, "pred_xstart": pred}
 
@@ -747,7 +748,7 @@ class GaussianDiffusion:
         else:
             img = th.randn(*shape, device=device)
         indices = list(range(self.num_timesteps))[::-1]
-        indices = indices[::2]
+        # indices = indices[::2]  # debug
 
         if progress:
             # Lazy import so that we don't depend on tqdm.
@@ -766,9 +767,8 @@ class GaussianDiffusion:
                     denoised_fn=denoised_fn,
                     model_kwargs=model_kwargs,
                 )
-                # yield out
+                yield out
                 img = out["sample"]
-        return img
 
     def ddim_reverse_sample(
         self,

@@ -748,7 +748,7 @@ class GaussianDiffusion:
         else:
             img = th.randn(*shape, device=device)
         indices = list(range(self.num_timesteps))[::-1]
-        # indices = indices[::2]  # debug
+        indices = indices[::2]  # debug
 
         if progress:
             # Lazy import so that we don't depend on tqdm.

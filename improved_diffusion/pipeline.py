@@ -81,7 +81,8 @@ class SamplingModel(nn.Module):
         guidance_scale=0.,
         txt_drop_string='<mask><mask><mask><mask>',
         return_intermediates=False,
-        use_prk=False
+        use_prk=False,
+        use_plms=False,
     ):
         dist_util.setup_dist()
 
@@ -113,6 +114,8 @@ class SamplingModel(nn.Module):
                 return {'sample': sample_array, 'xstart': xstart_array}
 
             sample_fn = sample_fn_
+        elif use_plms:
+            sample_fn = self.diffusion.plms_sample_loop
         elif use_prk:
             sample_fn = self.diffusion.prk_sample_loop
         elif use_ddim:

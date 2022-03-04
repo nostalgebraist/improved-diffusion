@@ -670,6 +670,44 @@ class GaussianDiffusion:
         sample = mean_pred + nonzero_mask * sigma * noise
         return {"sample": sample, "pred_xstart": out["pred_xstart"]}
 
+    def plms_step(
+        self,
+        model,
+        x,
+        t,
+        old_eps,
+        clip_denoised=True,
+        denoised_fn=None,
+        model_kwargs=None,
+    ):
+        def model_step(x_, t_):
+            out = self.p_mean_variance(
+                model,
+                x_,
+                t_,
+                clip_denoised=clip_denoised,
+                denoised_fn=denoised_fn,
+                model_kwargs=model_kwargs,
+            )
+            eps = self._predict_eps_from_xstart(x_, t_, out["pred_xstart"])
+            return eps
+
+        def transfer(x_, eps, t1_, t2_):
+            xstart = self._predict_xstart_from_eps(x_, t1_, eps)
+            if clip_denoised:
+                xstart = xstart.clamp(-1, 1)
+
+            alpha_bar_t2 = _extract_into_tensor(self.alphas_cumprod, t2_, x.shape)
+            return (
+                xstart * th.sqrt(alpha_bar_t2) + th.sqrt(1 - alpha_bar_t2) * eps
+            ), xstart
+
+        eps = model_step(x, t)
+
+        eps_prime = (55 * eps - 59 * old_eps[-1] + 37 * old_eps[-2] - 9 * old_eps[-3]) / 24
+        x_new, pred = transfer(x, eps_prime, t, t-1)
+        return {"sample": x_new, "pred_xstart": pred, 'eps': eps_prime}
+
     def prk_double_step(
         self,
         model,
@@ -722,7 +760,7 @@ class GaussianDiffusion:
         # eps_prime = eps1  # debug
         # x_new, pred = transfer(x, eps_prime, t1, t_mid)  # debug
 
-        return {"sample": x_new, "pred_xstart": pred}
+        return {"sample": x_new, "pred_xstart": pred, 'eps': eps_prime}
 
     def prk_sample_loop(
         self,
@@ -771,6 +809,70 @@ class GaussianDiffusion:
                 # yield out
                 img = out["sample"]
         return img
+
+    def plms_sample_loop(
+        self,
+        model,
+        shape,
+        noise=None,
+        clip_denoised=True,
+        denoised_fn=None,
+        model_kwargs=None,
+        device=None,
+        progress=False,
+    ):
+        """
+        Use DDIM to sample from the model and yield intermediate samples from
+        each timestep of DDIM.
+
+        Same usage as p_sample_loop_progressive().
+        """
+        if device is None:
+            device = next(model.parameters()).device
+        assert isinstance(shape, (tuple, list))
+        if noise is not None:
+            img = noise
+        else:
+            img = th.randn(*shape, device=device)
+
+        rk_indices = [self.num_timesteps-1, self.num_timesteps-3, self.num_timesteps-5]
+        indices = list(range(self.num_timesteps-5))[::-1]
+
+        old_eps = []
+        for i in rk_indices:
+            t = th.tensor([i] * shape[0], device=device)
+            with th.no_grad():
+                out = self.prk_double_step(
+                    model,
+                    img,
+                    t,
+                    clip_denoised=clip_denoised,
+                    denoised_fn=denoised_fn,
+                    model_kwargs=model_kwargs,
+                )
+                old_eps.append(out['eps'])
+
+                # yield out
+                img = out["sample"]
+        for i in indices:
+            t = th.tensor([i] * shape[0], device=device)
+            with th.no_grad():
+                out = self.plms_step(
+                    model,
+                    img,
+                    t,
+                    old_eps=old_eps,
+                    clip_denoised=clip_denoised,
+                    denoised_fn=denoised_fn,
+                    model_kwargs=model_kwargs,
+                )
+                old_eps.pop(0)
+                old_eps.append(out['eps'])
+
+                # yield out
+                img = out["sample"]
+        return img
+
 
     def ddim_reverse_sample(
         self,

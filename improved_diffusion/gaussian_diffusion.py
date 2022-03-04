@@ -725,7 +725,7 @@ class GaussianDiffusion:
         eps_prime = (55 * eps - 59 * old_eps[-1] + 37 * old_eps[-2] - 9 * old_eps[-3]) / 24
         # eps_prime = eps  # debug
         x_new, pred = transfer(x, eps_prime, t, t2)
-        return {"sample": x_new, "pred_xstart": pred, 'eps': eps_prime}
+        return {"sample": x_new, "pred_xstart": pred, 'eps': eps}
 
     def prk_double_step(
         self,

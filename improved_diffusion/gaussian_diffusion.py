@@ -702,8 +702,6 @@ class GaussianDiffusion:
         t_mid = t-1
         t2 = t-2
 
-        print((t1, t_mid, t2))
-
         eps1 = model_step(x, t1)
         x1, _ = transfer(x, eps1, t_mid)
 

@@ -767,8 +767,9 @@ class GaussianDiffusion:
                     denoised_fn=denoised_fn,
                     model_kwargs=model_kwargs,
                 )
-                yield out
+                # yield out
                 img = out["sample"]
+        return img
 
     def ddim_reverse_sample(
         self,

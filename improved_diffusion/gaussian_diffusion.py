@@ -831,6 +831,7 @@ class GaussianDiffusion:
 
             indices = tqdm(indices)
 
+        old_eps = []
         for i in indices:
             t = th.tensor([i] * shape[0], device=device)
             with th.no_grad():
@@ -842,6 +843,9 @@ class GaussianDiffusion:
                     denoised_fn=denoised_fn,
                     model_kwargs=model_kwargs,
                 )
+                old_eps.append(out['eps'])
+                print(('rk', i, [t[0, 0, 0, 0] for t in old_eps]))
+
                 # yield out
                 img = out["sample"]
         return img

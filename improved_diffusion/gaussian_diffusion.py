@@ -706,8 +706,10 @@ class GaussianDiffusion:
 
             coef_x = sqrt_alpha_bar_t2 / sqrt_alpha_bar_t1
             coef_eps = (sqrt_alpha_bar_t2 - sqrt_alpha_bar_t1) / (
-                sqrt_alpha_bar_t1 * th.sqrt((1-alpha_bar_t2) * alpha_bar_t1) +
-                th.sqrt((1-alpha_bar_t1) * alpha_bar_t2)
+                sqrt_alpha_bar_t1 * (
+                    th.sqrt((1-alpha_bar_t2) * alpha_bar_t1) +
+                    th.sqrt((1-alpha_bar_t1) * alpha_bar_t2)
+                )
             )
 
             return coef_x * x_ + coef_eps * eps, xstart
@@ -759,8 +761,10 @@ class GaussianDiffusion:
 
             coef_x = sqrt_alpha_bar_t2 / sqrt_alpha_bar_t1
             coef_eps = (sqrt_alpha_bar_t2 - sqrt_alpha_bar_t1) / (
-                sqrt_alpha_bar_t1 * th.sqrt((1-alpha_bar_t2) * alpha_bar_t1) +
-                th.sqrt((1-alpha_bar_t1) * alpha_bar_t2)
+                sqrt_alpha_bar_t1 * (
+                    th.sqrt((1-alpha_bar_t2) * alpha_bar_t1) +
+                    th.sqrt((1-alpha_bar_t1) * alpha_bar_t2)
+                )
             )
 
             return coef_x * x_ + coef_eps * eps, xstart

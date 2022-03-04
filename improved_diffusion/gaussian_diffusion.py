@@ -691,8 +691,8 @@ class GaussianDiffusion:
             eps = out['mean']
             return eps
 
-        def transfer(x_, eps, t2_):
-            xstart = self._predict_xstart_from_eps(x_, t2_, eps)
+        def transfer(x_, eps, t1_, t2_):
+            xstart = self._predict_xstart_from_eps(x_, t1_, eps)
             if clip_denoised:
                 xstart = xstart.clamp(-1, 1)
 
@@ -719,7 +719,7 @@ class GaussianDiffusion:
         # eps_prime = (eps1 + 2 * eps2 + 2 * eps3 + eps4) / 6
         # x_new, pred = transfer(x, eps_prime, t2)
         eps_prime = eps1  # debug
-        x_new, pred = transfer(x, eps_prime, t_mid)  # debug
+        x_new, pred = transfer(x, eps_prime, t1, t_mid)  # debug
 
         return {"sample": x_new, "pred_xstart": pred}
 

@@ -688,7 +688,7 @@ class GaussianDiffusion:
                 denoised_fn=denoised_fn,
                 model_kwargs=model_kwargs,
             )
-            eps = out['mean']
+            eps = self._predict_eps_from_xstart(x_, t_, out["pred_xstart"])
             return eps
 
         def transfer(x_, eps, t1_, t2_):
@@ -706,18 +706,18 @@ class GaussianDiffusion:
         # t2 = t-2
 
         eps1 = model_step(x, t1)
-        # x1, _ = transfer(x, eps1, t_mid)
+        # x1, _ = transfer(x, eps1, t1, t_mid)
         #
         # eps2 = model_step(x1, t_mid)
-        # x2, _ = transfer(x, eps2, t_mid)
+        # x2, _ = transfer(x, eps2, t1, t_mid)
         #
         # eps3 = model_step(x2, t_mid)
-        # x3, _ = transfer(x, eps3, t2)
+        # x3, _ = transfer(x, eps3, t1, t2)
         #
         # eps4 = model_step(x3, t2)
 
         # eps_prime = (eps1 + 2 * eps2 + 2 * eps3 + eps4) / 6
-        # x_new, pred = transfer(x, eps_prime, t2)
+        # x_new, pred = transfer(x, eps_prime, t1, t2)
         eps_prime = eps1  # debug
         x_new, pred = transfer(x, eps_prime, t1, t_mid)  # debug
 

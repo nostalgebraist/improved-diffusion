@@ -851,7 +851,7 @@ class GaussianDiffusion:
                     model_kwargs=model_kwargs,
                 )
                 old_eps.append(out['eps'])
-                print(('rk', i, old_eps))
+                print(('rk', i, [t[0, 0, 0, 0] for t in old_eps]))
 
                 # yield out
                 img = out["sample"]
@@ -869,7 +869,7 @@ class GaussianDiffusion:
                 )
                 old_eps.pop(0)
                 old_eps.append(out['eps'])
-                print(('rk', i, old_eps))
+                print(('plms', i, [t[0, 0, 0, 0] for t in old_eps]))
 
                 # yield out
                 img = out["sample"]

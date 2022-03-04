@@ -698,10 +698,25 @@ class GaussianDiffusion:
             if clip_denoised:
                 xstart = xstart.clamp(-1, 1)
 
+            alpha_bar_t1 = _extract_into_tensor(self.alphas_cumprod, t1_, x.shape)
             alpha_bar_t2 = _extract_into_tensor(self.alphas_cumprod, t2_, x.shape)
-            return (
-                xstart * th.sqrt(alpha_bar_t2) + th.sqrt(1 - alpha_bar_t2) * eps
-            ), xstart
+
+            sqrt_alpha_bar_t1 = th.sqrt(alpha_bar_t1)
+            sqrt_alpha_bar_t2 = th.sqrt(alpha_bar_t2)
+
+            coef_x = sqrt_alpha_bar_t2 / sqrt_alpha_bar_t1
+            coef_eps = (sqrt_alpha_bar_t2 - sqrt_alpha_bar_t1) / (
+                sqrt_alpha_bar_t1 * th.sqrt((1-alpha_bar_t2) * alpha_bar_t1) +
+                th.sqrt((1-alpha_bar_t1) * alpha_bar_t2)
+            )
+
+            return coef_x * x_ + coef_eps * eps
+
+            # coef_xstart = th.sqrt(alpha_bar_t2)
+            # coef_eps = th.sqrt(1 - alpha_bar_t2)
+            # return (
+            #     xstart * coef_xstart + coef_eps * eps
+            # ), xstart
 
         eps = model_step(x, t)
 
@@ -736,10 +751,19 @@ class GaussianDiffusion:
             if clip_denoised:
                 xstart = xstart.clamp(-1, 1)
 
+            alpha_bar_t1 = _extract_into_tensor(self.alphas_cumprod, t1_, x.shape)
             alpha_bar_t2 = _extract_into_tensor(self.alphas_cumprod, t2_, x.shape)
-            return (
-                xstart * th.sqrt(alpha_bar_t2) + th.sqrt(1 - alpha_bar_t2) * eps
-            ), xstart
+
+            sqrt_alpha_bar_t1 = th.sqrt(alpha_bar_t1)
+            sqrt_alpha_bar_t2 = th.sqrt(alpha_bar_t2)
+
+            coef_x = sqrt_alpha_bar_t2 / sqrt_alpha_bar_t1
+            coef_eps = (sqrt_alpha_bar_t2 - sqrt_alpha_bar_t1) / (
+                sqrt_alpha_bar_t1 * th.sqrt((1-alpha_bar_t2) * alpha_bar_t1) +
+                th.sqrt((1-alpha_bar_t1) * alpha_bar_t2)
+            )
+
+            return coef_x * x_ + coef_eps * eps
 
         t1 = t
         t_mid = t-1

@@ -836,8 +836,11 @@ class GaussianDiffusion:
         else:
             img = th.randn(*shape, device=device)
 
-        rk_indices = [self.num_timesteps-1, self.num_timesteps-3, self.num_timesteps-5]
-        indices = list(range(2, self.num_timesteps-5, 2))[::-1]
+        # rk_indices = [self.num_timesteps-1, self.num_timesteps-3, self.num_timesteps-5]
+        # indices = list(range(2, self.num_timesteps-5, 2))[::-1]
+        indices = list(range(2, self.num_timesteps, 2))[::-1]
+        rk_indices = indices[:3]
+        indices = indices[3:]
 
         old_eps = []
         for i in rk_indices:

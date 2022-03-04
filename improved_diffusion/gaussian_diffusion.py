@@ -688,7 +688,7 @@ class GaussianDiffusion:
                 denoised_fn=denoised_fn,
                 model_kwargs=model_kwargs,
             )
-            eps = out['mean'], out['pred_xstart']
+            eps = out['mean']
             return eps
 
         def transfer(x_, eps, t2_):

@@ -579,7 +579,7 @@ class GaussianDiffusion:
 
     # generic sampling methods
 
-    def model_step(self, x, t, clip_denoised=True, denoised_fn=None, model_kwargs=None):
+    def model_step(self, model, x, t, clip_denoised=True, denoised_fn=None, model_kwargs=None):
         out = self.p_mean_variance(
             model,
             x,
@@ -651,7 +651,7 @@ class GaussianDiffusion:
     ):
         step_kwargs = dict(clip_denoised=clip_denoised, denoised_fn=denoised_fn, model_kwargs=model_kwargs)
 
-        eps, model_var_values = self.model_step(x, t1, **step_kwargs)
+        eps, model_var_values = self.model_step(model, x, t1, **step_kwargs)
         transfer_kwargs = dict(clip_denoised=clip_denoised, model_var_values=model_var_values)
 
         x_new, pred = self.transfer(x, eps, t1, t2, **transfer_kwargs)
@@ -673,7 +673,7 @@ class GaussianDiffusion:
         step_kwargs = dict(clip_denoised=clip_denoised, denoised_fn=denoised_fn, model_kwargs=model_kwargs)
         transfer_kwargs = dict(clip_denoised=clip_denoised, eta=eta)
 
-        eps, _ = self.model_step(x, t1, **step_kwargs)
+        eps, _ = self.model_step(model, x, t1, **step_kwargs)
 
         x_new, pred = self.transfer(x, eps, t1, t2, **transfer_kwargs)
 
@@ -693,7 +693,7 @@ class GaussianDiffusion:
         step_kwargs = dict(clip_denoised=clip_denoised, denoised_fn=denoised_fn, model_kwargs=model_kwargs)
         transfer_kwargs = dict(clip_denoised=clip_denoised)
 
-        eps, _ = self.model_step(x, t1, **step_kwargs)
+        eps, _ = self.model_step(model, x, t1, **step_kwargs)
 
         eps_prime = (55 * eps - 59 * old_eps[-1] + 37 * old_eps[-2] - 9 * old_eps[-3]) / 24
 
@@ -719,16 +719,16 @@ class GaussianDiffusion:
         step_kwargs = dict(clip_denoised=clip_denoised, denoised_fn=denoised_fn, model_kwargs=model_kwargs)
         transfer_kwargs = dict(clip_denoised=clip_denoised)
 
-        eps1, model_var_values = self.model_step(x, t1, **step_kwargs)
+        eps1, model_var_values = self.model_step(model, x, t1, **step_kwargs)
 
         x1, _ = self.transfer(x, eps1, t1, t_mid, **transfer_kwargs)
-        eps2, _ = self.model_step(x1, t_mid, **step_kwargs)
+        eps2, _ = self.model_step(model, x1, t_mid, **step_kwargs)
 
         x2, _ = self.transfer(x, eps2, t1, t_mid, **transfer_kwargs)
-        eps3, _ = self.model_step(x2, t_mid, **step_kwargs)
+        eps3, _ = self.model_step(model, x2, t_mid, **step_kwargs)
 
         x3, _ = self.transfer(x, eps3, t1, t2, **transfer_kwargs)
-        eps4, _ = self.model_step(x3, t2, **step_kwargs)
+        eps4, _ = self.model_step(model, x3, t2, **step_kwargs)
 
         eps_prime = (eps1 + 2 * eps2 + 2 * eps3 + eps4) / 6
 

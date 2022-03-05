@@ -614,7 +614,7 @@ class GaussianDiffusion:
 
         return th.sqrt(model_var)
 
-    def transfer(self, x, eps, t1, t2, clip_denoised=True, eta=0., model_var_values=None):
+    def transfer(self, x, eps, t1, t2, clip_denoised=True, eta=0., model_var_values=None, return_effective_eps=False):
         if model_var_values is not None:
             sigma = self._sigma_from_model_var(t1, t2, x.shape, model_var_values)
         else:
@@ -637,6 +637,10 @@ class GaussianDiffusion:
         )  # no noise when t == 0
         sample = mean_pred + nonzero_mask * sigma * noise
 
+        if return_effective_eps:
+            effective_eps = (sample - xstart * coef_xstart) / coef_eps
+            return sample, xstart, effective_eps
+
         return sample, xstart
 
     def ddpm_step(
@@ -653,11 +657,11 @@ class GaussianDiffusion:
         step_kwargs = dict(clip_denoised=clip_denoised, denoised_fn=denoised_fn, model_kwargs=model_kwargs)
 
         eps, model_var_values = self.model_step(model, x, t1, **step_kwargs)
-        transfer_kwargs = dict(clip_denoised=clip_denoised, model_var_values=model_var_values)
+        transfer_kwargs = dict(clip_denoised=clip_denoised, model_var_values=model_var_values, return_effective_eps=True)
 
-        x_new, pred = self.transfer(x, eps, t1, t2, **transfer_kwargs)
+        x_new, pred, effective_eps = self.transfer(x, eps, t1, t2, **transfer_kwargs)
 
-        return {"sample": x_new, "pred_xstart": pred, 'eps': eps}
+        return {"sample": x_new, "pred_xstart": pred, 'eps': effective_eps}
 
     def ddim_step(
         self,
@@ -672,13 +676,13 @@ class GaussianDiffusion:
         model_kwargs=None,
     ):
         step_kwargs = dict(clip_denoised=clip_denoised, denoised_fn=denoised_fn, model_kwargs=model_kwargs)
-        transfer_kwargs = dict(clip_denoised=clip_denoised, eta=eta)
+        transfer_kwargs = dict(clip_denoised=clip_denoised, eta=eta, return_effective_eps=True)
 
         eps, _ = self.model_step(model, x, t1, **step_kwargs)
 
-        x_new, pred = self.transfer(x, eps, t1, t2, **transfer_kwargs)
+        x_new, pred, effective_eps = self.transfer(x, eps, t1, t2, **transfer_kwargs)
 
-        return {"sample": x_new, "pred_xstart": pred, 'eps': eps}
+        return {"sample": x_new, "pred_xstart": pred, 'eps': effective_eps}
 
     def plms_step(
         self,

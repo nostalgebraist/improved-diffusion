@@ -792,6 +792,7 @@ class GaussianDiffusion:
                     ddim_fallback=ddim_fallback,
                     use_model_var=ddim_fallback,
                 )
+                step_counter += 1
 
                 yield out
                 img = out["sample"]

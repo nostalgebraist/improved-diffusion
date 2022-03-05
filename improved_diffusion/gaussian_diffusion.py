@@ -7,6 +7,7 @@ Docstrings have been added, as well as DDIM sampling and a new collection of bet
 
 import enum
 import math
+from functools import partial
 
 import numpy as np
 import torch as th
@@ -643,6 +644,7 @@ class GaussianDiffusion:
         x,
         t1,
         t2,
+        old_eps=None,  # unused
         clip_denoised=True,
         denoised_fn=None,
         model_kwargs=None,
@@ -662,6 +664,7 @@ class GaussianDiffusion:
         x,
         t1,
         t2,
+        old_eps=None,  # unused
         eta=0.0,
         clip_denoised=True,
         denoised_fn=None,
@@ -703,6 +706,8 @@ class GaussianDiffusion:
         model,
         x,
         t,
+        t2=None,  # unused
+        old_eps=None,  # unused
         clip_denoised=True,
         denoised_fn=None,
         model_kwargs=None,
@@ -731,18 +736,29 @@ class GaussianDiffusion:
 
         return {"sample": x_new, "pred_xstart": pred, 'eps': eps_prime}
 
-    def generic_sample_loop_progressive(
+    def double_step_sample_loop_progressive(
         self,
         model,
         shape,
+        transitions,
         noise=None,
         clip_denoised=True,
         denoised_fn=None,
         model_kwargs=None,
         device=None,
-        progress=False,
         eta=0.0,
+        debug=False,
     ):
+        general_kwargs = dict(clip_denoised=clip_denoised, denoised_fn=denoised_fn, model_kwargs=model_kwargs)
+        names_to_methods = {
+            'ddpm': partial(self.ddpm_step, **general_kwargs),
+            'ddim': partial(self.ddim_step, eta=eta, **general_kwargs),
+            'prk': partial(self.prk_double_step, **general_kwargs),
+            'plms': partial(self.plms_step, **general_kwargs),
+        }
+
+        transition_lookup = {i: name for i, name in transitions}
+
         if device is None:
             device = next(model.parameters()).device
         assert isinstance(shape, (tuple, list))
@@ -751,252 +767,61 @@ class GaussianDiffusion:
         else:
             img = th.randn(*shape, device=device)
 
-        # rk_indices = [self.num_timesteps-1, self.num_timesteps-3, self.num_timesteps-5]
-        # indices = list(range(2, self.num_timesteps-5, 2))[::-1]
         indices = list(range(2, self.num_timesteps, 2))[::-1]
         nsteps = len(indices)
-        rk_indices = indices[:3]
-        indices = indices[3:]
+
+        step_method_name = None
+        step_method = None
 
         step_counter = 0
 
         old_eps = []
-        for i in rk_indices:
-            t = th.tensor([i] * shape[0], device=device)
-            with th.no_grad():
-                ddim_fallback = (step_counter < ddim_first_n) or (ddim_last_n is not None and (nsteps - step_counter) < ddim_last_n)
-                out = self.prk_double_step(
-                    model,
-                    img,
-                    t,
-                    clip_denoised=clip_denoised,
-                    denoised_fn=denoised_fn,
-                    model_kwargs=model_kwargs,
-                    eta=eta if ddim_fallback else 0.0,
-                    ddim_fallback=ddim_fallback
-                )
-                old_eps.append(out['eps'])
-                step_counter += 1
-                # print(('rk', i, [t[0, 0, 0, 0] for t in old_eps]))
-
-                # yield out
-                img = out["sample"]
         for i in indices:
+            if step_counter in transition_lookup:
+                step_method_name = transition_lookup[step_counter]
+                step_method = names_to_methods[step_method_name]
+
+            if debug:
+                print(f"step {step_counter}, ix {i}, method {step_method_name}")
+
             t = th.tensor([i] * shape[0], device=device)
             with th.no_grad():
-                ddim_fallback = (step_counter < ddim_first_n) or (ddim_last_n is not None and (nsteps - step_counter) < ddim_last_n)
-                out = self.plms_step(
-                    model,
-                    img,
-                    t,
-                    t2=t-2,
-                    old_eps=old_eps,
-                    clip_denoised=clip_denoised,
-                    denoised_fn=denoised_fn,
-                    model_kwargs=model_kwargs,
-                    eta=eta if ddim_fallback else 0.0,
-                    ddim_fallback=ddim_fallback,
-                    use_model_var=ddim_fallback,
-                )
-                old_eps.pop(0)
+                out = step_method(model, img, t, t-2, old_eps)
+                if len(old_eps) >= 3:
+                    old_eps.pop(0)
                 old_eps.append(out['eps'])
                 step_counter += 1
-                # print(('plms', i, [t[0, 0, 0, 0] for t in old_eps]))
-
                 yield out
                 img = out["sample"]
 
-    def prk_sample_loop_progressive(
+    def double_step_sample_loop(
         self,
         model,
         shape,
+        transitions,
         noise=None,
         clip_denoised=True,
         denoised_fn=None,
         model_kwargs=None,
         device=None,
-        progress=False,
         eta=0.0,
-        ddim_first_n=0,
-        ddim_last_n=None,
-    ):
-        if device is None:
-            device = next(model.parameters()).device
-        assert isinstance(shape, (tuple, list))
-        if noise is not None:
-            img = noise
-        else:
-            img = th.randn(*shape, device=device)
-        # indices = list(range(self.num_timesteps))[::-1]
-        indices = list(range(2, self.num_timesteps, 2))[::-1]
-
-        if progress:
-            # Lazy import so that we don't depend on tqdm.
-            from tqdm.auto import tqdm
-
-            indices = tqdm(indices)
-
-        step_counter = 0
-
-        for i in indices:
-            t = th.tensor([i] * shape[0], device=device)
-            with th.no_grad():
-                ddim_fallback = (step_counter < ddim_first_n) or (ddim_last_n is not None and (nsteps - step_counter) < ddim_last_n)
-                out = self.prk_double_step(
-                    model,
-                    img,
-                    t,
-                    clip_denoised=clip_denoised,
-                    denoised_fn=denoised_fn,
-                    model_kwargs=model_kwargs,
-                    eta=eta,
-                    ddim_fallback=ddim_fallback,
-                    use_model_var=ddim_fallback,
-                )
-                step_counter += 1
-
-                yield out
-                img = out["sample"]
-
-    def prk_sample_loop(
-        self,
-        model,
-        shape,
-        noise=None,
-        clip_denoised=True,
-        denoised_fn=None,
-        model_kwargs=None,
-        device=None,
-        progress=False,
-        eta=0.0,
-        ddim_first_n=0,
-        ddim_last_n=None,
+        debug=False,
     ):
         final = None
-        for sample in self.prk_sample_loop_progressive(
+        for sample in self.double_step_sample_loop_progressive(
             model,
             shape,
+            transitions
             noise=noise,
             clip_denoised=clip_denoised,
             denoised_fn=denoised_fn,
             model_kwargs=model_kwargs,
             device=device,
-            progress=progress,
             eta=eta,
-            ddim_first_n=ddim_first_n,
-            ddim_last_n=ddim_last_n,
+            debug=debug,
         ):
             final = sample
         return final["sample"]
-
-    def plms_sample_loop_progressive(
-        self,
-        model,
-        shape,
-        noise=None,
-        clip_denoised=True,
-        denoised_fn=None,
-        model_kwargs=None,
-        device=None,
-        progress=False,
-        eta=0.0,
-        ddim_first_n=0,
-        ddim_last_n=None,
-    ):
-        if device is None:
-            device = next(model.parameters()).device
-        assert isinstance(shape, (tuple, list))
-        if noise is not None:
-            img = noise
-        else:
-            img = th.randn(*shape, device=device)
-
-        # rk_indices = [self.num_timesteps-1, self.num_timesteps-3, self.num_timesteps-5]
-        # indices = list(range(2, self.num_timesteps-5, 2))[::-1]
-        indices = list(range(2, self.num_timesteps, 2))[::-1]
-        nsteps = len(indices)
-        rk_indices = indices[:3]
-        indices = indices[3:]
-
-        step_counter = 0
-
-        old_eps = []
-        for i in rk_indices:
-            t = th.tensor([i] * shape[0], device=device)
-            with th.no_grad():
-                ddim_fallback = (step_counter < ddim_first_n) or (ddim_last_n is not None and (nsteps - step_counter) < ddim_last_n)
-                out = self.prk_double_step(
-                    model,
-                    img,
-                    t,
-                    clip_denoised=clip_denoised,
-                    denoised_fn=denoised_fn,
-                    model_kwargs=model_kwargs,
-                    eta=eta if ddim_fallback else 0.0,
-                    ddim_fallback=ddim_fallback
-                )
-                old_eps.append(out['eps'])
-                step_counter += 1
-                # print(('rk', i, [t[0, 0, 0, 0] for t in old_eps]))
-
-                # yield out
-                img = out["sample"]
-        for i in indices:
-            t = th.tensor([i] * shape[0], device=device)
-            with th.no_grad():
-                ddim_fallback = (step_counter < ddim_first_n) or (ddim_last_n is not None and (nsteps - step_counter) < ddim_last_n)
-                out = self.plms_step(
-                    model,
-                    img,
-                    t,
-                    t2=t-2,
-                    old_eps=old_eps,
-                    clip_denoised=clip_denoised,
-                    denoised_fn=denoised_fn,
-                    model_kwargs=model_kwargs,
-                    eta=eta if ddim_fallback else 0.0,
-                    ddim_fallback=ddim_fallback,
-                    use_model_var=ddim_fallback,
-                )
-                old_eps.pop(0)
-                old_eps.append(out['eps'])
-                step_counter += 1
-                # print(('plms', i, [t[0, 0, 0, 0] for t in old_eps]))
-
-                yield out
-                img = out["sample"]
-        # return img
-
-    def plms_sample_loop(
-            self,
-            model,
-            shape,
-            noise=None,
-            clip_denoised=True,
-            denoised_fn=None,
-            model_kwargs=None,
-            device=None,
-            progress=False,
-            eta=0.0,
-            ddim_first_n=0,
-            ddim_last_n=None,
-        ):
-            final = None
-            for sample in self.plms_sample_loop_progressive(
-                model,
-                shape,
-                noise=noise,
-                clip_denoised=clip_denoised,
-                denoised_fn=denoised_fn,
-                model_kwargs=model_kwargs,
-                device=device,
-                progress=progress,
-                eta=eta,
-                ddim_first_n=ddim_first_n,
-                ddim_last_n=ddim_last_n
-            ):
-                final = sample
-            return final["sample"]
 
     def ddim_reverse_sample(
         self,

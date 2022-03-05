@@ -86,6 +86,8 @@ class SamplingModel(nn.Module):
         ddim_eta=0.,
         plms_ddim_first_n=0,
         plms_ddim_last_n=None,
+        use_double_step=False,
+        transitions=None,
     ):
         dist_util.setup_dist()
 
@@ -105,7 +107,9 @@ class SamplingModel(nn.Module):
             print(f"setting seed to {seed}")
             th.manual_seed(seed)
 
-        if use_plms:
+        if use_double_step:
+            sample_fn_base = self.diffusion.double_step_sample_loop_progressive if return_intermediates else self.diffusion.double_step_sample_loop
+        elif use_plms:
             sample_fn_base = self.diffusion.plms_sample_loop_progressive if return_intermediates else self.diffusion.plms_sample_loop
         elif use_prk:
             sample_fn_base = self.diffusion.prk_sample_loop_progressive if return_intermediates else self.diffusion.prk_sample_loop
@@ -128,6 +132,9 @@ class SamplingModel(nn.Module):
 
         model_kwargs = {}
         sample_fn_kwargs = {}
+        if use_double_step:
+            sample_fn_kwargs['eta'] = ddim_eta
+            sample_fn_kwargs['transitions'] = transitions
         if use_ddim or use_prk or use_plms:
             sample_fn_kwargs['eta'] = ddim_eta
         if use_plms or use_prk:

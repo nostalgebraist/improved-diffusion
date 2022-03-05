@@ -588,7 +588,7 @@ class GaussianDiffusion:
         model_kwargs=None,
         eta=0.0,
         ddim_fallback=False,
-        use_model_var=True,
+        use_model_var=False,
     ):
         def model_step(x_, t_):
             out = self.p_mean_variance(
@@ -660,6 +660,7 @@ class GaussianDiffusion:
         model_kwargs=None,
         eta=0.0,
         ddim_fallback=False,
+        use_model_var=False,
     ):
         def model_step(x_, t_):
             out = self.p_mean_variance(
@@ -671,9 +672,10 @@ class GaussianDiffusion:
                 model_kwargs=model_kwargs,
             )
             eps = self._predict_eps_from_xstart(x_, t_, out["pred_xstart"])
-            return eps
+            model_var_values = out['model_var_values']
+            return eps, model_var_values
 
-        def transfer(x_, eps, t1_, t2_, eta_=0.0):
+        def transfer(x_, eps, t1_, t2_, model_var_values):
             xstart = self._predict_xstart_from_eps(x_, t1_, eps)
             if clip_denoised:
                 xstart = xstart.clamp(-1, 1)
@@ -681,11 +683,22 @@ class GaussianDiffusion:
             alpha_bar_t1 = _extract_into_tensor(self.alphas_cumprod, t1_, x.shape)
             alpha_bar_t2 = _extract_into_tensor(self.alphas_cumprod, t2_, x.shape)
 
-            sigma = (
-                eta_
-                * th.sqrt((1 - alpha_bar_t2) / (1 - alpha_bar_t1))
-                * th.sqrt(1 - alpha_bar_t1 / alpha_bar_t2)
-            )
+            frac = (model_var_values + 1) / 2
+            if use_model_var:
+                min_log = th.log(((1 - alpha_bar_t2) / (1 - alpha_bar_t1)) * (1 - alpha_bar_t1 / alpha_bar_t2))
+                max_log = th.log((1 - alpha_bar_t1 / alpha_bar_t2))
+                max_log = th.min(th.log(1 - alpha_bar_t2), max_log)  # prevent sqrt(neg)
+                # The model_var_values is [-1, 1] for [min_var, max_var].
+                # print((min_log[0,0,0,0], max_log[0,0,0,0]))
+
+                model_log_variance = frac * max_log + (1 - frac) * min_log
+                sigma = th.sqrt(th.exp(model_log_variance))
+            else:
+                sigma = (
+                    eta
+                    * th.sqrt((1 - alpha_bar_t2) / (1 - alpha_bar_t1))
+                    * th.sqrt(1 - alpha_bar_t1 / alpha_bar_t2)
+                )
 
             coef_xstart = th.sqrt(alpha_bar_t2)
             coef_eps = th.sqrt(1 - alpha_bar_t2 - sigma ** 2)
@@ -703,20 +716,20 @@ class GaussianDiffusion:
         t_mid = t-1
         t2 = t-2
 
-        eps1 = model_step(x, t1)
+        eps1 = model_step(x, t1, model_var_values)
 
         if ddim_fallback:
             eps_prime = eps1
         else:
-            x1, _ = transfer(x, eps1, t1, t_mid)
+            x1, _ = transfer(x, eps1, t1, t_mid, model_var_values)
 
             eps2 = model_step(x1, t_mid)
-            x2, _ = transfer(x, eps2, t1, t_mid)
+            x2, _ = transfer(x, eps2, t1, t_mid, model_var_values)
 
             eps3 = model_step(x2, t_mid)
-            x3, _ = transfer(x, eps3, t1, t2)
+            x3, _ = transfer(x, eps3, t1, t2, model_var_values)
 
-            eps4 = model_step(x3, t2)
+            eps4 = model_step(x3, t2, model_var_values)
 
             eps_prime = (eps1 + 2 * eps2 + 2 * eps3 + eps4) / 6
         # eps_prime = eps1
@@ -737,6 +750,8 @@ class GaussianDiffusion:
         device=None,
         progress=False,
         eta=0.0,
+        ddim_first_n=0,
+        ddim_last_n=None,
     ):
         """
         Use DDIM to sample from the model and yield intermediate samples from
@@ -760,10 +775,12 @@ class GaussianDiffusion:
 
             indices = tqdm(indices)
 
-        old_eps = []
+        step_counter = 0
+
         for i in indices:
             t = th.tensor([i] * shape[0], device=device)
             with th.no_grad():
+                ddim_fallback = (step_counter < ddim_first_n) or (ddim_last_n is not None and (nsteps - step_counter) < ddim_last_n)
                 out = self.prk_double_step(
                     model,
                     img,
@@ -772,13 +789,12 @@ class GaussianDiffusion:
                     denoised_fn=denoised_fn,
                     model_kwargs=model_kwargs,
                     eta=eta,
+                    ddim_fallback=ddim_fallback,
+                    use_model_var=ddim_fallback,
                 )
-                old_eps.append(out['eps'])
-                # print(('rk', i, [t[0, 0, 0, 0] for t in old_eps]))
 
                 yield out
                 img = out["sample"]
-        # return img
 
     def prk_sample_loop(
         self,
@@ -791,6 +807,8 @@ class GaussianDiffusion:
         device=None,
         progress=False,
         eta=0.0,
+        ddim_first_n=0,
+        ddim_last_n=None,
     ):
         final = None
         for sample in self.prk_sample_loop_progressive(
@@ -803,6 +821,8 @@ class GaussianDiffusion:
             device=device,
             progress=progress,
             eta=eta,
+            ddim_first_n=ddim_first_n,
+            ddim_last_n=ddim_last_n,
         ):
             final = sample
         return final["sample"]

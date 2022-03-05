@@ -723,13 +723,13 @@ class GaussianDiffusion:
         else:
             x1, _ = transfer(x, eps1, t1, t_mid, model_var_values)
 
-            eps2 = model_step(x1, t_mid)
+            eps2, _ = model_step(x1, t_mid)
             x2, _ = transfer(x, eps2, t1, t_mid, model_var_values)
 
-            eps3 = model_step(x2, t_mid)
+            eps3, _ = model_step(x2, t_mid)
             x3, _ = transfer(x, eps3, t1, t2, model_var_values)
 
-            eps4 = model_step(x3, t2, model_var_values)
+            eps4, _ = model_step(x3, t2, model_var_values)
 
             eps_prime = (eps1 + 2 * eps2 + 2 * eps3 + eps4) / 6
         # eps_prime = eps1

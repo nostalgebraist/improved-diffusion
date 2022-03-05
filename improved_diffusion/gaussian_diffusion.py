@@ -576,78 +576,126 @@ class GaussianDiffusion:
         sample = mean_pred + nonzero_mask * sigma * noise
         return {"sample": sample, "pred_xstart": out["pred_xstart"]}
 
-    def plms_steps(
+    # generic sampling methods
+
+    def model_step(self, x, t, clip_denoised=True, denoised_fn=None, model_kwargs=None):
+        out = self.p_mean_variance(
+            model,
+            x,
+            t,
+            clip_denoised=clip_denoised,
+            denoised_fn=denoised_fn,
+            model_kwargs=model_kwargs,
+        )
+        eps = self._predict_eps_from_xstart(x, t, out["pred_xstart"])
+        model_var_values = out['model_var_values']
+        return eps, model_var_values
+
+    def _vb_variances(self, t1, t2):
+        alpha_bar_t1 = _extract_into_tensor(self.alphas_cumprod, t1, x.shape)
+        alpha_bar_t2 = _extract_into_tensor(self.alphas_cumprod, t2, x.shape)
+        min_var = ((1 - alpha_bar_t2) / (1 - alpha_bar_t1)) * (1 - alpha_bar_t1 / alpha_bar_t2)
+        max_var = (1 - alpha_bar_t1 / alpha_bar_t2)
+        return min_var, max_var
+
+    def _sigma_from_eta(t1, t2, eta):
+        min_var, _ = self._vb_variances(t1, t2)
+        return eta * th.sqrt(min_var)
+
+    def _sigma_from_model_var(t1, t2, model_var_values):
+        min_var, max_var = self._vb_variances(t1, t2)
+        min_log, max_log = th.log(min_var), th.log(max_var)
+
+        frac = (model_var_values + 1) / 2
+        model_log_var = frac * max_log + (1 - frac) * min_log
+        model_var = th.exp(model_log_var)
+
+        return th.sqrt(model_var)
+
+    def transfer(self, x, eps, t1, t2, clip_denoised=True, eta=0., model_var_values=None):
+        if model_var_values is not None:
+            sigma = self._sigma_from_model_var(t1, t2, model_var_values)
+        else:
+            sigma = self._sigma_from_model_var(t1, t2, eta)
+
+        xstart = self._predict_xstart_from_eps(x, t1, eps)
+        if clip_denoised:
+            xstart = xstart.clamp(-1, 1)
+
+        alpha_bar_t1 = _extract_into_tensor(self.alphas_cumprod, t1, x.shape)
+        alpha_bar_t2 = _extract_into_tensor(self.alphas_cumprod, t2, x.shape)
+
+        coef_xstart = th.sqrt(alpha_bar_t2)
+        coef_eps = th.sqrt(1 - alpha_bar_t2 - sigma ** 2)
+
+        mean_pred = xstart * coef_xstart + coef_eps * eps
+        noise = th.randn_like(x)
+        nonzero_mask = (
+            (t1 != 0).float().view(-1, *([1] * (len(x.shape) - 1)))
+        )  # no noise when t == 0
+        sample = mean_pred + nonzero_mask * sigma * noise
+
+        return sample, xstart
+
+    def ddpm_step(
         self,
         model,
         x,
-        t,
+        t1,
+        t2,
+        clip_denoised=True,
+        denoised_fn=None,
+        model_kwargs=None,
+    ):
+        step_kwargs = dict(clip_denoised=clip_denoised, denoised_fn=denoised_fn, model_kwargs=model_kwargs)
+
+        eps, model_var_values = self.model_step(x, t1, **step_kwargs)
+        transfer_kwargs = dict(clip_denoised=clip_denoised, model_var_values=model_var_values)
+
+        x_new, pred = self.transfer(x, eps, t1, t2, **transfer_kwargs)
+
+        return {"sample": x_new, "pred_xstart": pred, 'eps': eps}
+
+    def ddim_step(
+        self,
+        model,
+        x,
+        t1,
+        t2,
+        eta=0.0,
+        clip_denoised=True,
+        denoised_fn=None,
+        model_kwargs=None,
+    ):
+        step_kwargs = dict(clip_denoised=clip_denoised, denoised_fn=denoised_fn, model_kwargs=model_kwargs)
+        transfer_kwargs = dict(clip_denoised=clip_denoised, eta=eta)
+
+        eps, _ = self.model_step(x, t1, **step_kwargs)
+
+        x_new, pred = self.transfer(x, eps, t1, t2, **transfer_kwargs)
+
+        return {"sample": x_new, "pred_xstart": pred, 'eps': eps}
+
+    def plms_step(
+        self,
+        model,
+        x,
+        t1,
         t2,
         old_eps,
         clip_denoised=True,
         denoised_fn=None,
         model_kwargs=None,
-        eta=0.0,
-        ddim_fallback=False,
-        use_model_var=False,
     ):
-        def model_step(x_, t_):
-            out = self.p_mean_variance(
-                model,
-                x_,
-                t_,
-                clip_denoised=clip_denoised,
-                denoised_fn=denoised_fn,
-                model_kwargs=model_kwargs,
-            )
-            eps = self._predict_eps_from_xstart(x_, t_, out["pred_xstart"])
-            model_var_values = out['model_var_values']
-            return eps, model_var_values
+        step_kwargs = dict(clip_denoised=clip_denoised, denoised_fn=denoised_fn, model_kwargs=model_kwargs)
+        transfer_kwargs = dict(clip_denoised=clip_denoised)
 
-        def transfer(x_, eps, t1_, t2_, model_var_values):
-            xstart = self._predict_xstart_from_eps(x_, t1_, eps)
-            if clip_denoised:
-                xstart = xstart.clamp(-1, 1)
+        eps, _ = self.model_step(x, t1, **step_kwargs)
 
-            alpha_bar_t1 = _extract_into_tensor(self.alphas_cumprod, t1_, x.shape)
-            alpha_bar_t2 = _extract_into_tensor(self.alphas_cumprod, t2_, x.shape)
+        eps_prime = (55 * eps - 59 * old_eps[-1] + 37 * old_eps[-2] - 9 * old_eps[-3]) / 24
 
-            frac = (model_var_values + 1) / 2
-            if use_model_var:
-                min_log = th.log(((1 - alpha_bar_t2) / (1 - alpha_bar_t1)) * (1 - alpha_bar_t1 / alpha_bar_t2))
-                max_log = th.log((1 - alpha_bar_t1 / alpha_bar_t2))
-                max_log = th.min(th.log(1 - alpha_bar_t2), max_log)  # prevent sqrt(neg)
-                # The model_var_values is [-1, 1] for [min_var, max_var].
-                # print((min_log[0,0,0,0], max_log[0,0,0,0]))
+        x_new, pred = self.transfer(x, eps_prime, t1, t2, **transfer_kwargs)
 
-                model_log_variance = frac * max_log + (1 - frac) * min_log
-                sigma = th.sqrt(th.exp(model_log_variance))
-            else:
-                sigma = (
-                    eta
-                    * th.sqrt((1 - alpha_bar_t2) / (1 - alpha_bar_t1))
-                    * th.sqrt(1 - alpha_bar_t1 / alpha_bar_t2)
-                )
-
-            coef_xstart = th.sqrt(alpha_bar_t2)
-            coef_eps = th.sqrt(1 - alpha_bar_t2 - sigma ** 2)
-
-            mean_pred = xstart * coef_xstart + coef_eps * eps
-            noise = th.randn_like(x_)
-            nonzero_mask = (
-                (t1_ != 0).float().view(-1, *([1] * (len(x_.shape) - 1)))
-            )  # no noise when t == 0
-            sample = mean_pred + nonzero_mask * sigma * noise
-
-            return sample, xstart
-
-        eps, model_var_values = model_step(x, t)
-
-        if ddim_fallback:
-            eps_prime = eps
-        else:
-            eps_prime = (55 * eps - 59 * old_eps[-1] + 37 * old_eps[-2] - 9 * old_eps[-3]) / 24
-        # eps_prime = eps  # debug
-        x_new, pred = transfer(x, eps_prime, t, t2, model_var_values)
         return {"sample": x_new, "pred_xstart": pred, 'eps': eps}
 
     def prk_double_step(
@@ -658,86 +706,43 @@ class GaussianDiffusion:
         clip_denoised=True,
         denoised_fn=None,
         model_kwargs=None,
-        eta=0.0,
-        ddim_fallback=False,
-        use_model_var=False,
     ):
-        def model_step(x_, t_):
-            out = self.p_mean_variance(
-                model,
-                x_,
-                t_,
-                clip_denoised=clip_denoised,
-                denoised_fn=denoised_fn,
-                model_kwargs=model_kwargs,
-            )
-            eps = self._predict_eps_from_xstart(x_, t_, out["pred_xstart"])
-            model_var_values = out['model_var_values']
-            return eps, model_var_values
-
-        def transfer(x_, eps, t1_, t2_, model_var_values):
-            xstart = self._predict_xstart_from_eps(x_, t1_, eps)
-            if clip_denoised:
-                xstart = xstart.clamp(-1, 1)
-
-            alpha_bar_t1 = _extract_into_tensor(self.alphas_cumprod, t1_, x.shape)
-            alpha_bar_t2 = _extract_into_tensor(self.alphas_cumprod, t2_, x.shape)
-
-            frac = (model_var_values + 1) / 2
-            if use_model_var:
-                min_log = th.log(((1 - alpha_bar_t2) / (1 - alpha_bar_t1)) * (1 - alpha_bar_t1 / alpha_bar_t2))
-                max_log = th.log((1 - alpha_bar_t1 / alpha_bar_t2))
-                max_log = th.min(th.log(1 - alpha_bar_t2), max_log)  # prevent sqrt(neg)
-                # The model_var_values is [-1, 1] for [min_var, max_var].
-                # print((min_log[0,0,0,0], max_log[0,0,0,0]))
-
-                model_log_variance = frac * max_log + (1 - frac) * min_log
-                sigma = th.sqrt(th.exp(model_log_variance))
-            else:
-                sigma = (
-                    eta
-                    * th.sqrt((1 - alpha_bar_t2) / (1 - alpha_bar_t1))
-                    * th.sqrt(1 - alpha_bar_t1 / alpha_bar_t2)
-                )
-
-            coef_xstart = th.sqrt(alpha_bar_t2)
-            coef_eps = th.sqrt(1 - alpha_bar_t2 - sigma ** 2)
-
-            mean_pred = xstart * coef_xstart + coef_eps * eps
-            noise = th.randn_like(x_)
-            nonzero_mask = (
-                (t1_ != 0).float().view(-1, *([1] * (len(x_.shape) - 1)))
-            )  # no noise when t == 0
-            sample = mean_pred + nonzero_mask * sigma * noise
-
-            return sample, xstart
-
         t1 = t
         t_mid = t-1
         t2 = t-2
 
-        eps1, model_var_values = model_step(x, t1)
+        step_kwargs = dict(clip_denoised=clip_denoised, denoised_fn=denoised_fn, model_kwargs=model_kwargs)
+        transfer_kwargs = dict(clip_denoised=clip_denoised)
 
-        if ddim_fallback:
-            eps_prime = eps1
-        else:
-            x1, _ = transfer(x, eps1, t1, t_mid, model_var_values)
+        eps1, model_var_values = self.model_step(x, t1, **step_kwargs)
 
-            eps2, _ = model_step(x1, t_mid)
-            x2, _ = transfer(x, eps2, t1, t_mid, model_var_values)
+        x1, _ = self.transfer(x, eps1, t1, t_mid, **transfer_kwargs)
+        eps2, _ = self.model_step(x1, t_mid, **step_kwargs)
 
-            eps3, _ = model_step(x2, t_mid)
-            x3, _ = transfer(x, eps3, t1, t2, model_var_values)
+        x2, _ = self.transfer(x, eps2, t1, t_mid, **transfer_kwargs)
+        eps3, _ = self.model_step(x2, t_mid, **step_kwargs)
 
-            eps4, _ = model_step(x3, t2)
+        x3, _ = self.transfer(x, eps3, t1, t2, **transfer_kwargs)
+        eps4, _ = self.model_step(x3, t2, **step_kwargs)
 
-            eps_prime = (eps1 + 2 * eps2 + 2 * eps3 + eps4) / 6
-        # eps_prime = eps1
-        x_new, pred = transfer(x, eps_prime, t1, t2, model_var_values)
-        # eps_prime = eps1  # debug
-        # x_new, pred = transfer(x, eps_prime, t1, t_mid)  # debug
+        eps_prime = (eps1 + 2 * eps2 + 2 * eps3 + eps4) / 6
+
+        x_new, pred = self.transfer(x, eps_prime, t1, t2, **transfer_kwargs)
 
         return {"sample": x_new, "pred_xstart": pred, 'eps': eps_prime}
+
+    def generic_sample_loop_progressive(
+        self,
+        model,
+        shape,
+        noise=None,
+        clip_denoised=True,
+        denoised_fn=None,
+        model_kwargs=None,
+        device=None,
+        progress=False,
+        eta=0.0,
+    ):
 
     def prk_sample_loop_progressive(
         self,
@@ -753,12 +758,6 @@ class GaussianDiffusion:
         ddim_first_n=0,
         ddim_last_n=None,
     ):
-        """
-        Use DDIM to sample from the model and yield intermediate samples from
-        each timestep of DDIM.
-
-        Same usage as p_sample_loop_progressive().
-        """
         if device is None:
             device = next(model.parameters()).device
         assert isinstance(shape, (tuple, list))
@@ -884,7 +883,7 @@ class GaussianDiffusion:
             t = th.tensor([i] * shape[0], device=device)
             with th.no_grad():
                 ddim_fallback = (step_counter < ddim_first_n) or (ddim_last_n is not None and (nsteps - step_counter) < ddim_last_n)
-                out = self.plms_steps(
+                out = self.plms_step(
                     model,
                     img,
                     t,

@@ -130,7 +130,7 @@ class SamplingModel(nn.Module):
         sample_fn_kwargs = {}
         if use_ddim or use_prk or use_plms:
             sample_fn_kwargs['eta'] = ddim_eta
-        if use_plms:
+        if use_plms or use_prk:
             sample_fn_kwargs['ddim_first_n'] = plms_ddim_first_n
             sample_fn_kwargs['ddim_last_n'] = plms_ddim_last_n
 

@@ -878,7 +878,7 @@ class GaussianDiffusion:
                 step_counter += 1
                 # print(('rk', i, [t[0, 0, 0, 0] for t in old_eps]))
 
-                # yield out
+                yield out
                 img = out["sample"]
         for i in indices:
             t = th.tensor([i] * shape[0], device=device)

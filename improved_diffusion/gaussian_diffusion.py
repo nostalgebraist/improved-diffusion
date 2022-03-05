@@ -680,7 +680,7 @@ class GaussianDiffusion:
 
         eps = self.model_step(model, x, t1, **step_kwargs)
 
-        x_new, pred, effective_eps = self.transfer(x, eps, t1, t2, **transfer_kwargs)
+        x_new, pred = self.transfer(x, eps, t1, t2, **transfer_kwargs)
 
         return {"sample": x_new, "pred_xstart": pred, 'eps': eps}
 

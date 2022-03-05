@@ -592,19 +592,19 @@ class GaussianDiffusion:
         model_var_values = out['model_var_values']
         return eps, model_var_values
 
-    def _vb_variances(self, t1, t2):
-        alpha_bar_t1 = _extract_into_tensor(self.alphas_cumprod, t1, x.shape)
-        alpha_bar_t2 = _extract_into_tensor(self.alphas_cumprod, t2, x.shape)
+    def _vb_variances(self, t1, t2, shape):
+        alpha_bar_t1 = _extract_into_tensor(self.alphas_cumprod, t1, shape)
+        alpha_bar_t2 = _extract_into_tensor(self.alphas_cumprod, t2, shape)
         min_var = ((1 - alpha_bar_t2) / (1 - alpha_bar_t1)) * (1 - alpha_bar_t1 / alpha_bar_t2)
         max_var = (1 - alpha_bar_t1 / alpha_bar_t2)
         return min_var, max_var
 
-    def _sigma_from_eta(self, t1, t2, eta):
-        min_var, _ = self._vb_variances(t1, t2)
+    def _sigma_from_eta(self, t1, t2, shape, eta):
+        min_var, _ = self._vb_variances(t1, t2, shape)
         return eta * th.sqrt(min_var)
 
-    def _sigma_from_model_var(self, t1, t2, model_var_values):
-        min_var, max_var = self._vb_variances(t1, t2)
+    def _sigma_from_model_var(self, t1, t2, shape, model_var_values):
+        min_var, max_var = self._vb_variances(t1, t2, shape)
         min_log, max_log = th.log(min_var), th.log(max_var)
 
         frac = (model_var_values + 1) / 2
@@ -615,9 +615,9 @@ class GaussianDiffusion:
 
     def transfer(self, x, eps, t1, t2, clip_denoised=True, eta=0., model_var_values=None):
         if model_var_values is not None:
-            sigma = self._sigma_from_model_var(t1, t2, model_var_values)
+            sigma = self._sigma_from_model_var(t1, t2, x.shape, model_var_values)
         else:
-            sigma = self._sigma_from_eta(t1, t2, eta)
+            sigma = self._sigma_from_eta(t1, t2, x.shape, eta)
 
         xstart = self._predict_xstart_from_eps(x, t1, eps)
         if clip_denoised:

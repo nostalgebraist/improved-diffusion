@@ -637,11 +637,6 @@ class GaussianDiffusion:
         )  # no noise when t == 0
         sample = mean_pred + nonzero_mask * sigma * noise
 
-        norm_score = th.sqrt((mean_pred - x) ** 2).mean().item()
-        norm_noise = th.sqrt((sample - mean_pred) ** 2).mean().item()
-
-        print(f"norm_score {norm_score:.3f} | norm_noise {norm_noise:.3f} | ratio {norm_noise/norm_score:.3f} ")
-
         if return_effective_eps:
             effective_eps = (sample - xstart * coef_xstart) / coef_eps
             return sample, xstart, effective_eps

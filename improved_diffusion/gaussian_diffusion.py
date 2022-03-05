@@ -599,11 +599,11 @@ class GaussianDiffusion:
         max_var = (1 - alpha_bar_t1 / alpha_bar_t2)
         return min_var, max_var
 
-    def _sigma_from_eta(t1, t2, eta):
+    def _sigma_from_eta(self, t1, t2, eta):
         min_var, _ = self._vb_variances(t1, t2)
         return eta * th.sqrt(min_var)
 
-    def _sigma_from_model_var(t1, t2, model_var_values):
+    def _sigma_from_model_var(self, t1, t2, model_var_values):
         min_var, max_var = self._vb_variances(t1, t2)
         min_log, max_log = th.log(min_var), th.log(max_var)
 

@@ -597,6 +597,7 @@ class GaussianDiffusion:
         alpha_bar_t2 = _extract_into_tensor(self.alphas_cumprod, t2, shape)
         min_var = ((1 - alpha_bar_t2) / (1 - alpha_bar_t1)) * (1 - alpha_bar_t1 / alpha_bar_t2)
         max_var = (1 - alpha_bar_t1 / alpha_bar_t2)
+        max_var = th.min(max_var, 1 - alpha_bar_t2)  # avoid sqrt(neg)
         return min_var, max_var
 
     def _sigma_from_eta(self, t1, t2, shape, eta):

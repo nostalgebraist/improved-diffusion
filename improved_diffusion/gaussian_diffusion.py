@@ -678,7 +678,7 @@ class GaussianDiffusion:
         step_kwargs = dict(clip_denoised=clip_denoised, denoised_fn=denoised_fn, model_kwargs=model_kwargs)
         transfer_kwargs = dict(clip_denoised=clip_denoised, eta=eta)
 
-        eps = self.model_step(model, x, t1, **step_kwargs)
+        eps, _ = self.model_step(model, x, t1, **step_kwargs)
 
         x_new, pred = self.transfer(x, eps, t1, t2, **transfer_kwargs)
 

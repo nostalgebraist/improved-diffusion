@@ -657,11 +657,11 @@ class GaussianDiffusion:
         step_kwargs = dict(clip_denoised=clip_denoised, denoised_fn=denoised_fn, model_kwargs=model_kwargs)
 
         eps, model_var_values = self.model_step(model, x, t1, **step_kwargs)
-        transfer_kwargs = dict(clip_denoised=clip_denoised, model_var_values=model_var_values, return_effective_eps=True)
+        transfer_kwargs = dict(clip_denoised=clip_denoised, model_var_values=model_var_values)
 
-        x_new, pred, effective_eps = self.transfer(x, eps, t1, t2, **transfer_kwargs)
+        x_new, pred = self.transfer(x, eps, t1, t2, **transfer_kwargs)
 
-        return {"sample": x_new, "pred_xstart": pred, 'eps': effective_eps}
+        return {"sample": x_new, "pred_xstart": pred, 'eps': eps}
 
     def ddim_step(
         self,
@@ -676,13 +676,13 @@ class GaussianDiffusion:
         model_kwargs=None,
     ):
         step_kwargs = dict(clip_denoised=clip_denoised, denoised_fn=denoised_fn, model_kwargs=model_kwargs)
-        transfer_kwargs = dict(clip_denoised=clip_denoised, eta=eta, return_effective_eps=True)
+        transfer_kwargs = dict(clip_denoised=clip_denoised, eta=eta)
 
-        eps, _ = self.model_step(model, x, t1, **step_kwargs)
+        eps = self.model_step(model, x, t1, **step_kwargs)
 
         x_new, pred, effective_eps = self.transfer(x, eps, t1, t2, **transfer_kwargs)
 
-        return {"sample": x_new, "pred_xstart": pred, 'eps': effective_eps}
+        return {"sample": x_new, "pred_xstart": pred, 'eps': eps}
 
     def plms_step(
         self,

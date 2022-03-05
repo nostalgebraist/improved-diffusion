@@ -617,7 +617,7 @@ class GaussianDiffusion:
         if model_var_values is not None:
             sigma = self._sigma_from_model_var(t1, t2, model_var_values)
         else:
-            sigma = self._sigma_from_model_var(t1, t2, eta)
+            sigma = self._sigma_from_eta(t1, t2, eta)
 
         xstart = self._predict_xstart_from_eps(x, t1, eps)
         if clip_denoised:

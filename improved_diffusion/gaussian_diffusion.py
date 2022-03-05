@@ -716,7 +716,7 @@ class GaussianDiffusion:
         t_mid = t-1
         t2 = t-2
 
-        eps1 = model_step(x, t1, model_var_values)
+        eps1, model_var_values = model_step(x, t1)
 
         if ddim_fallback:
             eps_prime = eps1
@@ -733,7 +733,7 @@ class GaussianDiffusion:
 
             eps_prime = (eps1 + 2 * eps2 + 2 * eps3 + eps4) / 6
         # eps_prime = eps1
-        x_new, pred = transfer(x, eps_prime, t1, t2, eta_=eta)
+        x_new, pred = transfer(x, eps_prime, t1, t2, model_var_values)
         # eps_prime = eps1  # debug
         # x_new, pred = transfer(x, eps_prime, t1, t_mid)  # debug
 

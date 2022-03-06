@@ -166,7 +166,9 @@ class TrainLoop:
             else:
                 is_bread = False
 
-                if 'input_blocks' in n:
+                if n.startswith('out.'):
+                    is_bread = True
+                elif 'input_blocks' in n:
                     num = int(n.split('.')[1])
                     is_bread = num < state_dict_sandwich
                 elif 'output_blocks' in n:

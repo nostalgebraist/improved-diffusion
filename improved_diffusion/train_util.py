@@ -1,6 +1,7 @@
 import copy
 import functools
 import os
+import sys
 import time
 import subprocess
 from collections import defaultdict
@@ -418,7 +419,8 @@ class TrainLoop:
             else:
                 self.run_step(batch, cond, verbose = (self.step % self.log_interval == 0))
                 if self.onestep:
-                    raise ValueError('done')
+                    print('done')
+                    sys.exit(0)
 
             if self.step % self.log_interval == 0:
                 t2 = time.time()

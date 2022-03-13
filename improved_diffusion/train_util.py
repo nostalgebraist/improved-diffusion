@@ -61,6 +61,7 @@ class TrainLoop:
         state_dict_sandwich_manual_remaps="",
         master_on_cpu=False,
         use_amp=False,
+        use_bf16=False,
         use_profiler=False,
         autosave=True,
         autosave_dir="gs://nost_ar_work/improved-diffusion/",
@@ -98,6 +99,7 @@ class TrainLoop:
                                                   }
         self.master_device = 'cpu' if master_on_cpu else None
         self.use_amp = use_amp
+        self.use_bf16 = use_bf16
         self.use_profiler = use_profiler
         self.autosave = autosave
         self.autosave_dir = autosave_dir
@@ -454,7 +456,7 @@ class TrainLoop:
             last_batch = (i + self.microbatch) >= batch.shape[0]
             t, weights = self.schedule_sampler.sample(micro.shape[0], dist_util.dev())
 
-            with th.cuda.amp.autocast(enabled=self.use_amp):
+            with th.cuda.amp.autocast(enabled=self.use_amp, dtype=th.bfloat16 if self.use_bf16 else th.float16):
                 compute_losses = functools.partial(
                     self.diffusion.training_losses,
                     self.ddp_model,

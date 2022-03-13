@@ -146,6 +146,7 @@ def main():
         arithmetic_avg_from_step=args.arithmetic_avg_from_step,
         arithmetic_avg_extra_shift=args.arithmetic_avg_extra_shift,
         gain_ff_setup_step=args.gain_ff_setup_step,
+        use_bf16=args.use_bf16
     ).run_loop()
 
 
@@ -186,6 +187,7 @@ def create_argparser():
         txt_pdrop=0.,
         master_on_cpu=False,
         use_amp=False,
+        use_bf16=False,
         use_profiler=False,
         autosave=True,
         arithmetic_avg_from_step='-1',

@@ -146,7 +146,7 @@ def main():
         arithmetic_avg_from_step=args.arithmetic_avg_from_step,
         arithmetic_avg_extra_shift=args.arithmetic_avg_extra_shift,
         gain_ff_setup_step=args.gain_ff_setup_step,
-        use_bf16=args.use_bf16
+        use_bf16=args.use_bf16,
         onestep=args.onestep,
     ).run_loop()
 

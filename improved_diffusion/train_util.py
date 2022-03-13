@@ -433,6 +433,8 @@ class TrainLoop:
                     return
             self.step += 1
         # Save the last checkpoint if it wasn't already saved.
+        if self.onestep:
+            return
         if (self.step - 1) % self.save_interval != 0:
             self.save()
 

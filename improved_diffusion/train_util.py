@@ -63,11 +63,12 @@ class TrainLoop:
         use_amp=False,
         use_bf16=False,
         use_profiler=False,
+        onestep=False,
         autosave=True,
         autosave_dir="gs://nost_ar_work/improved-diffusion/",
         arithmetic_avg_from_step=-1,
         arithmetic_avg_extra_shift=0,
-        gain_ff_setup_step=False
+        gain_ff_setup_step=False,
     ):
         self.model = model
         self.diffusion = diffusion
@@ -101,6 +102,7 @@ class TrainLoop:
         self.use_amp = use_amp
         self.use_bf16 = use_bf16
         self.use_profiler = use_profiler
+        self.onestep = onestep
         self.autosave = autosave
         self.autosave_dir = autosave_dir
         self.anneal_log_flag = False
@@ -415,6 +417,8 @@ class TrainLoop:
                 raise ValueError('done saving')
             else:
                 self.run_step(batch, cond, verbose = (self.step % self.log_interval == 0))
+                if self.onestep:
+                    raise ValueError('done')
 
             if self.step % self.log_interval == 0:
                 t2 = time.time()

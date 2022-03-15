@@ -11,7 +11,6 @@ import torch as th
 import torch.distributed as dist
 from torch.nn.parallel.distributed import DistributedDataParallel as DDP
 from torch.optim import AdamW
-from transformer_utils.util.module_utils import get_child_module_by_names
 
 from . import dist_util, logger
 from .fp16_util import (
@@ -54,7 +53,6 @@ class TrainLoop:
         tokenizer=None,
         text_lr=None,
         gain_lr=None,
-        bread_lr=None,
         lg_loss_scale = INITIAL_LOG_LOSS_SCALE,
         beta1=0.9,
         beta2=0.999,
@@ -65,14 +63,12 @@ class TrainLoop:
         use_amp=False,
         use_bf16=False,
         use_profiler=False,
+        onestep=False,
         autosave=True,
         autosave_dir="gs://nost_ar_work/improved-diffusion/",
         arithmetic_avg_from_step=-1,
         arithmetic_avg_extra_shift=0,
         gain_ff_setup_step=False,
-        only_optimize_bread=False,
-        param_sandwich=-1,
-        resize_mult=1.,
         perf_no_ddl=False,
     ):
         self.model = model
@@ -83,8 +79,7 @@ class TrainLoop:
         self.lr = lr
         self.text_lr = text_lr if text_lr is not None else lr
         self.gain_lr = gain_lr if gain_lr is not None else lr
-        self.bread_lr = bread_lr if bread_lr is not None else lr
-        print(f"train loop: text_lr={text_lr}, gain_lr={gain_lr}, bread_lr={bread_lr}")
+        print(f"train loop: text_lr={text_lr}, gain_lr={gain_lr}")
         self.ema_rate = (
             [ema_rate]
             if isinstance(ema_rate, float)
@@ -104,12 +99,11 @@ class TrainLoop:
                                                   for kv in state_dict_sandwich_manual_remaps.split(",")
                                                   if len(kv) > 0
                                                   }
-        if param_sandwich < 0:
-            param_sandwich = state_dict_sandwich
         self.master_device = 'cpu' if master_on_cpu else None
         self.use_amp = use_amp
         self.use_bf16 = use_bf16
         self.use_profiler = use_profiler
+        self.onestep = onestep
         self.autosave = autosave
         self.autosave_dir = autosave_dir
         self.anneal_log_flag = False
@@ -123,9 +117,6 @@ class TrainLoop:
             if isinstance(arithmetic_avg_extra_shift, float)
             else [float(x) for x in arithmetic_avg_extra_shift.split(",") if len(x) > 0]
         )
-        self.only_optimize_bread = only_optimize_bread
-        self.resize_mult = resize_mult
-
         print(f"TrainLoop self.master_device: {self.master_device}, use_amp={use_amp}, autosave={self.autosave}")
         print(f"TrainLoop self.arithmetic_avg_from_step: {self.arithmetic_avg_from_step}, self.arithmetic_avg_extra_shift={self.arithmetic_avg_extra_shift}")
 
@@ -141,7 +132,6 @@ class TrainLoop:
         gain_params, self.gain_param_names = [], []
         other_params, self.other_param_names = [], []
         ff_gain_params, self.ff_gain_param_names = [], []
-        bread_params, self.bread_param_names = [], []
         for n, p in model.named_parameters():
             if 'text_encoder' in n:
                 # subname = 'text'
@@ -174,24 +164,8 @@ class TrainLoop:
                 itot_param_names[subname].append(n)
                 itot_params[subname].append(p)
             else:
-                is_bread = False
-
-                if n.startswith('out.') or n.startswith('bread'):
-                    is_bread = True
-                elif 'input_blocks' in n:
-                    num = int(n.split('.')[1])
-                    is_bread = num < param_sandwich
-                elif 'output_blocks' in n:
-                    num = int(n.split('.')[1])
-                    is_bread = (len(model.output_blocks) - num - 1) < param_sandwich
-
-                if is_bread:
-                    print(f"is_bread: {n}")
-                    self.bread_param_names.append(n)
-                    bread_params.append(p)
-                else:
-                    self.other_param_names.append(n)
-                    other_params.append(p)
+                self.other_param_names.append(n)
+                other_params.append(p)
 
         self.text_mods = list(text_param_names.keys())
         text_params = [text_params[n] for n in self.text_mods]
@@ -205,9 +179,9 @@ class TrainLoop:
         itot_params = [itot_params[n] for n in self.itot_mods]
         self.itot_param_names = [itot_param_names[n] for n in self.itot_mods]
 
-        self.param_name_groups = [*self.text_param_names, *self.xattn_param_names, *self.itot_param_names, self.gain_param_names, self.bread_param_names, self.other_param_names, self.ff_gain_param_names]
+        self.param_name_groups = [*self.text_param_names, *self.xattn_param_names, *self.itot_param_names, self.gain_param_names, self.other_param_names, self.ff_gain_param_names]
         # self.model_params = list(self.model.parameters())
-        self.model_params = [*text_params, *xattn_params, *itot_params, gain_params, bread_params, other_params, ff_gain_params]
+        self.model_params = [*text_params, *xattn_params, *itot_params, gain_params, other_params, ff_gain_params]
         if len(gain_params) == 0:
             self.param_name_groups = [self.other_param_names]
             self.model_params = [other_params]
@@ -229,7 +203,7 @@ class TrainLoop:
         text_nparams = 0
         xattn_nparams = 0
         itot_nparams = 0
-        for p, name in zip(self.master_params, [*self.text_mods, *self.xattn_mods, *self.itot_mods, 'xgain', 'bread', 'other', 'xgainff']):
+        for p, name in zip(self.master_params, [*self.text_mods, *self.xattn_mods, *self.itot_mods, 'xgain', 'other', 'xgainff']):
             if isinstance(p, list):
                 nparams = sum(np.product(pp.shape) for pp in p)
             else:
@@ -249,53 +223,27 @@ class TrainLoop:
         print(f"\t{xattn_nparams/1e6:.1f}M xattn params")
         print(f"\t{itot_nparams/1e6:.1f}M itot params")
 
-        if self.only_optimize_bread:
-            self.opt = AdamW(
-                [
-                    {"params": params, "lr": lr, "weight_decay": wd}
-                    for params, is_bread, lr, wd in zip(
-                        self.master_params,
-                        [*[False for _ in self.text_mods],
-                         *[False for _ in self.xattn_mods],
-                         *[False for _ in self.itot_mods],
-                          False, True, False],
-                        [*[self.text_lr for _ in self.text_mods],
-                         *[self.text_lr for _ in self.xattn_mods],
-                         *[self.text_lr for _ in self.itot_mods],
-                          self.gain_lr, self.bread_lr, self.lr],
-                        [*[0. for _ in self.text_mods],
-                         *[0. for _ in self.xattn_mods],
-                         *[0. for _ in self.itot_mods],
-                          0., 0., self.weight_decay]
-                    )
-                    if is_bread
-                ],
-                lr=self.lr,
-                weight_decay=self.weight_decay,
-                betas=(beta1, beta2)
-            )
-        else:
-            self.opt = AdamW(
-                [
-                    {"params": params, "lr": lr, "weight_decay": wd}
-                    for params, lr, wd in zip(
-                        self.master_params,
-                        [*[self.text_lr for _ in self.text_mods],
-                         *[self.text_lr for _ in self.xattn_mods],
-                         *[self.text_lr for _ in self.itot_mods],
-                          self.gain_lr, self.bread_lr, self.lr],
-                        [*[0. for _ in self.text_mods],
-                         *[0. for _ in self.xattn_mods],
-                         *[0. for _ in self.itot_mods],
-                          0., 0., self.weight_decay]
-                    )
-                ],
-                lr=self.lr,
-                weight_decay=self.weight_decay,
-                betas=(beta1, beta2)
-            )
+        self.opt = AdamW(
+            [
+                {"params": params, "lr": lr, "weight_decay": wd}
+                for params, lr, wd in zip(
+                    self.master_params,
+                    [*[self.text_lr for _ in self.text_mods],
+                     *[self.text_lr for _ in self.xattn_mods],
+                     *[self.text_lr for _ in self.itot_mods],
+                      self.gain_lr, self.lr],
+                    [*[0. for _ in self.text_mods],
+                     *[0. for _ in self.xattn_mods],
+                     *[0. for _ in self.itot_mods],
+                      0., self.weight_decay]
+                )
+            ],
+            lr=self.lr,
+            weight_decay=self.weight_decay,
+            betas=(beta1, beta2)
+        )
 
-        if not gain_ff_setup_step and not self.only_optimize_bread:
+        if not gain_ff_setup_step:
             self.opt.add_param_group({"params": ff_gain_params, "lr": self.gain_lr, "weight_decay": 0.})
 
         if self.resume_step:
@@ -352,18 +300,35 @@ class TrainLoop:
                 sd = dist_util.load_state_dict(
                     resume_checkpoint, map_location=dist_util.dev()
                 )
-                newsd = apply_state_dict_sandwich(
-                    self.model,
-                    sd,
-                    self.state_dict_sandwich,
-                    self.state_dict_sandwich_manual_remaps,
-                )
-
-                newsd = apply_resize(
-                    self.model,
-                    sd,
-                    mult=self.resize_mult
-                )
+                if self.state_dict_sandwich > 0:
+                    ks = list(sd.keys())
+                    newsd = {}
+                    for k in ks:
+                        if k.startswith("input_blocks."):
+                            segs = k.split('.')
+                            num = int(segs[1])
+                            if num == 0:
+                                # skip input transducer
+                                continue
+                            v = sd[k]
+                            segs[1] = str(num + self.state_dict_sandwich)
+                            newk = '.'.join(segs)
+                            print(f'{v.shape} {k} -> {newk}')
+                            newsd[newk] = v
+                        elif k.startswith("out."):
+                            # skip output transducer
+                            print(f"skipping {k}")
+                        else:
+                            newk = k
+                            for prefix in self.state_dict_sandwich_manual_remaps:
+                                if k.startswith(prefix):
+                                    newprefix = self.state_dict_sandwich_manual_remaps[prefix]
+                                    _, _, suffix = k.partition(prefix)
+                                    newk = newprefix + suffix
+                                    print(f'{sd[k].shape} {k} -> {newk}')
+                            newsd[newk] = sd[k]
+                else:
+                    newsd = sd
 
                 incompatible_keys = self.model.load_state_dict(
                     newsd,
@@ -405,7 +370,6 @@ class TrainLoop:
             )
             ours = [v['params'] for v in self.opt.state_dict()['param_groups']]
             theirs = [v['params'] for v in state_dict['param_groups']]
-
             if not all(len(o) == len(t) for o, t in zip(ours, theirs)):
                 # loading manual mp opt in amp
                 their_exp_avg = [state_dict['state'][pg[0]]['exp_avg'] for pg in theirs]
@@ -447,13 +411,16 @@ class TrainLoop:
             batch, cond = next(self.data)
 
             if self.use_profiler:
-                with th.profiler.profile(with_stack=True, profile_memory=True, with_flops=True) as _p:
+                with th.profiler.profile(with_stack=True) as _p:
                     self.run_step(batch, cond, verbose = (self.step % self.log_interval == 0))
                 print(_p.key_averages(group_by_stack_n=5).table(sort_by="self_cuda_time_total", row_limit=50))
                 _p.export_chrome_trace('chromeprof')
                 raise ValueError('done saving')
             else:
                 self.run_step(batch, cond, verbose = (self.step % self.log_interval == 0))
+                if self.onestep:
+                    print('done')
+                    break
 
             if self.step % self.log_interval == 0:
                 t2 = time.time()
@@ -467,6 +434,8 @@ class TrainLoop:
                     return
             self.step += 1
         # Save the last checkpoint if it wasn't already saved.
+        if self.onestep:
+            return
         if (self.step - 1) % self.save_interval != 0:
             self.save()
 
@@ -628,40 +597,28 @@ class TrainLoop:
 
         gn_xattn, gn_text, gn_itot = 0., 0., 0.
 
-        # name_to_norm = {}
-        # name_to_nparam = {}
-        # for n, p in self.model.named_parameters():
-        #     name_to_norm[n] = p.grad.float().norm().item()
-        #     name_to_nparam[n] = int(np.product(p.shape))
-        # for n in sorted(name_to_norm.keys(), key=lambda n_: name_to_norm[n_]):
-        #     print(f"{name_to_norm[n]:.4e}\t | {name_to_nparam[n]:08d}\t | {n}")
-
-        for p_, name in zip(self.master_params, [*self.text_mods, *self.xattn_mods, *self.itot_mods, 'xgain', 'bread', 'other', 'xgainff']):
+        for p_, name in zip(self.master_params, [*self.text_mods, *self.xattn_mods, *self.itot_mods, 'xgain', 'other', 'xgainff']):
             if isinstance(p_, list):
                 pp = p_
             else:
                 pp = [p_]
 
-            # vals = []
             gn = 0.
             for p in pp:
                 if p.grad is None:
                     continue
                 gn_sq = (p.grad.float() ** 2).sum().item()
+                # gn += np.sqrt(gn_sq)
                 gn += gn_sq
+                # nz = (p.grad == 0.).sum().item()
                 if name in self.text_mods:
                     gn_text += gn_sq
                 elif name in self.xattn_mods:
                     gn_xattn += gn_sq
                 elif name in self.itot_mods:
                     gn_itot += gn_sq
-                # vals.append(gn_sq)
-            gn = np.sqrt(gn)
-            # vals = sorted(vals)
-            # top = [np.sqrt(x) for x in vals[-3:]]
-            # bottom = [np.sqrt(x) for x in vals[:3]]
-            # print(f"grad_norm_{name}: {gn:.3f} for {len(pp)} params\n\ttop {top}\n\tbottom {bottom}")
-            logger.logkv_mean(f"grad_norm_{name}", gn)
+            logger.logkv_mean(f"grad_norm_{name}", np.sqrt(gn))
+            # logger.logkv_mean(f"nz_{name}", nz)
 
         gn_text = np.sqrt(gn_text)
         logger.logkv_mean(f"grad_norm_text", gn_text)
@@ -685,10 +642,7 @@ class TrainLoop:
         else:
             frac_done = (self.step + self.resume_step) / self.lr_anneal_steps
 
-        if self.only_optimize_bread:
-            lr_variants = [self.bread_lr]
-        else:
-            lr_variants = (len(self.opt.param_groups)-4) * [self.text_lr] + [self.gain_lr, self.bread_lr, self.lr, self.gain_lr]
+        lr_variants = (len(self.opt.param_groups)-3) * [self.text_lr] + [self.gain_lr, self.lr, self.gain_lr]
 
         for param_group, lr_variant in zip(self.opt.param_groups, lr_variants):
             this_lr = lr_variant * (1 - frac_done)
@@ -874,88 +828,3 @@ def log_loss_dict(diffusion, ts, losses):
         for sub_t, sub_loss in zip(ts.cpu().numpy(), values.detach().cpu().numpy()):
             quartile = int(4 * sub_t / diffusion.num_timesteps)
             logger.logkv_mean(f"{key}_q{quartile}", sub_loss)
-
-
-def apply_resize(model, sd, mult=1., debug=False):
-    for n, p in model.named_parameters():
-        if n not in sd:
-            continue
-        if p.shape != sd[n].shape:
-            print(f"resize\t{n}\t\t{sd[n].shape} -> {p.shape}")
-            slices = tuple(slice(0, i) for i in sd[n].shape)
-            with th.no_grad():
-                buffer = p.data.clone()
-
-                mod = get_child_module_by_names(model, n.split('.')[:-1])
-                if mod is None:
-                    raise ValueError(n)
-                # is_norm_w = n.endswith('ln.weight') or n.endswith('normalization.weight')
-                is_norm_w = n.endswith('.weight') and (isinstance(mod, th.nn.GroupNorm) or isinstance(mod, th.nn.LayerNorm))
-
-                if debug:
-                    debug_slices = tuple(slice(max(0, i-2), min(j, i+2)) for i, j in zip(sd[n].shape, buffer.shape))
-                    print(f"before {n}\t{repr(buffer[debug_slices].squeeze())}")
-                if is_norm_w:
-                    print(f'not scaling\t{n}')
-                else:
-                    buffer.mul_(mult)
-                if debug:
-                    print(f"after scale\t{n}\n{repr(buffer[debug_slices].squeeze())}")
-                buffer.__setitem__(slices, sd[n])
-                if debug:
-                    print(f"after set\t{n}\n{repr(buffer[debug_slices].squeeze())}")
-                sd[n] = buffer
-    return sd
-
-
-def apply_state_dict_sandwich(model, sd, state_dict_sandwich, state_dict_sandwich_manual_remaps=None):
-    if state_dict_sandwich <= 0:
-        return sd
-
-    if state_dict_sandwich_manual_remaps is None:
-        state_dict_sandwich_manual_remaps = {}
-
-    ks = list(sd.keys())
-    newsd = {}
-
-    for k in ks:
-        if k.startswith("input_blocks."):
-            segs = k.split('.')
-            num = int(segs[1])
-            if num == 0:
-                if hasattr(model, 'bread_adapter_in'):
-                    # remap input transducer
-                    v = sd[k]
-                    newk = 'bread_adapter_in.transducer.' + '.'.join(segs[3:])
-                    print(f'{v.shape} {k} -> {newk}')
-                    newsd[newk] = v
-                else:
-                    # skip input transducer
-                    print(f"skipping {k}")
-                    continue
-            else:
-                v = sd[k]
-                segs[1] = str(num + state_dict_sandwich)
-                newk = '.'.join(segs)
-                print(f'{v.shape} {k} -> {newk}')
-                newsd[newk] = v
-        elif k.startswith("out."):
-            if hasattr(model, 'bread_adapter_out'):
-                # remap input transducer
-                v = sd[k]
-                newk = 'bread_adapter_out.transducer.' + '.'.join(k.split('.')[1:])
-                print(f'{v.shape} {k} -> {newk}')
-                newsd[newk] = v
-            else:
-                # skip output transducer
-                print(f"skipping {k}")
-        else:
-            newk = k
-            for prefix in state_dict_sandwich_manual_remaps:
-                if k.startswith(prefix):
-                    newprefix = state_dict_sandwich_manual_remaps[prefix]
-                    _, _, suffix = k.partition(prefix)
-                    newk = newprefix + suffix
-                    print(f'{sd[k].shape} {k} -> {newk}')
-            newsd[newk] = sd[k]
-    return newsd

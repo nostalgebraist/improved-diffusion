@@ -6,6 +6,7 @@ import numpy as np
 import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
+import torchvision.transforms as T
 
 from axial_positional_embedding import AxialPositionalEmbedding
 from x_transformers.x_transformers import Rezero
@@ -619,6 +620,10 @@ class UNetModel(nn.Module):
         weave_qkv_dim_always_text=False,
         channels_last_mem=False,
         up_interp_mode="bilinear",
+        up_interp_blur_prob=0.,
+        up_interp_blur_width=9,
+        up_interp_blur_sigma_min=0.4,
+        up_interp_blur_sigma_max=0.6,
         weave_v2=False,
         use_checkpoint_lowcost=False,
         weave_use_ff_gain=False,
@@ -673,7 +678,14 @@ class UNetModel(nn.Module):
         self.rgb_adapter = rgb_adapter
         self.colorize = colorize
         self.channels_last_mem = channels_last_mem
+
         self.up_interp_mode = up_interp_mode
+        self._up_interp_mode = self.up_interp_mode
+        self.up_interp_blur_prob = up_interp_blur_prob
+        self.up_interp_blur_width = up_interp_blur_width
+        self.up_interp_blur_sigma_min = up_interp_blur_sigma_min
+        self.up_interp_blur_sigma_max = up_interp_blur_sigma_max
+
         self.expand_timestep_base_dim = expand_timestep_base_dim
 
         if self.txt:
@@ -1185,6 +1197,15 @@ class UNetModel(nn.Module):
             result["up"].append(h.type(x.dtype))
         return result
 
+    def train(self):
+        super().train()
+        self.up_interp_mode = self._up_interp_mode
+
+    def eval(self):
+        super().eval()
+        if self.up_interp_mode == 'nearest_blur':
+            self.up_interp_mode = 'nearest'
+
 
 class SuperResModel(UNetModel):
     """
@@ -1199,6 +1220,13 @@ class SuperResModel(UNetModel):
     def forward(self, x, timesteps, low_res=None, **kwargs):
         _, _, new_height, new_width = x.shape
         upsampled = F.interpolate(low_res, (new_height, new_width), mode=self.up_interp_mode)
+        if self.up_interp_mode == 'nearest_blur':
+            blurrer = T.RandomApply(
+                transforms=[T.GaussianBlur(self.up_interp_blur_width,
+                                           sigma=(self.up_interp_blur_sigma_min, self.up_interp_blur_sigma_max))],
+                p=self.up_interp_blur_prob
+            )
+            upsampled = blurrer(upsampled)
         x = th.cat([x, upsampled], dim=1)
         return super().forward(x, timesteps, **kwargs)
 

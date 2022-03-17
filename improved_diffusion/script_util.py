@@ -316,6 +316,10 @@ def create_model(
     txt_ff_glu=False,
     txt_ff_mult=4,
     up_interp_mode="bilinear",
+    up_interp_blur_prob=0.,
+    up_interp_blur_width=9,
+    up_interp_blur_sigma_min=0.4,
+    up_interp_blur_sigma_max=0.6,
     weave_v2=False,
     use_checkpoint_lowcost=False,
     weave_use_ff_gain=False,
@@ -421,6 +425,10 @@ def create_model(
         txt_ff_glu=txt_ff_glu,
         txt_ff_mult=txt_ff_mult,
         up_interp_mode=up_interp_mode,
+        up_interp_blur_prob=up_interp_blur_prob,
+        up_interp_blur_width=up_interp_blur_width,
+        up_interp_blur_sigma_min=up_interp_blur_sigma_min,
+        up_interp_blur_sigma_max=up_interp_blur_sigma_max,
         weave_v2=weave_v2,
         use_checkpoint_lowcost=use_checkpoint_lowcost,
         weave_use_ff_gain=weave_use_ff_gain,
@@ -440,6 +448,10 @@ def sr_model_and_diffusion_defaults():
     res["small_size"] = 64
     res["colorize"] = False
     res["up_interp_mode"] = "bilinear"
+    res["up_interp_blur_prob"]=0
+    res["up_interp_blur_width"]=9
+    res["up_interp_blur_sigma_min"]=0.4
+    res["up_interp_blur_sigma_max"]=0.6
     arg_names = inspect.getfullargspec(sr_create_model_and_diffusion)[0]
     for k in res.copy().keys():
         if k not in arg_names:
@@ -511,6 +523,10 @@ def sr_create_model_and_diffusion(
     txt_ff_glu=False,
     txt_ff_mult=4,
     up_interp_mode='bilinear',
+    up_interp_blur_prob=0.,
+    up_interp_blur_width=9,
+    up_interp_blur_sigma_min=0.4,
+    up_interp_blur_sigma_max=0.6,
     weave_v2=False,
     use_checkpoint_lowcost=False,
     weave_use_ff_gain=False,
@@ -573,6 +589,10 @@ def sr_create_model_and_diffusion(
         txt_ff_glu=txt_ff_glu,
         txt_ff_mult=txt_ff_mult,
         up_interp_mode=up_interp_mode,
+        up_interp_blur_prob=up_interp_blur_prob,
+        up_interp_blur_width=up_interp_blur_width,
+        up_interp_blur_sigma_min=up_interp_blur_sigma_min,
+        up_interp_blur_sigma_max=up_interp_blur_sigma_max,
         weave_v2=weave_v2,
         use_checkpoint_lowcost=use_checkpoint_lowcost,
         weave_use_ff_gain=weave_use_ff_gain,

@@ -448,7 +448,7 @@ def sr_model_and_diffusion_defaults():
     res["small_size"] = 64
     res["colorize"] = False
     res["up_interp_mode"] = "bilinear"
-    res["up_interp_blur_prob"]=0
+    res["up_interp_blur_prob"]=0.0
     res["up_interp_blur_width"]=9
     res["up_interp_blur_sigma_min"]=0.4
     res["up_interp_blur_sigma_max"]=0.6

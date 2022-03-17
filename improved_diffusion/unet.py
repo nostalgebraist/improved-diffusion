@@ -1226,7 +1226,8 @@ class SuperResModel(UNetModel):
 
     def forward(self, x, timesteps, low_res=None, **kwargs):
         _, _, new_height, new_width = x.shape
-        upsampled = F.interpolate(low_res, (new_height, new_width), mode=self.up_interp_mode)
+        up_interp_mode = 'nearest' if self.up_interp_mode == 'nearest_blur' else self.up_interp_mode
+        upsampled = F.interpolate(low_res, (new_height, new_width), mode=up_interp_mode)
         if self.up_interp_mode == 'nearest_blur':
             blurrer = T.RandomApply(
                 transforms=[T.GaussianBlur(self.up_interp_blur_width,

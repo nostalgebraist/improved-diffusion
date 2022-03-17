@@ -1203,7 +1203,7 @@ class UNetModel(nn.Module):
             self.up_interp_mode = self._up_interp_mode
         else:
             if self.up_interp_mode == 'nearest_blur':
-                self.up_interp_mode = 'nearest'
+                self.up_interp_blur_prob = 1  # self.up_interp_mode = 'nearest'
         print(f'unet train({mode}): self.up_interp_mode={self.up_interp_mode}')
         if self.up_interp_mode == 'nearest_blur':
             print(f'self.up_interp_blur_prob={self.up_interp_blur_prob}')

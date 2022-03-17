@@ -1197,21 +1197,19 @@ class UNetModel(nn.Module):
             result["up"].append(h.type(x.dtype))
         return result
 
-    def train(self):
+    def train(self, mode=True):
         super().train()
-        self.up_interp_mode = self._up_interp_mode
-        print(f'unet train(): self.up_interp_mode={self.up_interp_mode}')
+        if mode:
+            self.up_interp_mode = self._up_interp_mode
+        else:
+            if self.up_interp_mode == 'nearest_blur':
+                self.up_interp_mode = 'nearest'
+        print(f'unet train({mode}): self.up_interp_mode={self.up_interp_mode}')
         if self.up_interp_mode == 'nearest_blur':
             print(f'self.up_interp_blur_prob={self.up_interp_blur_prob}')
             print(f'self.up_interp_blur_width={self.up_interp_blur_width}')
             print(f'self.up_interp_blur_sigma_min={self.up_interp_blur_sigma_min}')
             print(f'self.up_interp_blur_sigma_max={self.up_interp_blur_sigma_max}')
-
-    def eval(self):
-        super().eval()
-        if self.up_interp_mode == 'nearest_blur':
-            self.up_interp_mode = 'nearest'
-        print(f'unet eval(): self.up_interp_mode={self.up_interp_mode}')
 
 
 class SuperResModel(UNetModel):

@@ -1200,11 +1200,13 @@ class UNetModel(nn.Module):
     def train(self):
         super().train()
         self.up_interp_mode = self._up_interp_mode
+        print(f'unet train(): self.up_interp_mode={self.up_interp_mode}')
 
     def eval(self):
         super().eval()
         if self.up_interp_mode == 'nearest_blur':
             self.up_interp_mode = 'nearest'
+        print(f'unet eval(): self.up_interp_mode={self.up_interp_mode}')
 
 
 class SuperResModel(UNetModel):

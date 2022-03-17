@@ -439,6 +439,7 @@ class TrainLoop:
         self.grad_scaler = th.cuda.amp.GradScaler(init_scale=2 ** self.lg_loss_scale, growth_interval=int(1 / self.fp16_scale_growth))
 
     def run_loop(self):
+        self.model.train()
         t1 = time.time()
         while (
             not self.lr_anneal_steps

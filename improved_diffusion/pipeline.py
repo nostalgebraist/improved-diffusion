@@ -313,6 +313,8 @@ class SamplingPipeline(nn.Module):
         guidance_scale_sres=0.,
         strip_space=True,
         return_both_resolutions=False,
+        use_plms=False,
+        use_plms_sres=False,
         capt: Optional[Union[str, List[str]]]=None,
         yield_intermediates=False,
         guidance_after_step_base=100000,
@@ -346,6 +348,7 @@ class SamplingPipeline(nn.Module):
                 verbose=verbose,
                 capt=capt,
                 y=y,
+                use_plms=use_plms,
             )
 
         def high_res_sample(low_res):
@@ -364,6 +367,7 @@ class SamplingPipeline(nn.Module):
                 from_visible=False,
                 yield_intermediates=yield_intermediates,
                 verbose=verbose,
+                use_plms=use_plms_sres,
             )
         if yield_intermediates:
             return _yield_intermediates(base_sample, high_res_sample)

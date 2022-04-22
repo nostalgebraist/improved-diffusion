@@ -68,6 +68,7 @@ def load_data(
     class_map_path=None,
     clip_prob_path=None,
     clip_prob_middle_pkeep=0.5,
+    seqmap_path=None,
     debug=False,
 ):
     """
@@ -118,6 +119,12 @@ def load_data(
         print('using clip_prob_path')
         with open(clip_prob_path, 'r') as f:
             clip_probs = json.load(f)
+
+    seqmap = None
+    if seqmap_path and os.path.exists(seqmap_path):
+        print('using seqmap_path')
+        with open(seqmap_path, 'r') as f:
+            seqmap = json.load(f)
 
     all_files, image_file_to_text_file, file_sizes, image_file_to_safebox, image_file_to_px_scales, image_file_to_capt = _list_image_files_recursively(data_dir, txt=txt, min_filesize=min_filesize, min_imagesize=min_imagesize, safeboxes=safeboxes, px_scales=px_scales, capts=capts, require_capts=require_capts)
     print(f"found {len(all_files)} images, {len(image_file_to_text_file)} texts, {len(image_file_to_capt)} capts")
@@ -236,6 +243,7 @@ def load_data(
         image_file_to_capt=image_file_to_capt,
         capt_pdrop=capt_pdrop,
         all_pdrop=all_pdrop,
+        seqmap=seqmap,
     )
     if return_dataset:
         return dataset
@@ -321,7 +329,10 @@ def load_superres_data(data_dir, batch_size, large_size, small_size, class_cond=
                        min_imagesize=0,
                        clip_prob_path=None,
                        clip_prob_middle_pkeep=0.5,
+                       seqmap_path=None,
                        ):
+    using_seqmap = seqmap_path is not None
+
     data = load_data(
         data_dir=data_dir,
         batch_size=batch_size,
@@ -351,8 +362,27 @@ def load_superres_data(data_dir, batch_size, large_size, small_size, class_cond=
         min_imagesize=min_imagesize,
         clip_prob_path=clip_prob_path,
         clip_prob_middle_pkeep=clip_prob_middle_pkeep,
+        seqmap_path=seqmap_path,
+        return_dataset=using_seqmap,
     )
+    if using_seqmap:
+        # regular loader, the low_res key is filled within ImageDataset
+        return _dataloader_gen(dataset, batch_size=batch_size, deterministic=deterministic, pin_memory=pin_memory,
+                               prefetch_factor=prefetch_factor,
+                               clip_probs_by_idxs=clip_probs_by_idxs,
+                               clip_prob_middle_pkeep=clip_prob_middle_pkeep,
+                               num_workers=num_workers)
+    else:
+        return _sres_dataloader_gen(
+            data, blur_width, blur_sigma_min, blur_sigma_max, blur_prob,
+            large_size, small_size, colorize
+        )
 
+
+def _sres_dataloader_gen(
+    data, blur_width, blur_sigma_min, blur_sigma_max, blur_prob,
+    large_size, small_size, colorize
+):
     blurrer = T.RandomApply(transforms=[T.GaussianBlur(blur_width, sigma=(blur_sigma_min, blur_sigma_max))], p=blur_prob)
 
     is_power_of_2 = False
@@ -467,6 +497,7 @@ class ImageDataset(Dataset):
                  capt_pdrop=0.1,
                  capt_drop_string='unknown',
                  all_pdrop=0.1,
+                 seqmap=None,
                  ):
         super().__init__()
         self.resolution = resolution
@@ -497,6 +528,7 @@ class ImageDataset(Dataset):
         self.capt_pdrop = capt_pdrop
         self.capt_drop_string = capt_drop_string
         self.all_pdrop = all_pdrop
+        self.ix_inv_seqmap = None
 
         if (self.image_file_to_safebox is not None) and (self.pre_resize_transform is None):
             raise ValueError
@@ -511,10 +543,24 @@ class ImageDataset(Dataset):
             self.local_images = [p for p in self.local_images if p in image_file_to_text_file]
             self.local_texts = [image_file_to_text_file[p] for p in self.local_images]
 
+        if seqmap is not None:
+            self.ix_inv_seqmap = {}
+
+            relevant = set(seqmap.keys()).intersection(seqmap.values())
+            self.local_images = list(set(self.local_images).intersection(relevant))
+
+            path_to_ix = {path: ix for ix, path in enumerate(self.local_images)}
+            for path in seqmap:
+                self.ix_inv_seqmap[seqmap[path]] = path_to_ix[path]
+
+
     def __len__(self):
         return len(self.local_images)
 
     def __getitem__(self, idx):
+        return self.__getitem_impl__(idx)
+
+    def __getitem_impl__(self, idx, is_seqmap_src=False):
         path = self.local_images[idx]
         with bf.BlobFile(path, "rb") as f:
             pil_image = Image.open(f)
@@ -593,7 +639,18 @@ class ImageDataset(Dataset):
                 capt = self.capt_drop_string
             out_dict['capt'] = capt
 
-        return np.transpose(arr, [2, 0, 1]), out_dict
+        arr = np.transpose(arr, [2, 0, 1])
+
+        if self.ix_inv_seqmap is not None and (not is_seqmap_src):
+            if ix in self.ix_inv_seqmap:
+                # not an initial item
+                seqmap_src, _ = self.__getitem_impl__(self.ix_inv_seqmap[ix], is_seqmap_src=True)
+                out_dict['low_res'] = seqmap_src
+            else:
+                # initial item, convey with blank image
+                out_dict['low_res'] = np.zeros_like(arr)
+
+        return arr, out_dict
 
 
 def to_visible(img):

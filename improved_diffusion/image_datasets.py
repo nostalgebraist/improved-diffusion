@@ -646,9 +646,9 @@ class ImageDataset(Dataset):
         arr = np.transpose(arr, [2, 0, 1])
 
         if self.ix_inv_seqmap is not None and (not is_seqmap_src):
-            if ix in self.ix_inv_seqmap:
+            if idx in self.ix_inv_seqmap:
                 # not an initial item
-                seqmap_src, _ = self.__getitem_impl__(self.ix_inv_seqmap[ix], is_seqmap_src=True)
+                seqmap_src, _ = self.__getitem_impl__(self.ix_inv_seqmap[idx], is_seqmap_src=True)
                 out_dict['low_res'] = seqmap_src
             else:
                 # initial item, convey with blank image

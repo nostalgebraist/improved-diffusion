@@ -293,7 +293,7 @@ def _dataloader_gen(dataset, batch_size, deterministic, pin_memory, prefetch_fac
                     clip_probs_by_idxs=None,
                     clip_prob_middle_pkeep=0.5,
                     num_workers=1):
-    kwargs = dict(batch_size=batch_size, drop_last=True, shuffle=deterministic, )
+    kwargs = dict(batch_size=batch_size, drop_last=True, shuffle=not deterministic, )
     if clip_probs_by_idxs is not None:
         if not deterministic:
             sampler = RandomSampler(dataset, generator=None)

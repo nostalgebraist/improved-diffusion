@@ -551,9 +551,9 @@ class ImageDataset(Dataset):
 
             path_to_ix = {path: ix for ix, path in enumerate(self.local_images)}
             for path in seqmap:
-                if path not in path_to_ix:
+                if path not in path_to_ix or seqmap[path]] not in path_to_ix:
                     continue
-                self.ix_inv_seqmap[seqmap[path]] = path_to_ix[path]
+                self.ix_inv_seqmap[path_to_ix[seqmap[path]]] = path_to_ix[path]
 
             print(f"{len(self.ix_inv_seqmap)} in ix_inv_seqmap")
 

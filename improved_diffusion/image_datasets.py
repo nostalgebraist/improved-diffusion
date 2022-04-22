@@ -546,15 +546,13 @@ class ImageDataset(Dataset):
         if seqmap is not None:
             self.ix_inv_seqmap = {}
 
-            relevant = set(seqmap.keys()).intersection(seqmap.values())
+            relevant = set(seqmap.keys()).union(seqmap.values())
             self.local_images = list(set(self.local_images).intersection(relevant))
 
             print(f"{len(self.local_images)} in seqmap")
 
             path_to_ix = {path: ix for ix, path in enumerate(self.local_images)}
             for path in seqmap:
-                if path not in path_to_ix:
-                    continue
                 self.ix_inv_seqmap[seqmap[path]] = path_to_ix[path]
 
             print(f"{len(self.ix_inv_seqmap)} in ix_inv_seqmap")

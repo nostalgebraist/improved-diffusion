@@ -549,9 +549,13 @@ class ImageDataset(Dataset):
             relevant = set(seqmap.keys()).intersection(seqmap.values())
             self.local_images = list(set(self.local_images).intersection(relevant))
 
+            print(f"{len(self.local_images)} in seqmap")
+
             path_to_ix = {path: ix for ix, path in enumerate(self.local_images)}
             for path in seqmap:
                 self.ix_inv_seqmap[seqmap[path]] = path_to_ix[path]
+
+            print(f"{len(self.ix_inv_seqmap)} in ix_inv_seqmap")
 
 
     def __len__(self):

@@ -367,7 +367,7 @@ def load_superres_data(data_dir, batch_size, large_size, small_size, class_cond=
     )
     if using_seqmap:
         # regular loader, the low_res key is filled within ImageDataset
-        return _dataloader_gen(dataset, batch_size=batch_size, deterministic=deterministic, pin_memory=pin_memory,
+        return _dataloader_gen(data, batch_size=batch_size, deterministic=deterministic, pin_memory=pin_memory,
                                prefetch_factor=prefetch_factor,
                                clip_probs_by_idxs=clip_probs_by_idxs,
                                clip_prob_middle_pkeep=clip_prob_middle_pkeep,

@@ -724,7 +724,9 @@ class UNetModel(nn.Module):
         glide_style_capt_emb_nonlin=False,
         label_emb_init_scale=0.,
         use_checkpoint_below_res=-1,
-        use_checkpoint_above_res=-1
+        use_checkpoint_above_res=-1,
+        use_checkpoint_in=False,
+        use_checkpoint_out=False,
     ):
         super().__init__()
 
@@ -776,6 +778,8 @@ class UNetModel(nn.Module):
             use_checkpoint_above_res = self.image_size * 2
         self.use_checkpoint_above_res = use_checkpoint_above_res
         print(("self.use_checkpoint_above_res", self.use_checkpoint_above_res))
+
+        self.use_checkpoint_out = use_checkpoint_out
 
         if monochrome_adapter and rgb_adapter:
             print("using both monochrome_adapter and rgb_adapter, make sure this is intentional!")
@@ -856,7 +860,11 @@ class UNetModel(nn.Module):
         self.input_blocks = nn.ModuleList(
             [
                 TimestepEmbedSequential(
-                    mapper(conv_nd(dims, in_channels, model_channels, 3, padding=1, use_checkpoint=(image_size <= use_checkpoint_below_res) or (image_size >= use_checkpoint_above_res) ))
+                    mapper(conv_nd(dims, in_channels, model_channels, 3, padding=1,
+                                   use_checkpoint=use_checkpoint_in,
+                                   # use_checkpoint=(image_size <= use_checkpoint_below_res) or (image_size >= use_checkpoint_above_res) or use_checkpoint_in
+                                   )
+                           )
                 )
             ]
         )
@@ -1310,7 +1318,7 @@ class UNetModel(nn.Module):
         # h = h.type(x.dtype)
         # print(f'h type: {h.dtype}')
 
-        h = checkpoint(self.out.forward, (h,), self.out.parameters(), (self.image_size <= self.use_checkpoint_below_res)  or (self.image_size >= self.use_checkpoint_above_res))
+        h = checkpoint(self.out.forward, (h,), self.out.parameters(), (self.image_size <= self.use_checkpoint_below_res)  or (self.image_size >= self.use_checkpoint_above_res) or self.use_checkpoint_out)
 
         # print(f'\th type: {h.dtype}')
 

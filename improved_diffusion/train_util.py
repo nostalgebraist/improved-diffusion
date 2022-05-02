@@ -480,7 +480,7 @@ class TrainLoop:
                 print(
                     _p.key_averages(
                         # group_by_input_shape=True,
-                        group_by_stack_n=5
+                        group_by_stack_n=10
                     ).table(
                         # sort_by="self_cuda_time_total",
                         sort_by="self_cuda_memory_usage",

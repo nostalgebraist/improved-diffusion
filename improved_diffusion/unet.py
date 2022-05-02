@@ -1224,7 +1224,7 @@ class UNetModel(nn.Module):
         attn_mask = None
         if txt is not None:
             txt, attn_mask = self.text_encoder(txt, timesteps=timesteps)
-            txt = txt.type(self.inner_dtype)
+            # txt = txt.type(self.inner_dtype)
 
         capt_attn_mask = None
         if self.using_capt and capt is not None:
@@ -1250,7 +1250,7 @@ class UNetModel(nn.Module):
             h = self.rgb_to_input(h)
 
         print(f'x type: {x.dtype}')
-        h = h.type(self.inner_dtype)
+        # h = h.type(self.inner_dtype)
         print(f'h type: {h.dtype}')
         if self.channels_last_mem:
             h = h.to(memory_format=th.channels_last)
@@ -1303,7 +1303,7 @@ class UNetModel(nn.Module):
                 h_bread_out = self.bread_adapter_out(h)
                 skip_pop = True
             print(f'\th type: {h.dtype}')
-        h = h.type(x.dtype)
+        # h = h.type(x.dtype)
         print(f'h type: {h.dtype}')
 
         h = checkpoint(self.out.forward, (h,), self.out.parameters(), self.image_size <= self.use_checkpoint_below_res)

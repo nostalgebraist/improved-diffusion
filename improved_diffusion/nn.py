@@ -70,37 +70,37 @@ def silu(impl="torch", use_checkpoint=False):
 
 @th.jit.script
 def groupnorm_silu(x, ng, w, b):
-    return F.silu(th.group_norm(x.float(), ng, w, b).type(x.dtype))
+    return F.silu(th.group_norm(x, ng, w, b))
 
 
 @th.jit.script
 def groupnorm_silu_32(x, w, b):
-    return F.silu(th.group_norm(x.float(), 32, w, b).type(x.dtype))
+    return F.silu(th.group_norm(x, 32, w, b))
 
 
 @th.jit.script
 def groupnorm_silu_24(x, w, b):
-    return F.silu(th.group_norm(x.float(), 24, w, b).type(x.dtype))
+    return F.silu(th.group_norm(x, 24, w, b))
 
 
 @th.jit.script
 def groupnorm_silu_20(x, w, b):
-    return F.silu(th.group_norm(x.float(), 20, w, b).type(x.dtype))
+    return F.silu(th.group_norm(x, 20, w, b))
 
 
 @th.jit.script
 def groupnorm_silu_8(x, w, b):
-    return F.silu(th.group_norm(x.float(), 8, w, b).type(x.dtype))
+    return F.silu(th.group_norm(x, 8, w, b))
 
 
 @th.jit.script
 def groupnorm_silu_6(x, w, b):
-    return F.silu(th.group_norm(x.float(), 6, w, b).type(x.dtype))
+    return F.silu(th.group_norm(x, 6, w, b))
 
 
 @th.jit.script
 def groupnorm_silu_1(x, w, b):
-    return F.silu(th.group_norm(x.float(), 1, w, b).type(x.dtype))
+    return F.silu(th.group_norm(x, 1, w, b))
 
 
 class GroupNorm32(nn.GroupNorm):
@@ -124,7 +124,7 @@ class GroupNorm32(nn.GroupNorm):
                 return groupnorm_silu_20(x, self.weight, self.bias)
             else:
                 raise ValueError(self.num_groups)
-        return super().forward(x.float()).type(x.dtype)
+        return super().forward(x)
 
 
 class AdaGN(nn.Module):
@@ -202,21 +202,21 @@ class AdaGN(nn.Module):
 @th.jit.script
 def adagn(h, emb_out, w, b):
     scale, shift = th.chunk(emb_out, 2, dim=1)
-    h = th.group_norm(h.float(), 32, w, b).type(h.dtype) * (1 + scale) + shift
+    h = th.group_norm(h, 32, w, b).type(h.dtype) * (1 + scale) + shift
     return h
 
 
 @th.jit.script
 def adagn_silu(h, emb_out, w, b):
     scale, shift = th.chunk(emb_out, 2, dim=1)
-    h = th.group_norm(h.float(), 32, w, b).type(h.dtype) * (1 + scale) + shift
+    h = th.group_norm(h, 32, w, b).type(h.dtype) * (1 + scale) + shift
     return F.silu(h)
 
 
 @th.jit.script
 def adagn_silu_extended_32_8(h, h2, emb_out, emb_out2, w, b, w2, b2):
-    h = th.group_norm(h.float(), 32, w, b).type(h.dtype)
-    h2 = th.group_norm(h2.float(), 8, w2, b2).type(h.dtype)
+    h = th.group_norm(h, 32, w, b).type(h.dtype)
+    h2 = th.group_norm(h2, 8, w2, b2).type(h.dtype)
 
     h = th.cat([h, h2], dim=1)
 
@@ -230,8 +230,8 @@ def adagn_silu_extended_32_8(h, h2, emb_out, emb_out2, w, b, w2, b2):
 
 @th.jit.script
 def adagn_silu_extended_32_6(h, h2, emb_out, emb_out2, w, b, w2, b2):
-    h = th.group_norm(h.float(), 32, w, b).type(h.dtype)
-    h2 = th.group_norm(h2.float(), 6, w2, b2).type(h.dtype)
+    h = th.group_norm(h, 32, w, b).type(h.dtype)
+    h2 = th.group_norm(h2, 6, w2, b2).type(h.dtype)
 
     h = th.cat([h, h2], dim=1)
 
@@ -245,8 +245,8 @@ def adagn_silu_extended_32_6(h, h2, emb_out, emb_out2, w, b, w2, b2):
 
 @th.jit.script
 def adagn_silu_extended_32_1(h, h2, emb_out, emb_out2, w, b, w2, b2):
-    h = th.group_norm(h.float(), 32, w, b).type(h.dtype)
-    h2 = th.group_norm(h2.float(), 1, w2, b2).type(h.dtype)
+    h = th.group_norm(h, 32, w, b).type(h.dtype)
+    h2 = th.group_norm(h2, 1, w2, b2).type(h.dtype)
 
     h = th.cat([h, h2], dim=1)
 
@@ -260,8 +260,8 @@ def adagn_silu_extended_32_1(h, h2, emb_out, emb_out2, w, b, w2, b2):
 
 @th.jit.script
 def adagn_extended_32_1(h, h2, emb_out, emb_out2, w, b, w2, b2):
-    h = th.group_norm(h.float(), 32, w, b).type(h.dtype)
-    h2 = th.group_norm(h2.float(), 1, w2, b2).type(h.dtype)
+    h = th.group_norm(h, 32, w, b).type(h.dtype)
+    h2 = th.group_norm(h2, 1, w2, b2).type(h.dtype)
 
     h = th.cat([h, h2], dim=1)
 
@@ -397,7 +397,7 @@ def normalization_1group(channels, base_channels=-1):
 # @th.jit.script
 # def groupnorm_extended_silu(x, sizes, ng, nch, w, b, ng_xtra, nch_xtra, w_xtra, b_xtra):
 #     dtype = x.type()
-#     x = x.float()
+#     x = x
 #
 #     base, xtra = th.split(x, sizes[nch, nch_xtra], dim=1)
 #     base_out = F.silu(th.group_norm(base, ng, w, b))
@@ -465,7 +465,7 @@ class GroupNormExtended(GroupNorm32):
             return th.cat([base_out, xtra_out], dim=1)
         else:
             dtype = x.type()
-            x = x.float()
+            x = x
 
             base, xtra = th.split(x, [self.num_channels_base, self.num_channels_xtra], dim=1)
 

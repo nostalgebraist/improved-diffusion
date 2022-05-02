@@ -1318,7 +1318,10 @@ class UNetModel(nn.Module):
         # h = h.type(x.dtype)
         # print(f'h type: {h.dtype}')
 
-        h = checkpoint(self.out.forward, (h,), self.out.parameters(), (self.image_size <= self.use_checkpoint_below_res)  or (self.image_size >= self.use_checkpoint_above_res) or self.use_checkpoint_out)
+        h = checkpoint(self.out.forward, (h,), self.out.parameters(),
+                       use_checkpoint_out,
+                       # (self.image_size <= self.use_checkpoint_below_res)  or (self.image_size >= self.use_checkpoint_above_res) or self.use_checkpoint_out
+                       )
 
         # print(f'\th type: {h.dtype}')
 

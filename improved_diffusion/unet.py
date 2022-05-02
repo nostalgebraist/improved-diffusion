@@ -378,7 +378,7 @@ class ResBlock(TimestepBlock):
             h = self.h_upd(h)
             x = self.x_upd(x)
         else:
-            h = self.in_rest(x)
+            h = in_rest(x)
         return x
 
     def _forward_in(self, h, emb):

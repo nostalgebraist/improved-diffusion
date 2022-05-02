@@ -441,8 +441,8 @@ class ResBlock(TimestepBlock):
         return h
 
     def _forward_out(self, h, x):
-        out_norm, out_rest = self.out_layers[0], self.out_layers[1:]
-        h = self.out_rest(h)
+        out_rest = self.out_layers[1:]
+        h = out_rest(h)
         return self.skip_connection(x) + h
 
 

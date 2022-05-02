@@ -362,31 +362,34 @@ class ResBlock(TimestepBlock):
         :param emb: an [N x emb_channels] Tensor of timestep embeddings.
         :return: an [N x C x ...] Tensor of outputs.
         """
-        x, h, emb_out = self._forward_in(x, emb)
-        # h = self._forward_norm(self, h, emb_out)
-        h = checkpoint(self._forward_norm, (h, emb_out,), self.parameters(), self.use_checkpoint)
+        h = checkpoint(self._forward_in_norm, (x,), self.parameters(), self.use_checkpoint)
+        h, emb_out = self._forward_in(h, emb)
+        h = checkpoint(self._forward_out_norm, (h, emb_out,), self.parameters(), self.use_checkpoint)
         return self._forward_out(h, x)
         # return checkpoint(
         #     self._forward, (x, emb), self.parameters(), self.use_checkpoint
         # )
 
-    def _forward_in(self, x, emb):
+    def _forward_in_norm(self, x):
+        in_rest, in_conv = self.in_layers[:-1], self.in_layers[-1]
         if self.updown:
             in_rest, in_conv = self.in_layers[:-1], self.in_layers[-1]
             h = in_rest(x)
             h = self.h_upd(h)
             x = self.x_upd(x)
-            h = in_conv(h)
         else:
-            # print(f'x shape: {x.shape}')
-            # print(f'self.in_layers[0].weight shape: {self.in_layers[0].weight.shape}')
-            h = self.in_layers(x)
+            h = self.in_rest(x)
+        return x
+
+    def _forward_in(self, h, emb):
+        in_rest, in_conv = self.in_layers[:-1], self.in_layers[-1]
+        h = in_conv(h)
         emb_out = self.emb_layers(emb).type(h.dtype)
         while len(emb_out.shape) < len(h.shape):
             emb_out = emb_out[..., None]
-        return x, h, emb_out
+        return h, emb_out
 
-    def _forward_norm(self, h, emb_out):
+    def _forward_out_norm(self, h, emb_out):
         out_norm, out_rest = self.out_layers[0], self.out_layers[1:]
         if self.use_scale_shift_norm:
             if self.fused:

@@ -1249,9 +1249,9 @@ class UNetModel(nn.Module):
         if self.rgb_adapter:
             h = self.rgb_to_input(h)
 
-        print(f'x type: {x.dtype}')
+        # print(f'x type: {x.dtype}')
         # h = h.type(self.inner_dtype)
-        print(f'h type: {h.dtype}')
+        # print(f'h type: {h.dtype}')
         if self.channels_last_mem:
             h = h.to(memory_format=th.channels_last)
         if self.using_bread_adapter:
@@ -1267,7 +1267,7 @@ class UNetModel(nn.Module):
                 else:
                     h = h + h_bread_in
             hs.append(h)
-            print(f'\th type: {h.dtype}')
+            # print(f'\th type: {h.dtype}')
         h, txt, capt = self.middle_block((h, txt, capt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs, capt_attn_mask=capt_attn_mask)
         skip_pop = False
         for module in self.output_blocks:
@@ -1302,13 +1302,13 @@ class UNetModel(nn.Module):
             if getattr(module, 'bread_adapter_out_pt', False):
                 h_bread_out = self.bread_adapter_out(h)
                 skip_pop = True
-            print(f'\th type: {h.dtype}')
+            # print(f'\th type: {h.dtype}')
         # h = h.type(x.dtype)
-        print(f'h type: {h.dtype}')
+        # print(f'h type: {h.dtype}')
 
         h = checkpoint(self.out.forward, (h,), self.out.parameters(), self.image_size <= self.use_checkpoint_below_res)
 
-        print(f'\th type: {h.dtype}')
+        # print(f'\th type: {h.dtype}')
 
         if self.using_bread_adapter:
             if self.bread_adapter_only:

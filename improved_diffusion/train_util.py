@@ -472,15 +472,15 @@ class TrainLoop:
             if self.use_profiler:
                 with th.profiler.profile(
                     with_stack=True,
-                    # record_shapes=True,
+                    record_shapes=True,
                     profile_memory=True,
                     # with_flops=True
                 ) as _p:
                     self.run_step(batch, cond, verbose = (self.step % self.log_interval == 0))
                 print(
                     _p.key_averages(
-                        # group_by_input_shape=True,
-                        group_by_stack_n=10
+                        group_by_input_shape=True,
+                        # group_by_stack_n=10
                     ).table(
                         # sort_by="self_cuda_time_total",
                         sort_by="self_cuda_memory_usage",

@@ -150,6 +150,7 @@ def main():
         perf_no_ddl=args.perf_no_ddl,
         param_sandwich=args.param_sandwich,
         resize_mult=args.resize_mult,
+        use_profiler=args.use_profiler,
     ).run_loop()
 
 
@@ -216,6 +217,7 @@ def create_argparser():
         clip_prob_path="",
         clip_prob_middle_pkeep=0.5,
         resize_mult=1.,
+        use_profiler=False,
     )
     defaults.update(sr_model_and_diffusion_defaults())
     parser = argparse.ArgumentParser()

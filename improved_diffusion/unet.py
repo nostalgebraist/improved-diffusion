@@ -362,11 +362,15 @@ class ResBlock(TimestepBlock):
         :param emb: an [N x emb_channels] Tensor of timestep embeddings.
         :return: an [N x C x ...] Tensor of outputs.
         """
-        return checkpoint(
-            self._forward, (x, emb), self.parameters(), self.use_checkpoint
-        )
+        x, h, emb_out = self._forward_in(self, x, emb)
+        # h = self._forward_norm(self, h, emb_out)
+        h = checkpoint(self._forward_norm, (h, emb_out,), self.parameters(), self.use_checkpoint)
+        return self._forward_out(self, h, x)
+        # return checkpoint(
+        #     self._forward, (x, emb), self.parameters(), self.use_checkpoint
+        # )
 
-    def _forward(self, x, emb):
+    def _forward_in(self, x, emb):
         if self.updown:
             in_rest, in_conv = self.in_layers[:-1], self.in_layers[-1]
             h = in_rest(x)
@@ -380,8 +384,11 @@ class ResBlock(TimestepBlock):
         emb_out = self.emb_layers(emb).type(h.dtype)
         while len(emb_out.shape) < len(h.shape):
             emb_out = emb_out[..., None]
+        return x, h, emb_out
+
+    def _forward_norm(self, h, emb_out):
+        out_norm, out_rest = self.out_layers[0], self.out_layers[1:]
         if self.use_scale_shift_norm:
-            out_norm, out_rest = self.out_layers[0], self.out_layers[1:]
             if self.fused:
                 if self.base_channels > 0:
                     # AdaGN: fused, extended
@@ -426,11 +433,16 @@ class ResBlock(TimestepBlock):
                     scale, shift = th.chunk(emb_out, 2, dim=1)
                     h = out_norm(h) * (1 + scale) + shift
             # AdaGN: any
-            h = out_rest(h)
+            # h = out_rest(h)
         else:
             # not AdaGN
             h = h + emb_out
-            h = self.out_layers(h)
+            h = out_norm(h)
+        return h
+
+    def _forward_out(self, h, x):
+        out_norm, out_rest = self.out_layers[0], self.out_layers[1:]
+        h = self.out_rest(h)
         return self.skip_connection(x) + h
 
 

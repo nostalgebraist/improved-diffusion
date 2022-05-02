@@ -472,7 +472,7 @@ class GroupNormExtended(GroupNorm32):
             base_out = th.group_norm(base, self.num_groups_base, self.weight, self.bias, self.eps)
             xtra_out = th.group_norm(xtra, self.num_groups_xtra, self.weight_xtra, self.bias_xtra, self.eps)
 
-            out = th.cat([base_out, xtra_out], dim=1).type(dtype)
+            out = th.cat([base_out.type(dtype), xtra_out.type(dtype)], dim=1)
             return out
 
 

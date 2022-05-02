@@ -779,6 +779,7 @@ class UNetModel(nn.Module):
         self.use_checkpoint_above_res = use_checkpoint_above_res
         print(("self.use_checkpoint_above_res", self.use_checkpoint_above_res))
 
+        print(("use_checkpoint_in", use_checkpoint_in, "use_checkpoint_out", use_checkpoint_out))
         self.use_checkpoint_out = use_checkpoint_out
 
         if monochrome_adapter and rgb_adapter:

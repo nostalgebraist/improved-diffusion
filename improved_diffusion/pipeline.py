@@ -55,14 +55,20 @@ def make_dynamic_threshold_denoised_fn(p):
     return dynamic_threshold_denoised_fn
 
 
-def make_dynamic_threshold_denoised_fn_batched(p):
+def make_dynamic_threshold_denoised_fn_batched(p, per_channel=False):
     def dynamic_threshold_denoised_fn_batched(pred_xstart):
         b, c, *spatial = pred_xstart.shape
 
-        flat = pred_xstart.reshape(b, -1)
+        if per_channel:
+            flat = pred_xstart.reshape(b, c, -1)
 
-        s = th.quantile(flat.abs(), p, dim=1).clamp(min=1)
-        s = s.reshape((-1, 1, 1, 1))
+            s = th.quantile(flat.abs(), p, dim=-1, keepdim=True).clamp(min=1)
+            s = s[..., None]
+        else:
+            flat = pred_xstart.reshape(b, -1)
+
+            s = th.quantile(flat.abs(), p, dim=1).clamp(min=1)
+            s = s.reshape((-1, 1, 1, 1))
 
         pred_xstart_threshed = pred_xstart.clamp(min=-s, max=s) / s
 
@@ -151,6 +157,7 @@ class SamplingModel(nn.Module):
         verbose=True,
         noise=None,
         dynamic_threshold_p=0,
+        per_channel_dynamic_threshold=False,
         denoised_fn=None,
         noise_cond_ts=0,
         noise_cond_schedule='cosine',
@@ -163,7 +170,7 @@ class SamplingModel(nn.Module):
         elif dynamic_threshold_p > 0:
             clip_denoised = False
             # denoised_fn = make_dynamic_threshold_denoised_fn(dynamic_threshold_p)
-            denoised_fn = make_dynamic_threshold_denoised_fn_batched(dynamic_threshold_p)
+            denoised_fn = make_dynamic_threshold_denoised_fn_batched(dynamic_threshold_p, per_channel=per_channel_dynamic_threshold)
 
         if self.is_super_res and low_res is None:
             raise ValueError("must pass low_res for super res")

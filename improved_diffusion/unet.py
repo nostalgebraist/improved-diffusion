@@ -810,6 +810,8 @@ class UNetModel(nn.Module):
         self.up_interp_mode = up_interp_mode
         self.expand_timestep_base_dim = expand_timestep_base_dim
 
+        self.cached_timestep_embs = None
+
         if self.txt:
             self.text_encoder = TextEncoder(
                 inner_dim=txt_dim,
@@ -1285,6 +1287,17 @@ class UNetModel(nn.Module):
             )
         return capt, capt_attn_mask
 
+    def timestep_embed_with_cache(timesteps, save_to_cache=False):
+        if self.cached_timestep_embs is not None:
+            return self.cached_timestep_embs[timesteps]
+
+        emb = self.time_embed(self.timestep_embedding(timesteps))
+
+        if save_to_cache:
+            self.cached_timestep_embs = emb
+
+        return emb
+
     def forward(self, x, timesteps, y=None, txt=None, capt=None, cond_timesteps=None):
         """
         Apply the model to an input batch.
@@ -1312,7 +1325,8 @@ class UNetModel(nn.Module):
 
 
         hs = []
-        emb = self.time_embed(self.timestep_embedding(timesteps))
+        # emb = self.time_embed(self.timestep_embedding(timesteps))
+        emb = self.timestep_embed_with_cache(timesteps)
 
         if cond_timesteps is not None:
             emb = emb + self.time_embed_noise_cond(self.timestep_embedding(cond_timesteps))

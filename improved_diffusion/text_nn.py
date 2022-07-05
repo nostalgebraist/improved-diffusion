@@ -116,6 +116,19 @@ class TextEncoder(nn.Module):
             nn.Linear(inner_dim, inner_dim),
         )
 
+        self.cached_timestep_embs = None
+
+    def timestep_embed_with_cache(timesteps, save_to_cache=False):
+        if self.cached_timestep_embs is not None:
+            return self.cached_timestep_embs[timesteps]
+
+        emb = self.time_embed_scale * self.time_embed(timestep_embedding(timesteps, self.dim))
+
+        if save_to_cache:
+            self.cached_timestep_embs = emb
+
+        return emb
+
     def model_forward(self, x, attn_mask):
         return checkpoint(
             self._model_forward, (x, attn_mask, ), self.parameters(), self.use_checkpoint,
@@ -140,7 +153,8 @@ class TextEncoder(nn.Module):
                 x = x + le
 
             if timesteps is not None:
-                emb = self.time_embed_scale * self.time_embed(timestep_embedding(timesteps, self.dim))
+                # emb = self.time_embed_scale * self.time_embed(timestep_embedding(timesteps, self.dim))
+                emb = self.timestep_embed_with_cache(timesteps)
                 emb = emb.unsqueeze(1).tile((1, x.shape[1], 1))
                 x = x + emb
 

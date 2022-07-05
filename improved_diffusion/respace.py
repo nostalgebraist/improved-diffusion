@@ -143,6 +143,7 @@ class _WrappedModel:
         return self.model.cached_timestep_embs is not None
 
     def make_cached_timestep_embs(self):
+        print("make_cached_timestep_embs called")
         self.model.timestep_embed_with_cache(self.timestep_map, save_to_cache=True)
         if hasattr(self.model, 'text_encoder'):
             self.model.text_encoder.timestep_embed_with_cache(self.timestep_map, save_to_cache=True)

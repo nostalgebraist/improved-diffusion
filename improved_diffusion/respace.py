@@ -148,7 +148,7 @@ class _WrappedModel:
             self.model.text_encoder.timestep_embed_with_cache(self.timestep_map, save_to_cache=True)
 
     def get_mapped_ts(self, ts):
-        if self.have_cached_timestep_embs():
+        if self.have_cached_timestep_embs:
             return ts
         return self.timestep_map[ts]
 

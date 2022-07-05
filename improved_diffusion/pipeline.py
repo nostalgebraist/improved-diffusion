@@ -56,7 +56,7 @@ def make_dynamic_threshold_denoised_fn(p):
 
 
 def make_dynamic_threshold_denoised_fn_batched(p):
-    def dynamic_threshold_denoised_fn(pred_xstart):
+    def dynamic_threshold_denoised_fn_batched(pred_xstart):
         b, c, *spatial = pred_xstart.shape
 
         flat = pred_xstart.reshape(b, -1)
@@ -67,7 +67,7 @@ def make_dynamic_threshold_denoised_fn_batched(p):
         pred_xstart_threshed = pred_xstart.clamp(min=-s, max=s) / s
 
         return pred_xstart_threshed
-    return dynamic_threshold_denoised_fn
+    return dynamic_threshold_denoised_fn_batched
 
 
 class SamplingModel(nn.Module):
@@ -87,11 +87,18 @@ class SamplingModel(nn.Module):
         self.is_super_res = is_super_res
         self.class_map = class_map
 
+        self.diffusion = None
         self.set_timestep_respacing(timestep_respacing)
 
     def set_timestep_respacing(self, timestep_respacing):
+        prev_use_timestamps = getattr(self.diffusion, 'use_timesteps', None)
+
         self.diffusion = self.diffusion_factory(timestep_respacing)
-        self.model.unset_timestep_embed_cache()
+
+        use_timestamps = getattr(self.diffusion, 'use_timesteps')
+        if prev_use_timestamps != use_timestamps:
+            print('calling unset_timestep_embed_cache')
+            self.model.unset_timestep_embed_cache()
 
     @staticmethod
     def from_config(checkpoint_path, config_path, timestep_respacing="", class_map=None, clipmod=None):

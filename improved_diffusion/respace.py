@@ -135,7 +135,7 @@ class _WrappedModel:
         self.timestep_map = timestep_map
         self.rescale_timesteps = rescale_timesteps
         self.original_num_steps = original_num_steps
-        if not self.have_cached_timestep_embs():  # todo: ensure aligned w/ spacing on respace
+        if not self.have_cached_timestep_embs:  # todo: ensure aligned w/ spacing on respace
             self.make_cached_timestep_embs()
 
     @property

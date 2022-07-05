@@ -8,6 +8,8 @@ import torch.nn as nn
 import torch.distributed as dist
 import blobfile as bf
 
+from einops import rearrange
+
 from improved_diffusion import dist_util, logger
 from improved_diffusion.script_util import (
     NUM_CLASSES,
@@ -49,6 +51,21 @@ def make_dynamic_threshold_denoised_fn(p):
             batch_elems_threshed.append(bt)
 
         pred_xstart_threshed = th.cat(batch_elems_threshed, dim=0)
+        return pred_xstart_threshed
+    return dynamic_threshold_denoised_fn
+
+
+def make_dynamic_threshold_denoised_fn_batched(p):
+    def dynamic_threshold_denoised_fn(pred_xstart):
+        b, c, *spatial = pred_xstart.shape
+
+        flat = pred_xstart.reshape(b, -1)
+
+        s = th.quantile(flat.abs(), p, dim=1).clamp(min=1)
+        s = s.reshape((-1, 1, 1, 1))
+
+        pred_xstart_threshed = pred_xstart.clamp(min=-s, max=s) / s
+
         return pred_xstart_threshed
     return dynamic_threshold_denoised_fn
 
@@ -138,7 +155,8 @@ class SamplingModel(nn.Module):
             pass  # defer to use
         elif dynamic_threshold_p > 0:
             clip_denoised = False
-            denoised_fn = make_dynamic_threshold_denoised_fn(dynamic_threshold_p)
+            # denoised_fn = make_dynamic_threshold_denoised_fn(dynamic_threshold_p)
+            denoised_fn = make_dynamic_threshold_denoised_fn_batched(dynamic_threshold_p)
 
         if self.is_super_res and low_res is None:
             raise ValueError("must pass low_res for super res")

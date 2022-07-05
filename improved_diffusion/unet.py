@@ -1287,7 +1287,7 @@ class UNetModel(nn.Module):
             )
         return capt, capt_attn_mask
 
-    def timestep_embed_with_cache(timesteps, save_to_cache=False):
+    def timestep_embed_with_cache(self, timesteps, save_to_cache=False):
         if self.cached_timestep_embs is not None:
             return self.cached_timestep_embs[timesteps]
 

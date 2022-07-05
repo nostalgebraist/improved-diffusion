@@ -1298,6 +1298,11 @@ class UNetModel(nn.Module):
 
         return emb
 
+    def unset_timestep_embed_cache(self):
+        self.cached_timestep_embs = None
+        if hasattr(self, 'text_encoder'):
+            self.text_encoder.cached_timestep_embs = None
+
     def forward(self, x, timesteps, y=None, txt=None, capt=None, cond_timesteps=None):
         """
         Apply the model to an input batch.

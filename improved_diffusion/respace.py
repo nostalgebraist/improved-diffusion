@@ -135,9 +135,25 @@ class _WrappedModel:
         self.timestep_map = timestep_map
         self.rescale_timesteps = rescale_timesteps
         self.original_num_steps = original_num_steps
+        if not self.have_cached_timestep_embs():  # todo: ensure aligned w/ spacing on respace
+            self.make_cached_timestep_embs()
+
+    @property
+    def have_cached_timestep_embs(self):
+        return self.model.cached_timestep_embs is not None
+
+    def make_cached_timestep_embs(self):
+        self.model.timestep_embed_with_cache(self.timestep_map, save_to_cache=True)
+        if hasattr(self.model, 'text_encoder'):
+            self.model.text_encoder.timestep_embed_with_cache(self.timestep_map, save_to_cache=True)
+
+    def get_mapped_ts(ts):
+        if self.have_cached_timestep_embs():
+            return ts
+        return self.timestep_map[ts]
 
     def __call__(self, x, ts, **kwargs):
-        new_ts = self.timestep_map[ts]
+        new_ts = self.get_mapped_ts(ts)
         # map_tensor = th.tensor(self.timestep_map, device=ts.device, dtype=ts.dtype)
         # new_ts = map_tensor[ts]
         if self.rescale_timesteps:

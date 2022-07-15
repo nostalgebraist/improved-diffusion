@@ -1250,8 +1250,8 @@ class UNetModel(nn.Module):
             self.middle_block.to(memory_format=th.channels_last)
             self.output_blocks.to(memory_format=th.channels_last)
 
-        # if hasattr(self, 'text_encoder'):
-        #     self.text_encoder.apply(convert_module_to_f16)
+        if hasattr(self, 'text_encoder'):
+            self.text_encoder.apply(convert_module_to_f16)
 
     def convert_to_fp32(self):
         """

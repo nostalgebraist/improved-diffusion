@@ -816,6 +816,7 @@ class UNetModel(nn.Module):
 
         self.cached_timestep_embs = None
         self.cached_noise_cond_timestep_embs = None
+        self.silu_impl = silu_impl
 
         if self.txt:
             self.text_encoder = TextEncoder(
@@ -1359,7 +1360,7 @@ class UNetModel(nn.Module):
 
 
         hs = []
-        emb = self.full_timestep_embed_with_cache(timesteps, cond_timesteps, silu_impl)
+        emb = self.full_timestep_embed_with_cache(timesteps, cond_timesteps, silu_impl=self.silu_impl)
         # # emb = self.time_embed(self.timestep_embedding(timesteps))
         # emb = self.timestep_embed_with_cache(timesteps)
         #

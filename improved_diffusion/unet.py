@@ -746,6 +746,8 @@ class UNetModel(nn.Module):
         noise_cond=False,
         freeze_capt_encoder=False,
         use_inference_caching=False,
+        disable_ts_emb_cache=False,
+        disable_noise_cond_ts_emb_cache=False,
         clipmod=None,
     ):
         super().__init__()
@@ -797,6 +799,8 @@ class UNetModel(nn.Module):
         self.glide_style_capt_emb = glide_style_capt_emb
         self.clip_use_penultimate_layer = clip_use_penultimate_layer
         self.use_inference_caching = use_inference_caching
+        self.disable_ts_emb_cache = disable_ts_emb_cache
+        self.disable_noise_cond_ts_emb_cache = disable_noise_cond_ts_emb_cache
 
         self.noise_cond = noise_cond
 
@@ -1298,12 +1302,14 @@ class UNetModel(nn.Module):
         return capt, capt_attn_mask
 
     def timestep_embed_with_cache(self, timesteps, save_to_cache=False):
-        if self.use_inference_caching and self.cached_timestep_embs is not None:
+        can_use_cache = self.use_inference_caching and not self.disable_ts_emb_cache
+
+        if can_use_cache and self.cached_timestep_embs is not None:
             return self.cached_timestep_embs[timesteps]
 
         emb = self.time_embed(self.timestep_embedding(timesteps))
 
-        if save_to_cache:
+        if save_to_cache and can_use_cache:
             self.cached_timestep_embs = emb
 
         return emb
@@ -1314,12 +1320,14 @@ class UNetModel(nn.Module):
             self.text_encoder.cached_timestep_embs = None
 
     def noise_cond_timestep_embed_with_cache(self, cond_timesteps, save_to_cache=False):
-        if self.use_inference_caching and self.cached_noise_cond_timestep_embs is not None:
+        can_use_cache = self.use_inference_caching and not self.disable_noise_cond_ts_emb_cache
+
+        if can_use_cache and self.cached_noise_cond_timestep_embs is not None:
             return self.cached_noise_cond_timestep_embs[cond_timesteps]
 
         emb = self.time_embed_noise_cond(self.timestep_embedding(cond_timesteps))
 
-        if save_to_cache:
+        if save_to_cache and can_use_cache:
             self.cached_noise_cond_timestep_embs = emb
 
         return emb

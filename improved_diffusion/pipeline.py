@@ -275,9 +275,10 @@ class SamplingModel(nn.Module):
             if "unconditional_model_kwargs" in model_kwargs:
                 model_kwargs["unconditional_model_kwargs"]["cond_timesteps"] = model_kwargs["cond_timesteps"]
 
-            if self.model.cached_noise_cond_timestep_embs is None:
+            if (not self.model.disable_noise_cond_ts_emb_cache) and self.model.cached_noise_cond_timestep_embs is None:
                 full_noise_cond_timesteps = th.as_tensor(list(range(noise_cond_steps))).to(dist_util.dev())
-                self.model.noise_cond_timestep_embed_with_cache(full_noise_cond_timesteps, save_to_cache=True)
+                with th.no_grad():
+                    self.model.noise_cond_timestep_embed_with_cache(full_noise_cond_timesteps, save_to_cache=True)
 
         all_low_res = []
 

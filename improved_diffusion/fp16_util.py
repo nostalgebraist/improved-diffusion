@@ -23,15 +23,15 @@ def convert_module_to_f16(l, bf16=False):
     if isinstance(l, (CrossAttention, TextEncoder)):
         for n, p in l.named_parameters():
             if 'tgt_ln' in n and (not l.avoid_groupnorm):
-                if 'normalization' not in n.partition('tgt_ln')[2]:
-                    continue
-            p.data = p.data.to(dtype)
+                p.data = p.data.to(th.float)
+            else:
+                p.data = p.data.to(dtype)
     if isinstance(l, ImageToTextCrossAttention):
         for n, p in l.named_parameters():
             if 'src_ln' in n:
-                if 'normalization' not in n.partition('src_ln')[2]:
-                    continue
-            p.data = p.data.to(dtype)
+                p.data = p.data.to(th.float)
+            else:
+                p.data = p.data.to(dtype)
 
 
 def convert_module_to_f32(l):

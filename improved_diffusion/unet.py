@@ -342,7 +342,7 @@ class ResBlock(TimestepBlock):
         else:
             self.h_upd = self.x_upd = nn.Identity()
 
-        emb_silu_impl = "cached_pre_silu"
+        emb_silu_impl = "pre_silu"
         if self.fused:
             emb_silu_impl = "torch"
         self.emb_layers = nn.Sequential(
@@ -1298,7 +1298,7 @@ class UNetModel(nn.Module):
         return capt, capt_attn_mask
 
     def timestep_embed_with_cache(self, timesteps, save_to_cache=False):
-        if self.cached_timestep_embs is not None:
+        if self.use_inference_caching and self.cached_timestep_embs is not None:
             return self.cached_timestep_embs[timesteps]
 
         emb = self.time_embed(self.timestep_embedding(timesteps))
@@ -1314,7 +1314,7 @@ class UNetModel(nn.Module):
             self.text_encoder.cached_timestep_embs = None
 
     def noise_cond_timestep_embed_with_cache(self, cond_timesteps, save_to_cache=False):
-        if self.cached_noise_cond_timestep_embs is not None:
+        if self.use_inference_caching and self.cached_noise_cond_timestep_embs is not None:
             return self.cached_noise_cond_timestep_embs[cond_timesteps]
 
         emb = self.time_embed_noise_cond(self.timestep_embedding(cond_timesteps))

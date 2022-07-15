@@ -57,7 +57,7 @@ class SiLUImplEfficientNet(nn.Module):
 def silu(impl="torch", use_checkpoint=False):
     if impl == "fused":
         return nn.Identity()
-    elif impl == "cached_pre_silu":
+    elif impl == "pre_silu":
         return nn.Identity()
     elif impl == "openai":
         return SiLUImplOpenAI(use_checkpoint=use_checkpoint)
@@ -139,8 +139,8 @@ class AdaGN(nn.Module):
         super().__init__()
         if not nonlin_in:
             raise ValueError('AdaGN nonlin_in=False not supported')
-        
-        emb_silu_impl = "cached_pre_silu"
+
+        emb_silu_impl = "pre_silu"
         if silu_impl == "fused":
             emb_silu_impl = "torch"
         self.emb_layers = nn.Sequential(

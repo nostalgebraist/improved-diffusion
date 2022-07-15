@@ -25,6 +25,11 @@ def main():
     th.backends.cudnn.benchmark = args.cudnn_benchmark
     print(f"using cudnn_benchmark: {th.backends.cudnn.benchmark}")
 
+    try:
+        th.set_float32_matmul_precision(args.float32_matmul_precision)
+    except Exception as e:
+        print(f"Couldn't set float32_matmul_precision: {repr(e)}")
+
     print(f"args: got txt={args.txt}")
 
     dist_util.setup_dist()
@@ -264,6 +269,7 @@ def create_argparser():
         clip_prob_path="",
         clip_prob_middle_pkeep=0.5,
         cudnn_benchmark=False,
+        float32_matmul_precision="medium",
     )
     defaults.update(model_and_diffusion_defaults())
     parser = argparse.ArgumentParser()

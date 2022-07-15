@@ -5,10 +5,18 @@ import torch.nn as nn
 
 from axial_positional_embedding import AxialPositionalEmbedding
 from einops import rearrange
-from x_transformers import TransformerWrapper, Encoder, XTransformer
 from x_transformers.x_transformers import AbsolutePositionalEmbedding, Attention, FeedForward, Rezero
+import x_transformers.x_transformers
 
-from .nn import normalization_1group, timestep_embedding, silu, AdaGN, checkpoint
+from .nn import normalization_1group, timestep_embedding, silu, AdaGN, checkpoint, LayerNorm32
+
+
+def _scalenorm_forward_fp32(self, x):
+    norm = torch.norm(x.float(), dim = -1, keepdim = True) * self.scale
+    return (x / norm.clamp(min = self.eps) * self.g).type(x.dtype)
+
+
+x_transformers.x_transformers.ScaleNorm.forward = _scalenorm_forward_fp32
 
 
 def make_grad_mult_hook(mult, debug=False):
@@ -20,6 +28,7 @@ def make_grad_mult_hook(mult, debug=False):
             print(f"new_grad: {new_grad}")
         return new_grad
     return grad_mult_hook
+
 
 def multiply_lr_via_hooks(m: nn.Module, mult: float, debug=False) -> nn.Module:
     m._lr_hook_handles = {}
@@ -70,6 +79,8 @@ class TextEncoder(nn.Module):
         silu_impl="torch",
     ):
         super().__init__()
+
+        from x_transformers import Encoder
 
         head_dim = min(head_dim, inner_dim)
 
@@ -155,7 +166,7 @@ class TextEncoder(nn.Module):
             if timesteps is not None:
                 # emb = self.time_embed_scale * self.time_embed(timestep_embedding(timesteps, self.dim))
                 emb = self.timestep_embed_with_cache(timesteps)
-                emb = emb.unsqueeze(1).tile((1, x.shape[1], 1))
+                emb = emb.unsqueeze(1).tile((1, x.shape[1], 1)).type(x.dtype)
                 x = x + emb
 
             # TODO: workaround for HF tokenizers setting PAD and CLS to id 0
@@ -291,7 +302,7 @@ class CrossAttention(nn.Module):
         if self.no_prenorm:
             self.src_ln = nn.Identity()
         else:
-            self.src_ln = torch.nn.LayerNorm(self.text_dim)
+            self.src_ln = LayerNorm32(self.text_dim)
 
         self.emb_res = emb_res
         self.tgt_pos_emb = None
@@ -319,7 +330,7 @@ class CrossAttention(nn.Module):
         elif self.no_prenorm:
             self.tgt_ln = nn.Identity()
         elif avoid_groupnorm:
-            self.tgt_ln = torch.nn.LayerNorm(self.dim)
+            self.tgt_ln = LayerNorm32(self.dim)
         else:
             self.tgt_ln = normalization_1group(self.dim, base_channels=image_base_channels)
 
@@ -478,7 +489,7 @@ class ImageToTextCrossAttention(nn.Module):
         if txt_already_normed:
             self.tgt_ln = torch.nn.Identity()
         else:
-            self.tgt_ln = torch.nn.LayerNorm(self.text_dim)
+            self.tgt_ln = LayerNorm32(self.text_dim)
 
         self.emb_res = emb_res
 
@@ -519,7 +530,7 @@ class ImageToTextCrossAttention(nn.Module):
             self.ff = ff
 
             if ff_force_prenorm or (not ff_rezero):
-                self.ff_ln = torch.nn.LayerNorm(self.text_dim)
+                self.ff_ln = LayerNorm32(self.text_dim)
             else:
                 self.ff_ln = nn.Identity()
 

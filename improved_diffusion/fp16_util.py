@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 from torch._utils import _flatten_dense_tensors, _unflatten_dense_tensors
 
+from .nn import LayerNorm32
 from .text_nn import TextEncoder, CrossAttention, ImageToTextCrossAttention
 
 
@@ -20,18 +21,18 @@ def convert_module_to_f16(l, bf16=False):
         l.weight.data = l.weight.data.to(dtype)
         if l.bias is not None:
             l.bias.data = l.bias.data.to(dtype)
-    if isinstance(l, (CrossAttention, TextEncoder)):
+    if isinstance(l, (CrossAttention, ImageToTextCrossAttention)):
         for n, p in l.named_parameters():
-            if 'tgt_ln' in n and (not l.avoid_groupnorm):
-                if 'normalization' not in n.partition('tgt_ln')[2]:
-                    continue
-            p.data = p.data.to(dtype)
-    if isinstance(l, ImageToTextCrossAttention):
+            if 'src_ln' in n or 'tgt_ln' in n or 'ff_ln' in n:
+                p.data = p.data.to(torch.float)
+            else:
+                p.data = p.data.to(dtype)
+    if isinstance(l, TextEncoder):
         for n, p in l.named_parameters():
-            if 'src_ln' in n:
-                if 'normalization' not in n.partition('src_ln')[2]:
-                    continue
-            p.data = p.data.to(dtype)
+            if 'time_embed' in n:
+                p.data = p.data.to(torch.float)
+            else:
+                p.data = p.data.to(dtype)
 
 
 def convert_module_to_f32(l):

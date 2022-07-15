@@ -26,7 +26,8 @@ from .nn import (
     timestep_embedding,
     checkpoint,
     expanded_timestep_embedding,
-    scale_module
+    scale_module,
+    LayerNorm32
 )
 
 from .text_nn import TextEncoder, CrossAttention, WeaveAttention
@@ -532,7 +533,7 @@ class QKVAttention(nn.Module):
         weight = weight.float()
         if attn_mask is not None:
             weight = weight + attn_mask
-        weight = th.softmax(weight, dim=-1).type(weight.dtype)
+        weight = th.softmax(weight, dim=-1).type(v.dtype)
         # if encoder_kv is not None:
         #     l_base = qkv.shape[2]
         #     print(f'l_base {l_base}')
@@ -841,7 +842,7 @@ class UNetModel(nn.Module):
             self.capt_embd_dim = clipmod.ln_final.weight.shape[0]
 
             if self.clip_use_penultimate_layer:
-                self.capt_ln_final = nn.LayerNorm(self.capt_embd_dim)
+                self.capt_ln_final = LayerNorm32(self.capt_embd_dim)
             else:
                 self.capt_ln_final = clipmod.ln_final
 
@@ -1251,8 +1252,8 @@ class UNetModel(nn.Module):
             self.middle_block.to(memory_format=th.channels_last)
             self.output_blocks.to(memory_format=th.channels_last)
 
-        # if hasattr(self, 'text_encoder'):
-        #     self.text_encoder.apply(convert_module_to_f16)
+        if hasattr(self, 'text_encoder'):
+            self.text_encoder.apply(convert_module_to_f16)
 
     def convert_to_fp32(self):
         """
@@ -1270,6 +1271,10 @@ class UNetModel(nn.Module):
         Get the dtype used by the torso of the model.
         """
         return next(self.input_blocks.parameters()).dtype
+
+    @property
+    def device(self):
+        return self.time_embed[0].weight.device
 
     @lru_cache(2)
     def embed_capt_cached(self, capt_toks):
@@ -1371,7 +1376,7 @@ class UNetModel(nn.Module):
             h = self.rgb_to_input(h)
 
         # print(f'x type: {x.dtype}')
-        # h = h.type(self.inner_dtype)
+        h = h.type(self.inner_dtype)
         # print(f'h type: {h.dtype}')
         if self.channels_last_mem:
             h = h.to(memory_format=th.channels_last)
@@ -1424,7 +1429,7 @@ class UNetModel(nn.Module):
                 h_bread_out = self.bread_adapter_out(h)
                 skip_pop = True
             # print(f'\th type: {h.dtype}')
-        # h = h.type(x.dtype)
+        h = h.type(x.dtype)
         # print(f'h type: {h.dtype}')
 
         h = checkpoint(self.out.forward, (h,), self.out.parameters(), self.image_size <= self.use_checkpoint_below_res)

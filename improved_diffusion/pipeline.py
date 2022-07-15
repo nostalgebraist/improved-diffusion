@@ -55,25 +55,19 @@ def make_dynamic_threshold_denoised_fn(p):
     return dynamic_threshold_denoised_fn
 
 
-def make_dynamic_threshold_denoised_fn_batched(p, per_channel=False):
-    def dynamic_threshold_denoised_fn_batched(pred_xstart):
+def make_dynamic_threshold_denoised_fn_batched(p):
+    def dynamic_threshold_denoised_fn(pred_xstart):
         b, c, *spatial = pred_xstart.shape
 
-        if per_channel:
-            flat = pred_xstart.reshape(b, c, -1)
+        flat = pred_xstart.reshape(b, -1)
 
-            s = th.quantile(flat.abs(), p, dim=-1, keepdim=True).clamp(min=1)
-            s = s[..., None]
-        else:
-            flat = pred_xstart.reshape(b, -1)
-
-            s = th.quantile(flat.abs(), p, dim=1).clamp(min=1)
-            s = s.reshape((-1, 1, 1, 1))
+        s = th.quantile(flat.abs(), p, dim=1).clamp(min=1)
+        s = s.reshape((-1, 1, 1, 1))
 
         pred_xstart_threshed = pred_xstart.clamp(min=-s, max=s) / s
 
         return pred_xstart_threshed
-    return dynamic_threshold_denoised_fn_batched
+    return dynamic_threshold_denoised_fn
 
 
 class SamplingModel(nn.Module):
@@ -107,10 +101,13 @@ class SamplingModel(nn.Module):
             self.model.unset_timestep_embed_cache()
 
     @staticmethod
-    def from_config(checkpoint_path, config_path, timestep_respacing="", class_map=None, clipmod=None):
+    def from_config(checkpoint_path, config_path, timestep_respacing="", class_map=None, clipmod=None, **overrides):
+        overrides_ = dict(freeze_capt_encoder=True, use_inference_caching=True, clipmod=clipmod)
+        overrides_.update(overrides)
+
         model, diffusion_factory, tokenizer, is_super_res = load_config_to_model(
             config_path,
-            overrides=dict(freeze_capt_encoder=True, use_inference_caching=True, clipmod=clipmod)
+            overrides=overrides_
         )
         model.load_state_dict(
             dist_util.load_state_dict(checkpoint_path, map_location="cpu"),
@@ -157,7 +154,6 @@ class SamplingModel(nn.Module):
         verbose=True,
         noise=None,
         dynamic_threshold_p=0,
-        per_channel_dynamic_threshold=False,
         denoised_fn=None,
         noise_cond_ts=0,
         noise_cond_schedule='cosine',
@@ -169,8 +165,7 @@ class SamplingModel(nn.Module):
             pass  # defer to use
         elif dynamic_threshold_p > 0:
             clip_denoised = False
-            # denoised_fn = make_dynamic_threshold_denoised_fn(dynamic_threshold_p)
-            denoised_fn = make_dynamic_threshold_denoised_fn_batched(dynamic_threshold_p, per_channel=per_channel_dynamic_threshold)
+            denoised_fn = make_dynamic_threshold_denoised_fn_batched(dynamic_threshold_p)
 
         if self.is_super_res and low_res is None:
             raise ValueError("must pass low_res for super res")
@@ -317,6 +312,8 @@ class SamplingModel(nn.Module):
         all_sample_sequences = []
         all_xstart_sequences = []
 
+        wrapped = self.diffusion._wrap_model(self.model)
+
         while len(all_images) * batch_size < n_samples:
             offset = len(all_images)
             if self.is_super_res:
@@ -325,8 +322,9 @@ class SamplingModel(nn.Module):
                 if "unconditional_model_kwargs" in model_kwargs:
                     model_kwargs["unconditional_model_kwargs"]["low_res"] = model_kwargs["low_res"]
 
+
             sample = sample_fn(
-                self.model,
+                wrapped,
                 (
                     batch_size,
                     image_channels,
@@ -368,6 +366,8 @@ class SamplingModel(nn.Module):
                 xstart_sequence = th.stack(xstart_sequence, dim=1)
                 all_sample_sequences.append(sample_sequence.cpu().numpy())
                 all_xstart_sequences.append(xstart_sequence.cpu().numpy())
+
+        del wrapped
 
         self.model.embed_capt_cached.cache_clear()
 

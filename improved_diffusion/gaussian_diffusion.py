@@ -218,6 +218,7 @@ class GaussianDiffusion:
         return self.tensorized_for == device
 
     def tensorize(self, device):
+        print("GaussianDiffusion tensorize called")
         arrays = {name: getattr(self, name) for name in vars(self) if isinstance(getattr(self, name), np.ndarray)}
 
         for name, arr in arrays.items():
@@ -543,7 +544,7 @@ class GaussianDiffusion:
         p_sample().
         """
         if device is None:
-            device = next(model.parameters()).device
+            device = model.device
         assert isinstance(shape, (tuple, list))
         if noise is not None:
             img = noise
@@ -826,7 +827,7 @@ class GaussianDiffusion:
         Same usage as p_sample_loop_progressive().
         """
         if device is None:
-            device = next(model.parameters()).device
+            device = model.device
         assert isinstance(shape, (tuple, list))
         if noise is not None:
             img = noise
@@ -905,7 +906,7 @@ class GaussianDiffusion:
         ddim_last_n=None,
     ):
         if device is None:
-            device = next(model.parameters()).device
+            device = model.device
         assert isinstance(shape, (tuple, list))
         if noise is not None:
             img = noise
@@ -1051,7 +1052,7 @@ class GaussianDiffusion:
         Same usage as p_sample_loop_progressive().
         """
         if device is None:
-            device = next(model.parameters()).device
+            device = model.device
         assert isinstance(shape, (tuple, list))
         if noise is not None:
             img = noise
@@ -1424,6 +1425,7 @@ def ts_index_range(batch_size, maxstep, device):
 
 @lru_cache(1)
 def _ts_index_range(batch_size, nsteps, device):
+    print(f"_ts_index_range called for {(batch_size, nsteps, device)}")
     with th.no_grad():
         tblock = th.tile(th.arange(nsteps, device=device), (batch_size, 1))
         ts = []

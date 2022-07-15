@@ -97,6 +97,7 @@ class SpacedDiffusion(GaussianDiffusion):
         return self.map_tensorized_for == device
 
     def tensorize_map(self, device):
+        print("SpacedDiffusion tensorize_map called")
         self.timestep_map = th.as_tensor(self.timestep_map, device=device, dtype=th.long)
         self.map_tensorized_for = device
 
@@ -113,13 +114,9 @@ class SpacedDiffusion(GaussianDiffusion):
     def _wrap_model(self, model):
         if isinstance(model, _WrappedModel):
             return model
-        if hasattr(model, 'parameters'):
-            device = None
-            for p in model.parameters():
-                device = p.device
-                break
-            if not self.is_map_tensorized(device):
-                self.tensorize_map(device)
+        device = model.device
+        if not self.is_map_tensorized(device):
+            self.tensorize_map(device)
         return _WrappedModel(
             model, self.timestep_map, self.rescale_timesteps, self.original_num_steps
         )
@@ -159,3 +156,8 @@ class _WrappedModel:
         if self.rescale_timesteps:
             new_ts = new_ts.float() * (1000.0 / self.original_num_steps)
         return self.model(x, new_ts, **kwargs)
+
+    @property
+    def device(self):
+        # deep copy
+        return th.device(str(self.model.device))

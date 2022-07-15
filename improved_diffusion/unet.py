@@ -342,8 +342,11 @@ class ResBlock(TimestepBlock):
         else:
             self.h_upd = self.x_upd = nn.Identity()
 
+        emb_silu_impl = "cached_pre_silu"
+        if self.fused:
+            emb_silu_impl = "torch"
         self.emb_layers = nn.Sequential(
-            silu(impl="torch" if self.fused else silu_impl, use_checkpoint=use_checkpoint_lowcost),
+            silu(impl=emb_silu_impl, use_checkpoint=use_checkpoint_lowcost),
             linear(
                 emb_channels,
                 2 * self.out_channels if use_scale_shift_norm else self.out_channels,
@@ -1320,6 +1323,15 @@ class UNetModel(nn.Module):
 
         return emb
 
+    def full_timestep_embed_with_cache(self, timesteps, cond_timesteps, silu_impl):
+        emb = self.timestep_embed_with_cache(timesteps)
+        if cond_timesteps is not None:
+            emb = emb + self.noise_cond_timestep_embed_with_cache(cond_timesteps)
+        if silu_impl != 'fused':
+            # pre-silu'd
+            emb = F.silu(emb)
+        return emb
+
     def forward(self, x, timesteps, y=None, txt=None, capt=None, cond_timesteps=None):
         """
         Apply the model to an input batch.
@@ -1347,12 +1359,13 @@ class UNetModel(nn.Module):
 
 
         hs = []
-        # emb = self.time_embed(self.timestep_embedding(timesteps))
-        emb = self.timestep_embed_with_cache(timesteps, cond_timesteps)
-
-        if cond_timesteps is not None:
-            # emb = emb + self.time_embed_noise_cond(self.timestep_embedding(cond_timesteps))
-            emb = emb + self.noise_cond_timestep_embed_with_cache(cond_timesteps)
+        emb = self.full_timestep_embed_with_cache(timesteps, cond_timesteps, silu_impl)
+        # # emb = self.time_embed(self.timestep_embedding(timesteps))
+        # emb = self.timestep_embed_with_cache(timesteps)
+        #
+        # if cond_timesteps is not None:
+        #     # emb = emb + self.time_embed_noise_cond(self.timestep_embedding(cond_timesteps))
+        #     emb = emb + self.noise_cond_timestep_embed_with_cache(cond_timesteps)
 
         if self.num_classes is not None:
             assert y.shape == (x.shape[0],)

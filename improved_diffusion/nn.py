@@ -57,6 +57,8 @@ class SiLUImplEfficientNet(nn.Module):
 def silu(impl="torch", use_checkpoint=False):
     if impl == "fused":
         return nn.Identity()
+    elif impl == "cached_pre_silu":
+        return nn.Identity()
     elif impl == "openai":
         return SiLUImplOpenAI(use_checkpoint=use_checkpoint)
     elif impl == "torch":
@@ -135,8 +137,14 @@ class GroupNorm32(nn.GroupNorm):
 class AdaGN(nn.Module):
     def __init__(self, emb_channels, out_channels, num_groups, nonlin_in=True, do_norm=True, base_channels=-1, silu_impl="torch"):
         super().__init__()
+        if not nonlin_in:
+            raise ValueError('AdaGN nonlin_in=False not supported')
+        
+        emb_silu_impl = "cached_pre_silu"
+        if silu_impl == "fused":
+            emb_silu_impl = "torch"
         self.emb_layers = nn.Sequential(
-            silu(impl="torch" if silu_impl == "fused" else silu_impl) if nonlin_in else nn.Identity(),
+            silu(impl=emb_silu_impl) if nonlin_in else nn.Identity(),
             nn.Linear(emb_channels, 2 * out_channels)
         )
         if not do_norm:

@@ -103,6 +103,11 @@ def groupnorm_silu_1(x, w, b):
     return F.silu(th.group_norm(x.float(), 1, w, b).type(x.dtype))
 
 
+class LayerNorm32(nn.LayerNorm):
+    def forward(self, x):
+        return super().forward(x.float()).type(x.dtype)
+
+
 class GroupNorm32(nn.GroupNorm):
     def __init__(self, *args, use_checkpoint=False, fused=False):
         super().__init__(*args)

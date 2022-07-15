@@ -8,7 +8,7 @@ from einops import rearrange
 from x_transformers import TransformerWrapper, Encoder, XTransformer
 from x_transformers.x_transformers import AbsolutePositionalEmbedding, Attention, FeedForward, Rezero
 
-from .nn import normalization_1group, timestep_embedding, silu, AdaGN, checkpoint
+from .nn import normalization_1group, timestep_embedding, silu, AdaGN, checkpoint, LayerNorm32
 
 
 def make_grad_mult_hook(mult, debug=False):
@@ -277,7 +277,7 @@ class CrossAttention(nn.Module):
         if self.no_prenorm:
             self.src_ln = nn.Identity()
         else:
-            self.src_ln = torch.nn.LayerNorm(self.text_dim)
+            self.src_ln = LayerNorm32(self.text_dim)
 
         self.emb_res = emb_res
         self.tgt_pos_emb = None
@@ -305,7 +305,7 @@ class CrossAttention(nn.Module):
         elif self.no_prenorm:
             self.tgt_ln = nn.Identity()
         elif avoid_groupnorm:
-            self.tgt_ln = torch.nn.LayerNorm(self.dim)
+            self.tgt_ln = LayerNorm32(self.dim)
         else:
             self.tgt_ln = normalization_1group(self.dim, base_channels=image_base_channels)
 
@@ -464,7 +464,7 @@ class ImageToTextCrossAttention(nn.Module):
         if txt_already_normed:
             self.tgt_ln = torch.nn.Identity()
         else:
-            self.tgt_ln = torch.nn.LayerNorm(self.text_dim)
+            self.tgt_ln = LayerNorm32(self.text_dim)
 
         self.emb_res = emb_res
 
@@ -505,7 +505,7 @@ class ImageToTextCrossAttention(nn.Module):
             self.ff = ff
 
             if ff_force_prenorm or (not ff_rezero):
-                self.ff_ln = torch.nn.LayerNorm(self.text_dim)
+                self.ff_ln = LayerNorm32(self.text_dim)
             else:
                 self.ff_ln = nn.Identity()
 

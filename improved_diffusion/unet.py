@@ -343,8 +343,6 @@ class ResBlock(TimestepBlock):
             self.h_upd = self.x_upd = nn.Identity()
 
         emb_silu_impl = "pre_silu"
-        if self.fused:
-            emb_silu_impl = "torch"
         self.emb_layers = nn.Sequential(
             silu(impl=emb_silu_impl, use_checkpoint=use_checkpoint_lowcost),
             linear(
@@ -1328,9 +1326,8 @@ class UNetModel(nn.Module):
         emb = self.timestep_embed_with_cache(timesteps)
         if cond_timesteps is not None:
             emb = emb + self.noise_cond_timestep_embed_with_cache(cond_timesteps)
-        if silu_impl != 'fused':
-            # pre-silu'd
-            emb = F.silu(emb)
+        # pre-silu'd
+        emb = F.silu(emb)
         return emb
 
     def forward(self, x, timesteps, y=None, txt=None, capt=None, cond_timesteps=None):

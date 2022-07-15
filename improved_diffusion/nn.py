@@ -141,8 +141,6 @@ class AdaGN(nn.Module):
             raise ValueError('AdaGN nonlin_in=False not supported')
 
         emb_silu_impl = "pre_silu"
-        if silu_impl == "fused":
-            emb_silu_impl = "torch"
         self.emb_layers = nn.Sequential(
             silu(impl=emb_silu_impl) if nonlin_in else nn.Identity(),
             nn.Linear(emb_channels, 2 * out_channels)

@@ -21,12 +21,15 @@ def convert_module_to_f16(l, bf16=False):
         l.weight.data = l.weight.data.to(dtype)
         if l.bias is not None:
             l.bias.data = l.bias.data.to(dtype)
-    if isinstance(l, (CrossAttention, ImageToTextCrossAttention, TextEncoder)):
+    if isinstance(l, (CrossAttention, ImageToTextCrossAttention)):
         for n, p in l.named_parameters():
             if 'src_ln' in n or 'tgt_ln' in n or 'ff_ln' in n:
                 p.data = p.data.to(torch.float)
             else:
                 p.data = p.data.to(dtype)
+    if isinstance(l, TextEncoder):
+        for n, p in l.named_parameters():
+            p.data = p.data.to(dtype)
 
 
 def convert_module_to_f32(l):

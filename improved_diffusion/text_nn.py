@@ -5,10 +5,18 @@ import torch.nn as nn
 
 from axial_positional_embedding import AxialPositionalEmbedding
 from einops import rearrange
-from x_transformers import TransformerWrapper, Encoder, XTransformer
 from x_transformers.x_transformers import AbsolutePositionalEmbedding, Attention, FeedForward, Rezero
+import x_transformers.x_transformers
 
 from .nn import normalization_1group, timestep_embedding, silu, AdaGN, checkpoint, LayerNorm32
+
+
+def _scalenorm_forward_fp32(self, x):
+    norm = torch.norm(x.float(), dim = -1, keepdim = True) * self.scale
+    return (x / norm.clamp(min = self.eps) * self.g).type(x.dtype)
+
+
+x_transformers.x_transformers.ScaleNorm.forward = _scalenorm_forward_fp32
 
 
 def make_grad_mult_hook(mult, debug=False):
@@ -20,6 +28,7 @@ def make_grad_mult_hook(mult, debug=False):
             print(f"new_grad: {new_grad}")
         return new_grad
     return grad_mult_hook
+
 
 def multiply_lr_via_hooks(m: nn.Module, mult: float, debug=False) -> nn.Module:
     m._lr_hook_handles = {}
@@ -70,6 +79,8 @@ class TextEncoder(nn.Module):
         silu_impl="torch",
     ):
         super().__init__()
+
+        from x_transformers import Encoder
 
         head_dim = min(head_dim, inner_dim)
 

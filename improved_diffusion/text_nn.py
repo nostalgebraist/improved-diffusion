@@ -152,7 +152,7 @@ class TextEncoder(nn.Module):
 
             if timesteps is not None:
                 emb = self.time_embed_scale * self.time_embed(timestep_embedding(timesteps, self.dim))
-                emb = emb.unsqueeze(1).tile((1, x.shape[1], 1))
+                emb = emb.unsqueeze(1).tile((1, x.shape[1], 1)).type(x.dtype)
                 x = x + emb
 
             # TODO: workaround for HF tokenizers setting PAD and CLS to id 0

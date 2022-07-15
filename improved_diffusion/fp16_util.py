@@ -29,7 +29,10 @@ def convert_module_to_f16(l, bf16=False):
                 p.data = p.data.to(dtype)
     if isinstance(l, TextEncoder):
         for n, p in l.named_parameters():
-            p.data = p.data.to(dtype)
+            if 'time_embed' in n:
+                p.data = p.data.to(torch.float)
+            else:
+                p.data = p.data.to(dtype)
 
 
 def convert_module_to_f32(l):

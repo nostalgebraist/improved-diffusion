@@ -23,7 +23,7 @@ def convert_module_to_f16(l, bf16=False):
             l.bias.data = l.bias.data.to(dtype)
     if isinstance(l, (CrossAttention, ImageToTextCrossAttention, TextEncoder)):
         for n, p in l.named_parameters():
-            if 'src_ln' in n or 'tgt_ln' in n:
+            if 'src_ln' in n or 'tgt_ln' in n or 'ff_ln' in n:
                 p.data = p.data.to(torch.float)
             else:
                 p.data = p.data.to(dtype)

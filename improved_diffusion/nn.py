@@ -144,7 +144,7 @@ class AdaGN(nn.Module):
         elif base_channels > 0:
             self.normalization = GroupNormExtended(num_groups, out_channels, num_channels_base=base_channels)
         else:
-            self.normalization = nn.GroupNorm(num_groups, out_channels)
+            self.normalization = GroupNorm32(num_groups, out_channels)
 
         self.base_channels = base_channels
         self.out_channels = out_channels

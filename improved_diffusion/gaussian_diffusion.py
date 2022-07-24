@@ -336,7 +336,8 @@ class GaussianDiffusion:
         can_skip = (effective_guidance_scale <= 0).all()
         is_guided = (guidance_scale is not None) and (unconditional_model_kwargs is not None) and is_eps and (not can_skip)
 
-        slow_txt_guidance = "guidance_scale_txt" in model_kwargs
+        guidance_scale_txt = model_kwargs.get("guidance_scale_txt")
+        slow_txt_guidance = guidance_scale_txt is not None
         if slow_txt_guidance:
             effective_guidance_scale_txt = th.where(t < guidance_after_step, float(guidance_scale_txt), 0.)
 

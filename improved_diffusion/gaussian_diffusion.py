@@ -322,9 +322,9 @@ class GaussianDiffusion:
         unconditional_key = "unconditional_model_kwargs"
         unconditional_txt_key = "unconditional_txt_model_kwargs"
 
-        if "txt_guidance_drop_ixs" in model_kwargs):
+        if "txt_guidance_drop_ixs" in model_kwargs:
             t_py = set(t.cpu().tolist())
-            if (t_py.intersection(model_kwargs["txt_guidance_drop_ixs"]) != set():
+            if t_py.intersection(model_kwargs["txt_guidance_drop_ixs"]) != set():
                 unconditional_key = unconditional_txt_key
 
         unconditional_model_kwargs = model_kwargs.get(unconditional_key)

@@ -161,7 +161,7 @@ def load_data(
         n_with_px_scale = len(set(text_file_to_image_file.values()).intersection(image_file_to_px_scales.keys()))
         print(f"of {n_texts} texts, {n_with_px_scale} have px scales (all px scales: {len(image_file_to_px_scales)})")
 
-    n_images_with_capts = len(set(all_files.keys()).intersection(image_file_to_capt.keys()))
+    n_images_with_capts = len(set(all_files).intersection(image_file_to_capt.keys()))
     print(f"of {len(all_files)} images, {n_images_with_capts} have capts (all capts: {len(image_file_to_capt)})")
 
     if clip_probs is not None:

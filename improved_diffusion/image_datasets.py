@@ -161,8 +161,8 @@ def load_data(
         n_with_px_scale = len(set(text_file_to_image_file.values()).intersection(image_file_to_px_scales.keys()))
         print(f"of {n_texts} texts, {n_with_px_scale} have px scales (all px scales: {len(image_file_to_px_scales)})")
 
-    n_images_with_capts = len(set(image_file_to_text_file.keys()).intersection(image_file_to_capt.keys()))
-    print(f"of {len(image_file_to_text_file)} txt images, {n_images_with_capts} have capts (all capts: {len(image_file_to_capt)})")
+    n_images_with_capts = len(set(results.keys()).intersection(image_file_to_capt.keys()))
+    print(f"of {len(results)} images, {n_images_with_capts} have capts (all capts: {len(image_file_to_capt)})")
 
     if clip_probs is not None:
         n_images_with_clip_probs = len(set(all_files).intersection(clip_probs.keys()))
@@ -457,6 +457,7 @@ def _list_image_files_recursively(data_dir, txt=False, min_filesize=0, min_image
     n_excluded_filesize = 0
     n_excluded_imagesize = 0
     n_excluded_path = 0
+    n_capts = 0
     for entry in sorted(bf.listdir(data_dir)):
         full_path = bf.join(data_dir, entry)
 
@@ -470,6 +471,8 @@ def _list_image_files_recursively(data_dir, txt=False, min_filesize=0, min_image
         if "." in entry and ext.lower() in ["jpg", "jpeg", "png", "gif"]:
             if require_capts and (safebox_key not in capts):
                 continue
+
+            n_capts += int(safebox_key in capts)
 
             if min_filesize > 0:
                 filesize = os.path.getsize(full_path)
@@ -514,7 +517,7 @@ def _list_image_files_recursively(data_dir, txt=False, min_filesize=0, min_image
             image_file_to_safebox.update(next_image_file_to_safebox)
             image_file_to_px_scales.update(next_image_file_to_px_scales)
             image_file_to_capt.update(next_image_file_to_capt)
-    print(f"_list_image_files_recursively: data_dir={data_dir}, n_excluded_filesize={n_excluded_filesize}, n_excluded_imagesize={n_excluded_imagesize},\n\tn_excluded_path={n_excluded_path}")
+    print(f"_list_image_files_recursively: data_dir={data_dir}, n_excluded_filesize={n_excluded_filesize}, n_excluded_imagesize={n_excluded_imagesize},\n\tn_excluded_path={n_excluded_path}, n_capts={n_capts}")
     image_file_to_safebox = {k: v for k, v in image_file_to_safebox.items() if v is not None}
     image_file_to_px_scales = {k: v for k, v in image_file_to_px_scales.items() if v is not None}
     image_file_to_capt = {k: v for k, v in image_file_to_capt.items() if v is not None}

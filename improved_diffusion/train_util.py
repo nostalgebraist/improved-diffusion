@@ -514,7 +514,10 @@ class TrainLoop:
         self.log_step()
 
     def forward_backward(self, batch, cond, verbose=False):
-        zero_grad(self.model_params)
+        if self.use_amp:
+            self.opt.zero_grad(set_to_none=True)
+        else:
+            zero_grad(self.model_params)
         for i in range(0, batch.shape[0], self.microbatch):
             micro = batch[i : i + self.microbatch].to(dist_util.dev())
             micro_cond = {

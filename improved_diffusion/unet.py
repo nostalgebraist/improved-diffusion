@@ -465,6 +465,7 @@ class AttentionBlock(GlideStyleBlock):
                  zero_init_pos_emb=True,
                  zero_init_proj_out=True,
                  use_rotary_pos_emb=False,
+                 capt_stream=None,
                  ):
         super().__init__()
         self.channels = channels
@@ -509,6 +510,8 @@ class AttentionBlock(GlideStyleBlock):
             self.encoder_kv = None
             self.encoder_norm = None
 
+        self.capt_stream = capt_stream
+
     def forward(self, x, encoder_out=None, capt_attn_mask=None):
         return checkpoint(self._forward, (x, encoder_out, capt_attn_mask), self.parameters(), self.use_checkpoint)
 
@@ -530,6 +533,9 @@ class AttentionBlock(GlideStyleBlock):
             norm_out = self.norm(x)
         qkv = self.qkv(norm_out)
         qkv = qkv.reshape(b * self.num_heads, -1, qkv.shape[2])
+
+        if self.capt_stream is not None:
+
 
         if (encoder_out is not None) and (self.encoder_kv is not None):
             encoder_kv = self.encoder_kv(encoder_out)
@@ -955,6 +961,9 @@ class UNetModel(nn.Module):
         self.bread_adapter_only = bread_adapter_only
         print(f'unet self.bread_adapter_only: {self.bread_adapter_only}')
 
+        self.txt_stream = th.cuda.Stream()
+        self.capt_stream = th.cuda.Stream()
+
         mapper = lambda x: x
         if self.using_bread_adapter and bread_adapter_zero_conv_in:
             mapper = zero_module
@@ -1338,9 +1347,6 @@ class UNetModel(nn.Module):
 
         if rgb_adapter:
             self.output_to_rgb = DropinRGBAdapter(needs_var=out_channels>3)
-
-        self.txt_stream = th.cuda.Stream()
-        # self.capt_stream = th.cuda.Stream()
 
     def timestep_embedding(self, timesteps):
         if self.expand_timestep_base_dim > 0:

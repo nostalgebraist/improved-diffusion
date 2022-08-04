@@ -1337,6 +1337,9 @@ class UNetModel(nn.Module):
         if rgb_adapter:
             self.output_to_rgb = DropinRGBAdapter(needs_var=out_channels>3)
 
+        self.txt_stream = th.cuda.Stream()
+        # self.capt_stream = th.cuda.Stream()
+
     def timestep_embedding(self, timesteps):
         if self.expand_timestep_base_dim > 0:
             return expanded_timestep_embedding(timesteps, self.model_channels, self.expand_timestep_base_dim)
@@ -1433,26 +1436,19 @@ class UNetModel(nn.Module):
 
         attn_mask = None
         if txt is not None:
-            txt, attn_mask = self.text_encoder(txt, timesteps=timesteps)
-            txt = txt.type(self.inner_dtype)
+            with th.cuda.stream(self.txt_stream):
+                txt, attn_mask = self.text_encoder(txt, timesteps=timesteps)
+                txt = txt.type(self.inner_dtype)
 
         capt_attn_mask = None
         if self.using_capt and capt is not None:
             capt, capt_attn_mask = self.embed_capt_cached(capt) if self.use_inference_caching else self.embed_capt(capt)
-            # capt_toks = capt
-            # capt_attn_mask = capt_toks != 0
-            # capt = clip_encode_text_nopool(
-            #     self.clipmod.token_embedding, self.clipmod.positional_embedding, self.clipmod.transformer,
-            #     capt_toks,
-            #     ln_final=self.capt_ln_final if self.glide_style_capt_attn else None,
-            #     use_penultimate_layer=self.clip_use_penultimate_layer,
-            #     out_format='ndl' if self.glide_style_capt_attn else 'nld',
-            #     dtype = self.inner_dtype,
-            #     )
-            # capt = capt.type(self.inner_dtype)
             if self.glide_style_capt_emb:
                 eos = capt[th.arange(capt_toks.shape[0]), :, capt_toks.argmax(dim=-1)]
                 emb = emb + self.capt_embed(eos)
+
+        # TODO: do this only at xattn layer
+        th.cuda.current_stream().wait_stream(self.txt_stream)
 
         h = x
 

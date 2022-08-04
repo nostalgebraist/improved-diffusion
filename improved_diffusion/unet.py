@@ -535,7 +535,7 @@ class AttentionBlock(GlideStyleBlock):
         qkv = qkv.reshape(b * self.num_heads, -1, qkv.shape[2])
 
         if self.capt_stream is not None:
-
+            th.cuda.current_stream().wait_stream(self.capt_stream)
 
         if (encoder_out is not None) and (self.encoder_kv is not None):
             encoder_kv = self.encoder_kv(encoder_out)

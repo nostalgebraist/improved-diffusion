@@ -144,7 +144,9 @@ class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
     support it as an extra input.
     """
 
-    def forward(self, inps, emb, attn_mask=None, tgt_pos_embs=None, timesteps=None, capt_attn_mask=None):
+    def forward(
+        self, inps, emb, attn_mask=None, tgt_pos_embs=None, timesteps=None, capt_attn_mask=None,
+    ):
         x, txt, capt = inps
         for layer in self:
             if isinstance(layer, TimestepBlock):
@@ -1458,6 +1460,7 @@ class UNetModel(nn.Module):
                 if self.glide_style_capt_emb:
                         eos = capt[th.arange(capt_toks.shape[0]), :, capt_toks.argmax(dim=-1)]
                         emb = emb + self.capt_embed(eos)
+            print(("capt stream done", self.capt_stream.query()))
 
         # TODO: do this only at xattn layer
         # th.cuda.current_stream().wait_stream(self.txt_stream)

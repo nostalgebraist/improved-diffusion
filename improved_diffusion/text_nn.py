@@ -207,7 +207,6 @@ class BetterMultiheadAttention(torch.nn.MultiheadAttention):
         value = self.v(value)
 
         in_dtype = query.dtype
-        print(("in_dtype", in_dtype))
 
         attn_output, attn_output_weights = torch.nn.functional.multi_head_attention_forward(
             query, key, value, self.qkv_dim, self.num_heads,

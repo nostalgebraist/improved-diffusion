@@ -1450,11 +1450,11 @@ class UNetModel(nn.Module):
 
         capt_attn_mask = None
         if self.using_capt and capt is not None:
-            capt, capt_attn_mask = self.embed_capt_cached(capt) if self.use_inference_caching else self.embed_capt(capt)
-            if self.glide_style_capt_emb:
-                with th.cuda.stream(self.capt_stream):
-                    eos = capt[th.arange(capt_toks.shape[0]), :, capt_toks.argmax(dim=-1)]
-                    emb = emb + self.capt_embed(eos)
+            with th.cuda.stream(self.capt_stream):
+                capt, capt_attn_mask = self.embed_capt_cached(capt) if self.use_inference_caching else self.embed_capt(capt)
+                if self.glide_style_capt_emb:
+                        eos = capt[th.arange(capt_toks.shape[0]), :, capt_toks.argmax(dim=-1)]
+                        emb = emb + self.capt_embed(eos)
 
         # TODO: do this only at xattn layer
         th.cuda.current_stream().wait_stream(self.txt_stream)

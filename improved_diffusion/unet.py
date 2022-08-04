@@ -1021,7 +1021,8 @@ class UNetModel(nn.Module):
                                 num_heads=num_heads_here,
                                 use_checkpoint_lowcost=use_checkpoint_lowcost,
                                 base_channels=expand_timestep_base_dim * ch // model_channels,
-                                encoder_channels=self.capt_embd_dim if self.glide_style_capt_attn else None
+                                encoder_channels=self.capt_embd_dim if self.glide_style_capt_attn else None,
+                                capt_stream=self.capt_stream,
                             )
                         )
                     else:
@@ -1141,7 +1142,8 @@ class UNetModel(nn.Module):
                 num_heads=num_heads,
                 use_checkpoint_lowcost=use_checkpoint_lowcost,
                 base_channels=expand_timestep_base_dim * ch // model_channels,
-                encoder_channels=self.capt_embd_dim if self.glide_style_capt_attn else None
+                encoder_channels=self.capt_embd_dim if self.glide_style_capt_attn else None,
+                capt_stream=self.capt_stream,
             )
 
         self.middle_block = TimestepEmbedSequential(
@@ -1196,7 +1198,8 @@ class UNetModel(nn.Module):
                                 num_heads=num_heads_here,
                                 use_checkpoint_lowcost=use_checkpoint_lowcost,
                                 base_channels=expand_timestep_base_dim * ch // model_channels,
-                                encoder_channels=self.capt_embd_dim if self.glide_style_capt_attn else None
+                                encoder_channels=self.capt_embd_dim if self.glide_style_capt_attn else None,
+                                capt_stream=self.capt_stream,
                             )
                         )
                     else:
@@ -1458,7 +1461,7 @@ class UNetModel(nn.Module):
 
         # TODO: do this only at xattn layer
         # th.cuda.current_stream().wait_stream(self.txt_stream)
-        th.cuda.current_stream().wait_stream(self.capt_stream)
+        # th.cuda.current_stream().wait_stream(self.capt_stream)
 
         h = x
 

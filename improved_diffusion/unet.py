@@ -1460,7 +1460,6 @@ class UNetModel(nn.Module):
                 if self.glide_style_capt_emb:
                         eos = capt[th.arange(capt_toks.shape[0]), :, capt_toks.argmax(dim=-1)]
                         emb = emb + self.capt_embed(eos)
-            print(("capt stream done", self.capt_stream.query()))
 
         # TODO: do this only at xattn layer
         # th.cuda.current_stream().wait_stream(self.txt_stream)

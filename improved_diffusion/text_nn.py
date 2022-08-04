@@ -621,6 +621,7 @@ class WeaveAttention(nn.Module):
         no_itot=False,
         txt_already_normed=False,
         post_txt_image_attn=None,
+        txt_stream=None,
         **text_to_image_kwargs,
     ):
         super().__init__()
@@ -682,8 +683,13 @@ class WeaveAttention(nn.Module):
             *[CrossAttention(**text_to_image_kwargs) for _ in range(n_layers)]
         )
 
+        self.txt_stream = txt_stream
+
 
     def forward(self, text, image, attn_mask=None, tgt_pos_embs=None, timestep_emb=None):
+        if self.txt_stream is not None:
+            th.cuda.current_stream().wait_stream(self.txt_stream)
+
         shared_kwargs = dict(attn_mask=attn_mask, timestep_emb=timestep_emb)
 
         orig_text = text

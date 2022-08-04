@@ -1063,6 +1063,7 @@ class UNetModel(nn.Module):
                             qkv_dim_always_text=weave_qkv_dim_always_text,
                             weave_v2=weave_v2,
                             use_ff_gain=weave_use_ff_gain,
+                            txt_stream=self.txt_stream,
                         ))
                         caa = WeaveAttentionAdapter(**caa_args) if use_attn else nn.Identity()
                     else:
@@ -1280,6 +1281,7 @@ class UNetModel(nn.Module):
                                 weave_v2=weave_v2,
                                 use_ff_gain=weave_use_ff_gain,
                                 no_itot=use_capt and (not weave_capt),
+                                txt_stream=self.txt_stream,
                             ))
                             caa = WeaveAttentionAdapter(**caa_args) if use_attn else nn.Identity()
                         else:
@@ -1448,7 +1450,7 @@ class UNetModel(nn.Module):
                 emb = emb + self.capt_embed(eos)
 
         # TODO: do this only at xattn layer
-        th.cuda.current_stream().wait_stream(self.txt_stream)
+        # th.cuda.current_stream().wait_stream(self.txt_stream)
 
         h = x
 

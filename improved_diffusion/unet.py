@@ -1457,7 +1457,7 @@ class UNetModel(nn.Module):
                         emb = emb + self.capt_embed(eos)
 
         # TODO: do this only at xattn layer
-        th.cuda.current_stream().wait_stream(self.txt_stream)
+        # th.cuda.current_stream().wait_stream(self.txt_stream)
         th.cuda.current_stream().wait_stream(self.capt_stream)
 
         h = x

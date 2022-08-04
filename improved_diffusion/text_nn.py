@@ -684,6 +684,7 @@ class WeaveAttention(nn.Module):
         )
 
         self.txt_stream = txt_stream
+        print(("self.txt_stream", self.txt_stream))
 
 
     def forward(self, text, image, attn_mask=None, tgt_pos_embs=None, timestep_emb=None):

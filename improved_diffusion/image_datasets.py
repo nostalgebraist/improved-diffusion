@@ -161,8 +161,8 @@ def load_data(
         n_with_px_scale = len(set(text_file_to_image_file.values()).intersection(image_file_to_px_scales.keys()))
         print(f"of {n_texts} texts, {n_with_px_scale} have px scales (all px scales: {len(image_file_to_px_scales)})")
 
-    n_images_with_capts = len(set(image_file_to_text_file.keys()).intersection(image_file_to_capt.keys()))
-    print(f"of {len(image_file_to_text_file)} txt images, {n_images_with_capts} have capts (all capts: {len(image_file_to_capt)})")
+    n_images_with_capts = len(set(all_files).intersection(image_file_to_capt.keys()))
+    print(f"of {len(all_files)} images, {n_images_with_capts} have capts (all capts: {len(image_file_to_capt)})")
 
     if clip_probs is not None:
         n_images_with_clip_probs = len(set(all_files).intersection(clip_probs.keys()))
@@ -457,6 +457,7 @@ def _list_image_files_recursively(data_dir, txt=False, min_filesize=0, min_image
     n_excluded_filesize = 0
     n_excluded_imagesize = 0
     n_excluded_path = 0
+    n_capts = 0
     for entry in sorted(bf.listdir(data_dir)):
         full_path = bf.join(data_dir, entry)
 
@@ -470,6 +471,8 @@ def _list_image_files_recursively(data_dir, txt=False, min_filesize=0, min_image
         if "." in entry and ext.lower() in ["jpg", "jpeg", "png", "gif"]:
             if require_capts and (safebox_key not in capts):
                 continue
+
+            n_capts += int(safebox_key in capts)
 
             if min_filesize > 0:
                 filesize = os.path.getsize(full_path)
@@ -514,7 +517,7 @@ def _list_image_files_recursively(data_dir, txt=False, min_filesize=0, min_image
             image_file_to_safebox.update(next_image_file_to_safebox)
             image_file_to_px_scales.update(next_image_file_to_px_scales)
             image_file_to_capt.update(next_image_file_to_capt)
-    print(f"_list_image_files_recursively: data_dir={data_dir}, n_excluded_filesize={n_excluded_filesize}, n_excluded_imagesize={n_excluded_imagesize},\n\tn_excluded_path={n_excluded_path}")
+    print(f"_list_image_files_recursively: data_dir={data_dir}, n_excluded_filesize={n_excluded_filesize}, n_excluded_imagesize={n_excluded_imagesize},\n\tn_excluded_path={n_excluded_path}, n_capts={n_capts}")
     image_file_to_safebox = {k: v for k, v in image_file_to_safebox.items() if v is not None}
     image_file_to_px_scales = {k: v for k, v in image_file_to_px_scales.items() if v is not None}
     image_file_to_capt = {k: v for k, v in image_file_to_capt.items() if v is not None}
@@ -568,6 +571,7 @@ class ImageDataset(Dataset):
             self.image_file_to_px_scales = {}
 
         self.image_file_to_capt = image_file_to_capt
+        self.using_capts = image_file_to_capt is not None
         if self.image_file_to_capt is None:
             self.image_file_to_capt = {}
         self.capt_pdrop = capt_pdrop
@@ -598,7 +602,7 @@ class ImageDataset(Dataset):
             pil_image = Image.open(f)
             pil_image.load()
 
-        text = None
+        text, capt = None, None
         if self.txt:
             path_txt = self.local_texts[idx]
             with bf.BlobFile(path_txt, "r") as f:
@@ -654,25 +658,29 @@ class ImageDataset(Dataset):
             drop_class = (self.class_pdrop > 0) and (random.random() < self.class_pdrop)
             this_class = self.class_ix_drop if drop_class else self.local_classes[idx]
             out_dict["y"] = np.array(this_class, dtype=np.int64)
+
+        drop_txt = (self.txt_pdrop > 0) and (random.random() < self.txt_pdrop)
+        drop_capt = (self.capt_pdrop > 0) and (random.random() < self.capt_pdrop)
+
+        if (self.all_pdrop > 0) and (random.random() < self.all_pdrop):
+            drop_txt = True
+            drop_capt = True
+
+        if drop_txt:
+            text = self.txt_drop_string
+        if text is not None and (len(text) == 0) and self.empty_string_to_drop_string:
+            text = self.txt_drop_string
+
         if self.txt:
-            drop_txt = (self.txt_pdrop > 0) and (random.random() < self.txt_pdrop)
-            drop_capt = (self.capt_pdrop > 0) and (random.random() < self.capt_pdrop)
-
-            if (self.all_pdrop > 0) and (random.random() < self.all_pdrop):
-                drop_txt = True
-                drop_capt = True
-
-            if drop_txt:
-                text = self.txt_drop_string
-            if (len(text) == 0) and self.empty_string_to_drop_string:
-                text = self.txt_drop_string
             out_dict['txt'] = text
 
-            capt = self.image_file_to_capt.get(path, self.capt_drop_string)
-            if isinstance(capt, list):
-                capt = random.choice(capt)
-            if drop_capt:
-                capt = self.capt_drop_string
+        capt = self.image_file_to_capt.get(path, self.capt_drop_string)
+        if isinstance(capt, list):
+            capt = random.choice(capt)
+        if drop_capt:
+            capt = self.capt_drop_string
+
+        if self.using_capts:
             out_dict['capt'] = capt
 
         return np.transpose(arr, [2, 0, 1]), out_dict

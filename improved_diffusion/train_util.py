@@ -581,7 +581,7 @@ class TrainLoop:
                         losses = compute_losses()
 
             # debug only
-            print(f"\trun_loop did fwd {i+1}/{self.microbatch}")
+            print(f"\trun_loop did fwd {i+1}/{batch.shape[0]}")
 
             if isinstance(self.schedule_sampler, LossAwareSampler):
                 self.schedule_sampler.update_with_local_losses(

@@ -1438,19 +1438,6 @@ class UNetModel(nn.Module):
         attn_mask = None
         capt_attn_mask = None
 
-        with th.cuda.stream(cuda_streams.txt()):
-            # TODO: get queries for itot ready in this step?
-            if txt is not None:
-                txt, attn_mask = self.text_encoder(txt, timesteps=timesteps)
-                txt = txt.type(self.inner_dtype)
-
-        with th.cuda.stream(cuda_streams.capt()):
-            if self.using_capt and capt is not None:
-                capt, capt_attn_mask = self.embed_capt_cached(capt) if self.use_inference_caching else self.embed_capt(capt)
-                if self.glide_style_capt_emb:
-                    eos = capt[th.arange(capt_toks.shape[0]), :, capt_toks.argmax(dim=-1)]
-                    emb = emb + self.capt_embed(eos)
-
         with th.cuda.stream(cuda_streams.main()):
             hs = []
             emb = self.time_embed(self.timestep_embedding(timesteps))
@@ -1474,7 +1461,7 @@ class UNetModel(nn.Module):
             if self.using_bread_adapter:
                 h_bread_in = self.bread_adapter_in(h)
                 h_bread_out = None
-            for module in self.input_blocks:
+            for i, module in enumerate(self.input_blocks):
                 # print(module)
                 # print(f"h: {h.shape} | hs: {[t.shape for t in hs]}")
                 h, txt, capt = module((h, txt, capt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs, capt_attn_mask=capt_attn_mask)
@@ -1484,6 +1471,21 @@ class UNetModel(nn.Module):
                     else:
                         h = h + h_bread_in
                 hs.append(h)
+
+                if i == 0:
+                    with th.cuda.stream(cuda_streams.txt()):
+                        # TODO: get queries for itot ready in this step?
+                        if txt is not None:
+                            txt, attn_mask = self.text_encoder(txt, timesteps=timesteps)
+                            txt = txt.type(self.inner_dtype)
+
+                    with th.cuda.stream(cuda_streams.capt()):
+                        if self.using_capt and capt is not None:
+                            capt, capt_attn_mask = self.embed_capt_cached(capt) if self.use_inference_caching else self.embed_capt(capt)
+                            if self.glide_style_capt_emb:
+                                eos = capt[th.arange(capt_toks.shape[0]), :, capt_toks.argmax(dim=-1)]
+                                emb = emb + self.capt_embed(eos)
+
                 # print(f'\th type: {h.dtype}')
 
             h, txt, capt = self.middle_block((h, txt, capt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs, capt_attn_mask=capt_attn_mask)

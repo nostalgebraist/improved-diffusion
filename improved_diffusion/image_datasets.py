@@ -705,6 +705,8 @@ def to_visible(img):
 
 
 def save_first_batch(dataloader, path):
+    from clip import _tokenizer
+
     os.makedirs(path, exist_ok=True)
     batch, cond = next(dataloader)
     batch = to_visible(batch)
@@ -718,6 +720,9 @@ def save_first_batch(dataloader, path):
 
     if txts is not None and all(s == '' for s in txts):
         txts = None
+
+    if capts is not None:
+        capts = [_tokenizer.decode(c) for c in capts.cpu().numpy())]
 
     if capts is not None and all(s == '' for s in capts):
         capts = None
@@ -749,6 +754,5 @@ def save_first_batch(dataloader, path):
                 f.write(txt)
 
         if capts is not None:
-            capt = capts[i]
             with open(os.path.join(path, f'{i:04d}{y_segment}_capt.txt'), 'w') as f:
                 f.write(capt)

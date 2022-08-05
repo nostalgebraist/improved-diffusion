@@ -692,7 +692,7 @@ class ImageDataset(Dataset):
 
         if self.using_capts:
             # out_dict['capt'] = capt
-            out_dict['capt'] = clip.tokenize(capt, truncate=True)
+            out_dict['capt'] = clip.tokenize(capt, truncate=True)[0, :]
 
         return np.transpose(arr, [2, 0, 1]), out_dict
 

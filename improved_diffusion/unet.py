@@ -1486,7 +1486,7 @@ class UNetModel(nn.Module):
                                 eos = capt[th.arange(capt_toks.shape[0]), :, capt_toks.argmax(dim=-1)]
                                 emb = emb + self.capt_embed(eos)
 
-                if i == (len(self.input_blocks)//2):  # heaviest cuda load
+                if i == (3*len(self.input_blocks)//4):
                     with th.cuda.stream(cuda_streams.txt()):
                         # TODO: get queries for itot ready in this step?
                         if txt is not None:

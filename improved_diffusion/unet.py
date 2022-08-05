@@ -1437,6 +1437,7 @@ class UNetModel(nn.Module):
             self.noise_cond
         ), "must specify noise_cond if and only if the model uses noise cond"
 
+        th.cuda.synchronize()
 
         with th.cuda.stream(self.main_stream):
             hs = []
@@ -1456,8 +1457,8 @@ class UNetModel(nn.Module):
             if self.using_capt and capt is not None:
                 capt, capt_attn_mask = self.embed_capt_cached(capt) if self.use_inference_caching else self.embed_capt(capt)
                 if self.glide_style_capt_emb:
-                        eos = capt[th.arange(capt_toks.shape[0]), :, capt_toks.argmax(dim=-1)]
-                        emb = emb + self.capt_embed(eos)
+                    eos = capt[th.arange(capt_toks.shape[0]), :, capt_toks.argmax(dim=-1)]
+                    emb = emb + self.capt_embed(eos)
 
         with th.cuda.stream(self.main_stream):
             h = x

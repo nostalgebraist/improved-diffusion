@@ -1478,7 +1478,7 @@ class UNetModel(nn.Module):
                         h = h + h_bread_in
                 hs.append(h)
 
-                if i == self.first_attn_block_ix:
+                if i == (self.first_attn_block_ix - 1):
                     with th.cuda.stream(cuda_streams.capt()):
                         if self.using_capt and capt is not None:
                             capt, capt_attn_mask = self.embed_capt_cached(capt) if self.use_inference_caching else self.embed_capt(capt)

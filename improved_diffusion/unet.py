@@ -1435,8 +1435,6 @@ class UNetModel(nn.Module):
             self.noise_cond
         ), "must specify noise_cond if and only if the model uses noise cond"
 
-        th.cuda.synchronize()
-
         attn_mask = None
         capt_attn_mask = None
 

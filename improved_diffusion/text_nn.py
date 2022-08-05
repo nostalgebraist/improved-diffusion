@@ -621,7 +621,7 @@ class WeaveAttention(nn.Module):
         no_itot=False,
         txt_already_normed=False,
         post_txt_image_attn=None,
-        txt_stream=None,
+        txt_stream=lambda: None,
         **text_to_image_kwargs,
     ):
         super().__init__()

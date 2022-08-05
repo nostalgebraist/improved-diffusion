@@ -468,7 +468,7 @@ class AttentionBlock(GlideStyleBlock):
                  zero_init_pos_emb=True,
                  zero_init_proj_out=True,
                  use_rotary_pos_emb=False,
-                 capt_stream=None,
+                 capt_stream=lambda: None,
                  ):
         super().__init__()
         self.channels = channels

@@ -79,16 +79,16 @@ def better_multi_head_attention_forward(
     num_heads: int,
     dropout_p: float,
     out_proj_weight: th.Tensor,
-    out_proj_bias: Optional[Tensor],
+    out_proj_bias: Optional[th.Tensor],
     training: bool = True,
     need_weights: bool = True,
-    attn_mask: Optional[Tensor] = None,
-) -> Tuple[Tensor, Optional[Tensor]]:
+    attn_mask: Optional[th.Tensor] = None,
+) -> Tuple[th.Tensor, Optional[th.Tensor]]:
     # set up shape vars
     tgt_len, bsz, embed_dim = query.shape
     src_len, _, _ = key.shape
 
-    if isinstance(embed_dim, torch.Tensor):
+    if isinstance(embed_dim, th.Tensor):
         # embed_dim can be a tensor when JIT tracing
         head_dim = embed_dim.div(num_heads, rounding_mode='trunc')
     else:
@@ -109,8 +109,8 @@ def better_multi_head_attention_forward(
     src_len = k.size(1)
 
     # convert mask to float
-    if attn_mask is not None and attn_mask.dtype == torch.bool:
-        new_attn_mask = torch.zeros_like(attn_mask, dtype=q.dtype)
+    if attn_mask is not None and attn_mask.dtype == th.bool:
+        new_attn_mask = th.zeros_like(attn_mask, dtype=q.dtype)
         new_attn_mask.masked_fill_(attn_mask, float("-inf"))
         attn_mask = new_attn_mask
 

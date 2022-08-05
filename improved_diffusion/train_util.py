@@ -483,9 +483,12 @@ class TrainLoop:
         ):
             batch, cond = next(self.data)
 
-            if self.use_profiler and (self.step > 0) and False:
-                with th.profiler.profile(with_stack=False, profile_memory=False, with_flops=False) as _p:
-                    self.run_step(batch, cond, verbose = (self.step % self.log_interval == 0))
+            if self.use_profiler and (self.step > 0):
+                with th.profiler.profile(with_stack=True, profile_memory=False, with_flops=False) as _p:
+                    try:
+                        self.run_step(batch, cond, verbose = (self.step % self.log_interval == 0))
+                    except Exception as e:
+                        print(repr(e))
                 print(_p.key_averages(
                     # group_by_stack_n=15
                 ).table(sort_by="self_cuda_time_total", row_limit=50))
@@ -565,7 +568,7 @@ class TrainLoop:
                     model_kwargs=micro_cond,
                 )
 
-                if self.use_profiler and (i > 0):
+                if self.use_profiler and (i > 0) and False:
                     with th.profiler.profile(with_stack=True, profile_memory=False, with_flops=False) as _p:
                         try:
                             compute_losses()
@@ -602,6 +605,8 @@ class TrainLoop:
             log_loss_dict(
                 self.diffusion, t, {k: v * weights for k, v in losses.items()}
             )
+            if self.use_profiler and (self.step > 0):
+                raise ValueError('skipping bwd')
             grad_acc_scale = micro.shape[0] / self.batch_size
             if self.use_fp16:
                 loss_scale = 2 ** self.lg_loss_scale

@@ -177,6 +177,7 @@ def main():
         noise_cond_max_step=args.noise_cond_max_step,
         capt_lr=args.capt_lr,
         freeze_capt_encoder=args.freeze_capt_encoder,
+        use_profiler=args.use_profiler,
     ).run_loop()
 
 
@@ -264,6 +265,7 @@ def create_argparser():
         cudnn_benchmark=False,
         exclusions_data_path="",
         use_streams=True,
+        use_profiler=False,
     )
     defaults.update(sr_model_and_diffusion_defaults())
     parser = argparse.ArgumentParser()

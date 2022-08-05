@@ -1448,10 +1448,6 @@ class UNetModel(nn.Module):
             emb = emb + self.label_emb(y)
 
         attn_mask = None
-        if txt is not None:
-            with th.cuda.stream(self.txt_stream):
-                txt, attn_mask = self.text_encoder(txt, timesteps=timesteps)
-                txt = txt.type(self.inner_dtype)
 
         capt_attn_mask = None
         if self.using_capt and capt is not None:
@@ -1491,6 +1487,12 @@ class UNetModel(nn.Module):
                     h = h + h_bread_in
             hs.append(h)
             # print(f'\th type: {h.dtype}')
+
+        if txt is not None:
+            with th.cuda.stream(self.txt_stream):
+                txt, attn_mask = self.text_encoder(txt, timesteps=timesteps)
+                txt = txt.type(self.inner_dtype)
+
         h, txt, capt = self.middle_block((h, txt, capt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs, capt_attn_mask=capt_attn_mask)
         skip_pop = False
         for module in self.output_blocks:

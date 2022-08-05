@@ -130,6 +130,7 @@ def main():
         class_ix_drop=args.class_ix_drop,
         class_pdrop=args.class_pdrop,
         exclusions_data_path=args.exclusions_data_path,
+        tokenizer=tokenizer,
     )
 
     if args.save_first_batch:

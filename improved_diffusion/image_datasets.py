@@ -16,6 +16,8 @@ from tqdm.auto import trange
 
 import imagesize
 
+import clip
+
 
 def make_char_level_tokenizer():
     tokenizer = tokenizers.Tokenizer(tokenizers.models.BPE(unk_token="<unk>"))
@@ -73,6 +75,7 @@ def load_data(
     clip_prob_path=None,
     clip_prob_middle_pkeep=0.5,
     exclusions_data_path=None,
+    tokenizer=None,
     debug=False,
 ):
     """
@@ -268,6 +271,7 @@ def load_data(
         all_pdrop=all_pdrop,
         class_ix_drop=class_ix_drop,
         class_pdrop=class_pdrop,
+        tokenizer=tokenizer,
     )
     if return_dataset:
         return dataset
@@ -364,6 +368,7 @@ def load_superres_data(data_dir, batch_size, large_size, small_size, class_cond=
                        class_ix_drop=999,
                        class_pdrop=0.1,
                        exclusions_data_path=None,
+                       tokenizer=None,
                        antialias=False,
                        bicubic_down=False,
                        ):
@@ -407,6 +412,7 @@ def load_superres_data(data_dir, batch_size, large_size, small_size, class_cond=
         class_ix_drop=class_ix_drop,
         class_pdrop=class_pdrop,
         exclusions_data_path=exclusions_data_path,
+        tokenizer=tokenizer,
     )
 
     blurrer = T.RandomApply(transforms=[T.GaussianBlur(blur_width, sigma=(blur_sigma_min, blur_sigma_max))], p=blur_prob)
@@ -546,6 +552,7 @@ class ImageDataset(Dataset):
                  all_pdrop=0.1,
                  class_ix_drop=999,
                  class_pdrop=0.1,
+                 tokenizer=None,
                  ):
         super().__init__()
         self.resolution = resolution
@@ -579,6 +586,8 @@ class ImageDataset(Dataset):
         self.all_pdrop = all_pdrop
         self.class_ix_drop = class_ix_drop
         self.class_pdrop = class_pdrop
+
+        self.tokenizer = tokenizer
 
         if (self.image_file_to_safebox is not None) and (self.pre_resize_transform is None):
             raise ValueError
@@ -673,6 +682,7 @@ class ImageDataset(Dataset):
 
         if self.txt:
             out_dict['txt'] = text
+            # TODO: (low impact) tokenizer in dataloader
 
         capt = self.image_file_to_capt.get(path, self.capt_drop_string)
         if isinstance(capt, list):
@@ -681,7 +691,8 @@ class ImageDataset(Dataset):
             capt = self.capt_drop_string
 
         if self.using_capts:
-            out_dict['capt'] = capt
+            # out_dict['capt'] = capt
+            out_dict['capt'] = clip.tokenize(capt, truncate=True)
 
         return np.transpose(arr, [2, 0, 1]), out_dict
 

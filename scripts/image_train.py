@@ -142,6 +142,7 @@ def main():
         clip_prob_middle_pkeep=args.clip_prob_middle_pkeep,
         exclusions_data_path=args.exclusions_data_path,
         num_workers=args.perf_num_workers,
+        tokenizer=tokenizer,
     )
 
     if args.save_first_batch:

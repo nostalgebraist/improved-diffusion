@@ -1472,7 +1472,7 @@ class UNetModel(nn.Module):
                         h = h + h_bread_in
                 hs.append(h)
 
-                if i == 0:
+                if i == 1:  # first heavy block
                     with th.cuda.stream(cuda_streams.txt()):
                         # TODO: get queries for itot ready in this step?
                         if txt is not None:

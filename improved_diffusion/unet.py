@@ -1437,13 +1437,25 @@ class UNetModel(nn.Module):
             self.noise_cond
         ), "must specify noise_cond if and only if the model uses noise cond"
 
-        self.main_stream.wait_stream(th.cuda.current_stream())
+        th.cuda.synchronize()
+
+        attn_mask = None
+        capt_attn_mask = None
+
+        with th.cuda.stream(self.txt_stream):
+            # TODO: get queries for itot ready in this step?
+            if txt is not None:
+                txt, attn_mask = self.text_encoder(txt, timesteps=timesteps)
+                txt = txt.type(self.inner_dtype)
+
+        with th.cuda.stream(self.capt_stream):
+            if self.using_capt and capt is not None:
+                capt, capt_attn_mask = self.embed_capt_cached(capt) if self.use_inference_caching else self.embed_capt(capt)
+                if self.glide_style_capt_emb:
+                    eos = capt[th.arange(capt_toks.shape[0]), :, capt_toks.argmax(dim=-1)]
+                    emb = emb + self.capt_embed(eos)
 
         with th.cuda.stream(self.main_stream):
-            timesteps.record_stream(self.main_stream)
-            if cond_timesteps is not None:
-                cond_timesteps.record_stream(self.main_stream)
-
             hs = []
             emb = self.time_embed(self.timestep_embedding(timesteps))
 
@@ -1454,21 +1466,6 @@ class UNetModel(nn.Module):
                 assert y.shape == (x.shape[0],)
                 emb = emb + self.label_emb(y)
 
-            attn_mask = None
-            capt_attn_mask = None
-
-        self.capt_stream.wait_stream(th.cuda.current_stream())
-
-        with th.cuda.stream(self.capt_stream):
-            if self.using_capt and capt is not None:
-                capt, capt_attn_mask = self.embed_capt_cached(capt) if self.use_inference_caching else self.embed_capt(capt)
-                capt.record_stream(self.capt_stream)
-                capt_attn_mask.record_stream(self.capt_stream)
-                if self.glide_style_capt_emb:
-                    eos = capt[th.arange(capt_toks.shape[0]), :, capt_toks.argmax(dim=-1)]
-                    emb = emb + self.capt_embed(eos)
-
-        with th.cuda.stream(self.main_stream):
             h = x
 
             if self.monochrome_adapter:
@@ -1493,16 +1490,6 @@ class UNetModel(nn.Module):
                 hs.append(h)
                 # print(f'\th type: {h.dtype}')
 
-        self.txt_stream.wait_stream(th.cuda.current_stream())
-
-        with th.cuda.stream(self.txt_stream):
-            # TODO: get queries for itot ready in this step?
-            if txt is not None:
-                txt, attn_mask = self.text_encoder(txt, timesteps=timesteps)
-                txt = txt.type(self.inner_dtype)
-                txt.record_stream(self.txt_stream)
-
-        with th.cuda.stream(self.main_stream):
             h, txt, capt = self.middle_block((h, txt, capt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs, capt_attn_mask=capt_attn_mask)
             skip_pop = False
             for module in self.output_blocks:
@@ -1555,6 +1542,8 @@ class UNetModel(nn.Module):
                 h = self.output_to_rgb(h)
             if self.monochrome_adapter:
                 h = self.rgb_to_mono(h)
+
+        th.cuda.synchronize()
 
         return h
 

@@ -565,7 +565,7 @@ class TrainLoop:
                     model_kwargs=micro_cond,
                 )
 
-                if self.use_profiler and (self.step > 0):
+                if self.use_profiler and (i > 0):
                     with th.profiler.profile(with_stack=True, profile_memory=False, with_flops=False) as _p:
                         compute_losses()
                     # print(_p.key_averages(

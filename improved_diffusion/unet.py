@@ -1491,7 +1491,7 @@ class UNetModel(nn.Module):
                         # TODO: get queries for itot ready in this step?
                         if txt is not None:
                             txt, attn_mask = self.text_encoder(txt, timesteps=timesteps)
-                            txt = txt.type(self.inner_dtype)
+                            # txt = txt.type(self.inner_dtype)
 
 
                 # print(f'\th type: {h.dtype}')

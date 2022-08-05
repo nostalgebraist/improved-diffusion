@@ -1437,7 +1437,7 @@ class UNetModel(nn.Module):
             self.noise_cond
         ), "must specify noise_cond if and only if the model uses noise cond"
 
-        self.main_stream.wait_stream(torch.cuda.current_stream())
+        self.main_stream.wait_stream(th.cuda.current_stream())
 
         with th.cuda.stream(self.main_stream):
             hs = []
@@ -1453,7 +1453,7 @@ class UNetModel(nn.Module):
             attn_mask = None
             capt_attn_mask = None
 
-        self.capt_stream.wait_stream(torch.cuda.current_stream())
+        self.capt_stream.wait_stream(th.cuda.current_stream())
 
         with th.cuda.stream(self.capt_stream):
             if self.using_capt and capt is not None:
@@ -1487,7 +1487,7 @@ class UNetModel(nn.Module):
                 hs.append(h)
                 # print(f'\th type: {h.dtype}')
 
-        self.txt_stream.wait_stream(torch.cuda.current_stream())
+        self.txt_stream.wait_stream(th.cuda.current_stream())
 
         with th.cuda.stream(self.txt_stream):
             # TODO: get queries for itot ready in this step?

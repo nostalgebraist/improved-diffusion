@@ -1437,7 +1437,7 @@ class UNetModel(nn.Module):
             self.noise_cond
         ), "must specify noise_cond if and only if the model uses noise cond"
 
-        th.cuda.synchronize()
+        self.main_stream.wait_stream(torch.cuda.current_stream())
 
         with th.cuda.stream(self.main_stream):
             hs = []
@@ -1452,6 +1452,8 @@ class UNetModel(nn.Module):
 
             attn_mask = None
             capt_attn_mask = None
+
+        self.capt_stream.wait_stream(torch.cuda.current_stream())
 
         with th.cuda.stream(self.capt_stream):
             if self.using_capt and capt is not None:
@@ -1484,6 +1486,8 @@ class UNetModel(nn.Module):
                         h = h + h_bread_in
                 hs.append(h)
                 # print(f'\th type: {h.dtype}')
+
+        self.txt_stream.wait_stream(torch.cuda.current_stream())
 
         with th.cuda.stream(self.txt_stream):
             # TODO: get queries for itot ready in this step?
@@ -1592,9 +1596,8 @@ class SuperResModel(UNetModel):
 
     def forward(self, x, timesteps, low_res=None, **kwargs):
         _, _, new_height, new_width = x.shape
-        with th.cuda.stream(self.main_stream):
-            upsampled = F.interpolate(low_res, (new_height, new_width), mode=self.up_interp_mode)
-            x = th.cat([x, upsampled], dim=1)
+        upsampled = F.interpolate(low_res, (new_height, new_width), mode=self.up_interp_mode)
+        x = th.cat([x, upsampled], dim=1)
         return super().forward(x, timesteps, **kwargs)
 
     def get_feature_vectors(self, x, timesteps, low_res=None, **kwargs):

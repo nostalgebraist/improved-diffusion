@@ -564,7 +564,7 @@ class TrainLoop:
 
                 if self.use_profiler and (self.step > 0):
                     with th.profiler.profile(with_stack=True, profile_memory=False, with_flops=False) as _p:
-                        self.compute_losses()
+                        compute_losses()
                     # print(_p.key_averages(
                     #     # group_by_stack_n=15
                     # ).table(sort_by="self_cuda_time_total", row_limit=50))

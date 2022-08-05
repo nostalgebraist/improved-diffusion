@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Tuple
 
 import torch as th
 from torch.nn.functional import _scaled_dot_product_attention

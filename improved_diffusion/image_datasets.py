@@ -754,5 +754,6 @@ def save_first_batch(dataloader, path):
                 f.write(txt)
 
         if capts is not None:
+            capt = capts[i]
             with open(os.path.join(path, f'{i:04d}{y_segment}_capt.txt'), 'w') as f:
                 f.write(capt)

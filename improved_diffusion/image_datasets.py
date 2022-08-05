@@ -705,7 +705,7 @@ def to_visible(img):
 
 
 def save_first_batch(dataloader, path):
-    from clip import _tokenizer
+    from clip.clip import _tokenizer
 
     os.makedirs(path, exist_ok=True)
     batch, cond = next(dataloader)

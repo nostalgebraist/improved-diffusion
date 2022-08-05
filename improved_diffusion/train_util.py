@@ -476,13 +476,14 @@ class TrainLoop:
     @cuda_streams.use_main_stream
     def run_loop(self):
         t1 = time.time()
+        print(f"run_loop start: self.step={self.step}")
         while (
             not self.lr_anneal_steps
             or self.step + self.resume_step < self.lr_anneal_steps
         ):
             batch, cond = next(self.data)
 
-            if self.use_profiler and (self.step > 0):
+            if self.use_profiler and (self.step > 0) and False:
                 with th.profiler.profile(with_stack=False, profile_memory=False, with_flops=False) as _p:
                     self.run_step(batch, cond, verbose = (self.step % self.log_interval == 0))
                 print(_p.key_averages(
@@ -560,6 +561,15 @@ class TrainLoop:
                     t,
                     model_kwargs=micro_cond,
                 )
+
+                if self.use_profiler and (self.step > 0):
+                    with th.profiler.profile(with_stack=True, profile_memory=False, with_flops=False) as _p:
+                        self.compute_losses()
+                    # print(_p.key_averages(
+                    #     # group_by_stack_n=15
+                    # ).table(sort_by="self_cuda_time_total", row_limit=50))
+                    _p.export_chrome_trace('chromeprof')
+                    raise ValueError('done saving')
 
                 if last_batch or not self.use_ddp:
                     losses = compute_losses()

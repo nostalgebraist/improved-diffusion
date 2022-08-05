@@ -27,6 +27,8 @@ from .gaussian_diffusion import SimpleForwardDiffusion, get_named_beta_schedule
 
 from .image_datasets import tokenize
 
+from improved_diffusion import cuda_streams
+
 import clip
 
 # For ImageNet experiments, this was a good default value.
@@ -471,6 +473,7 @@ class TrainLoop:
     def _setup_amp(self):
         self.grad_scaler = th.cuda.amp.GradScaler(init_scale=2 ** self.lg_loss_scale, growth_interval=int(1 / self.fp16_scale_growth))
 
+    @cuda_streams.use_main_stream
     def run_loop(self):
         t1 = time.time()
         while (

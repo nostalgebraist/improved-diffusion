@@ -688,8 +688,8 @@ class WeaveAttention(nn.Module):
 
 
     def forward(self, text, image, attn_mask=None, tgt_pos_embs=None, timestep_emb=None):
-        if self.txt_stream is not None:
-            torch.cuda.current_stream().wait_stream(self.txt_stream)
+        if self.txt_stream() is not None:
+            torch.cuda.current_stream().wait_stream(self.txt_stream())
 
         shared_kwargs = dict(attn_mask=attn_mask, timestep_emb=timestep_emb)
 

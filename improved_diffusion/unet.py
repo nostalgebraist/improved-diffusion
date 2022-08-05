@@ -33,6 +33,7 @@ from .nn import (
 )
 
 from .text_nn import TextEncoder, CrossAttention, WeaveAttention
+from improved_diffusion import cuda_streams
 
 import clip
 from transformer_utils.partial_forward import partial_forward
@@ -536,8 +537,8 @@ class AttentionBlock(GlideStyleBlock):
         qkv = self.qkv(norm_out)
         qkv = qkv.reshape(b * self.num_heads, -1, qkv.shape[2])
 
-        if self.capt_stream is not None:
-            th.cuda.current_stream().wait_stream(self.capt_stream)
+        if self.capt_stream() is not None:
+            th.cuda.current_stream().wait_stream(self.capt_stream())
 
         if (encoder_out is not None) and (self.encoder_kv is not None):
             encoder_kv = self.encoder_kv(encoder_out)
@@ -963,10 +964,6 @@ class UNetModel(nn.Module):
         self.bread_adapter_only = bread_adapter_only
         print(f'unet self.bread_adapter_only: {self.bread_adapter_only}')
 
-        self.main_stream = th.cuda.Stream()
-        self.txt_stream = th.cuda.Stream()
-        self.capt_stream = th.cuda.Stream()
-
         mapper = lambda x: x
         if self.using_bread_adapter and bread_adapter_zero_conv_in:
             mapper = zero_module
@@ -1025,7 +1022,7 @@ class UNetModel(nn.Module):
                                 use_checkpoint_lowcost=use_checkpoint_lowcost,
                                 base_channels=expand_timestep_base_dim * ch // model_channels,
                                 encoder_channels=self.capt_embd_dim if self.glide_style_capt_attn else None,
-                                capt_stream=self.capt_stream,
+                                capt_stream=cuda_streams.capt,
                             )
                         )
                     else:
@@ -1076,7 +1073,7 @@ class UNetModel(nn.Module):
                             qkv_dim_always_text=weave_qkv_dim_always_text,
                             weave_v2=weave_v2,
                             use_ff_gain=weave_use_ff_gain,
-                            txt_stream=self.txt_stream,
+                            txt_stream=cuda_streams.txt,
                         ))
                         caa = WeaveAttentionAdapter(**caa_args) if use_attn else nn.Identity()
                     else:
@@ -1146,7 +1143,7 @@ class UNetModel(nn.Module):
                 use_checkpoint_lowcost=use_checkpoint_lowcost,
                 base_channels=expand_timestep_base_dim * ch // model_channels,
                 encoder_channels=self.capt_embd_dim if self.glide_style_capt_attn else None,
-                capt_stream=self.capt_stream,
+                capt_stream=cuda_streams.capt,
             )
 
         self.middle_block = TimestepEmbedSequential(
@@ -1202,7 +1199,7 @@ class UNetModel(nn.Module):
                                 use_checkpoint_lowcost=use_checkpoint_lowcost,
                                 base_channels=expand_timestep_base_dim * ch // model_channels,
                                 encoder_channels=self.capt_embd_dim if self.glide_style_capt_attn else None,
-                                capt_stream=self.capt_stream,
+                                capt_stream=cuda_streams.capt,
                             )
                         )
                     else:
@@ -1296,7 +1293,7 @@ class UNetModel(nn.Module):
                                 weave_v2=weave_v2,
                                 use_ff_gain=weave_use_ff_gain,
                                 no_itot=use_capt and (not weave_capt),
-                                txt_stream=self.txt_stream,
+                                txt_stream=cuda_streams.txt,
                             ))
                             caa = WeaveAttentionAdapter(**caa_args) if use_attn else nn.Identity()
                         else:
@@ -1412,6 +1409,7 @@ class UNetModel(nn.Module):
             )
         return capt, capt_attn_mask
 
+    @cuda_streams.use_main_stream
     def forward(self, x, timesteps, y=None, txt=None, capt=None, cond_timesteps=None):
         """
         Apply the model to an input batch.
@@ -1442,20 +1440,20 @@ class UNetModel(nn.Module):
         attn_mask = None
         capt_attn_mask = None
 
-        with th.cuda.stream(self.txt_stream):
+        with th.cuda.stream(cuda_streams.txt()):
             # TODO: get queries for itot ready in this step?
             if txt is not None:
                 txt, attn_mask = self.text_encoder(txt, timesteps=timesteps)
                 txt = txt.type(self.inner_dtype)
 
-        with th.cuda.stream(self.capt_stream):
+        with th.cuda.stream(cuda_streams.capt()):
             if self.using_capt and capt is not None:
                 capt, capt_attn_mask = self.embed_capt_cached(capt) if self.use_inference_caching else self.embed_capt(capt)
                 if self.glide_style_capt_emb:
                     eos = capt[th.arange(capt_toks.shape[0]), :, capt_toks.argmax(dim=-1)]
                     emb = emb + self.capt_embed(eos)
 
-        with th.cuda.stream(self.main_stream):
+        with th.cuda.stream(cuda_streams.main()):
             hs = []
             emb = self.time_embed(self.timestep_embedding(timesteps))
 
@@ -1590,6 +1588,7 @@ class SuperResModel(UNetModel):
     def __init__(self, in_channels, *args, **kwargs):
         super().__init__(in_channels + 1 if kwargs.get('colorize') else in_channels * 2, *args, **kwargs)
 
+    @cuda_streams.use_main_stream
     def forward(self, x, timesteps, low_res=None, **kwargs):
         _, _, new_height, new_width = x.shape
         upsampled = F.interpolate(low_res, (new_height, new_width), mode=self.up_interp_mode)

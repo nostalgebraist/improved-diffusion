@@ -494,6 +494,9 @@ class TrainLoop:
             else:
                 self.run_step(batch, cond, verbose = (self.step % self.log_interval == 0))
 
+            # debug only
+            print(f"run_loop did self.step={self.step}")
+
             if self.step % self.log_interval == 0:
                 t2 = time.time()
                 print(f"{t2-t1:.2f} sec")

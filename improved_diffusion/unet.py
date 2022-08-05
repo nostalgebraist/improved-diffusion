@@ -963,6 +963,7 @@ class UNetModel(nn.Module):
         self.bread_adapter_only = bread_adapter_only
         print(f'unet self.bread_adapter_only: {self.bread_adapter_only}')
 
+        self.main_stream = th.cuda.Stream()
         self.txt_stream = th.cuda.Stream()
         self.capt_stream = th.cuda.Stream()
 
@@ -1437,114 +1438,111 @@ class UNetModel(nn.Module):
         ), "must specify noise_cond if and only if the model uses noise cond"
 
 
-        hs = []
-        emb = self.time_embed(self.timestep_embedding(timesteps))
+        with th.cuda.stream(self.main_stream):
+            hs = []
+            emb = self.time_embed(self.timestep_embedding(timesteps))
 
-        if cond_timesteps is not None:
-            emb = emb + self.time_embed_noise_cond(self.timestep_embedding(cond_timesteps))
+            if cond_timesteps is not None:
+                emb = emb + self.time_embed_noise_cond(self.timestep_embedding(cond_timesteps))
 
-        if self.num_classes is not None:
-            assert y.shape == (x.shape[0],)
-            emb = emb + self.label_emb(y)
+            if self.num_classes is not None:
+                assert y.shape == (x.shape[0],)
+                emb = emb + self.label_emb(y)
 
-        attn_mask = None
+            attn_mask = None
+            capt_attn_mask = None
 
-        capt_attn_mask = None
-        if self.using_capt and capt is not None:
-            with th.cuda.stream(self.capt_stream):
+        with th.cuda.stream(self.capt_stream):
+            if self.using_capt and capt is not None:
                 capt, capt_attn_mask = self.embed_capt_cached(capt) if self.use_inference_caching else self.embed_capt(capt)
                 if self.glide_style_capt_emb:
                         eos = capt[th.arange(capt_toks.shape[0]), :, capt_toks.argmax(dim=-1)]
                         emb = emb + self.capt_embed(eos)
 
-        # TODO: do this only at xattn layer
-        # th.cuda.current_stream().wait_stream(self.txt_stream)
-        # th.cuda.current_stream().wait_stream(self.capt_stream)
+        with th.cuda.stream(self.main_stream):
+            h = x
 
-        h = x
+            if self.monochrome_adapter:
+                h = self.mono_to_rgb(h)
+            if self.rgb_adapter:
+                h = self.rgb_to_input(h)
 
-        if self.monochrome_adapter:
-            h = self.mono_to_rgb(h)
-        if self.rgb_adapter:
-            h = self.rgb_to_input(h)
+            if self.channels_last_mem:
+                h = h.to(memory_format=th.channels_last)
+            if self.using_bread_adapter:
+                h_bread_in = self.bread_adapter_in(h)
+                h_bread_out = None
+            for module in self.input_blocks:
+                # print(module)
+                # print(f"h: {h.shape} | hs: {[t.shape for t in hs]}")
+                h, txt, capt = module((h, txt, capt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs, capt_attn_mask=capt_attn_mask)
+                if getattr(module, 'bread_adapter_in_pt', False):
+                    if self.bread_adapter_only:
+                        h = h_bread_in
+                    else:
+                        h = h + h_bread_in
+                hs.append(h)
+                # print(f'\th type: {h.dtype}')
 
-        # print(f'x type: {x.dtype}')
-        # h = h.type(self.inner_dtype)
-        # print(f'h type: {h.dtype}')
-        if self.channels_last_mem:
-            h = h.to(memory_format=th.channels_last)
-        if self.using_bread_adapter:
-            h_bread_in = self.bread_adapter_in(h)
-            h_bread_out = None
-        for module in self.input_blocks:
-            # print(module)
-            # print(f"h: {h.shape} | hs: {[t.shape for t in hs]}")
-            h, txt, capt = module((h, txt, capt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs, capt_attn_mask=capt_attn_mask)
-            if getattr(module, 'bread_adapter_in_pt', False):
-                if self.bread_adapter_only:
-                    h = h_bread_in
-                else:
-                    h = h + h_bread_in
-            hs.append(h)
-            # print(f'\th type: {h.dtype}')
-
-        if txt is not None:
-            with th.cuda.stream(self.txt_stream):
+        with th.cuda.stream(self.txt_stream):
+            # TODO: get queries for itot ready in this step?
+            if txt is not None:
                 txt, attn_mask = self.text_encoder(txt, timesteps=timesteps)
                 txt = txt.type(self.inner_dtype)
 
-        h, txt, capt = self.middle_block((h, txt, capt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs, capt_attn_mask=capt_attn_mask)
-        skip_pop = False
-        for module in self.output_blocks:
-            # print(module)
-            # print(f"h: {h.shape} | hs: {[t.shape for t in hs]}")
-            if skip_pop:
-                cat_in = h
-                skip_pop = False
-            else:
-                if self.expand_timestep_base_dim > 0:
-                    ch = h.shape[1]
-                    mult = ch // self.model_channels
-                    h_base, h_xtra = th.split(
-                        h,
-                        [mult * self.expand_timestep_base_dim, ch - mult * self.expand_timestep_base_dim],
-                        dim=1
-                    )
-
-                    popped = hs.pop()
-                    ch = popped.shape[1]
-                    mult = ch // self.model_channels
-                    popped_base, popped_xtra = th.split(
-                        popped,
-                        [mult * self.expand_timestep_base_dim, ch - mult * self.expand_timestep_base_dim],
-                        dim=1
-                    )
-
-                    cat_in = th.cat([h_base, popped_base, h_xtra, popped_xtra], dim=1)
+        with th.cuda.stream(self.main_stream):
+            h, txt, capt = self.middle_block((h, txt, capt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs, capt_attn_mask=capt_attn_mask)
+            skip_pop = False
+            for module in self.output_blocks:
+                # print(module)
+                # print(f"h: {h.shape} | hs: {[t.shape for t in hs]}")
+                if skip_pop:
+                    cat_in = h
+                    skip_pop = False
                 else:
-                    cat_in = th.cat([h, hs.pop()], dim=1)
-            h, txt, capt = module((cat_in, txt, capt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs, capt_attn_mask=capt_attn_mask)
-            if getattr(module, 'bread_adapter_out_pt', False):
-                h_bread_out = self.bread_adapter_out(h)
-                skip_pop = True
+                    if self.expand_timestep_base_dim > 0:
+                        ch = h.shape[1]
+                        mult = ch // self.model_channels
+                        h_base, h_xtra = th.split(
+                            h,
+                            [mult * self.expand_timestep_base_dim, ch - mult * self.expand_timestep_base_dim],
+                            dim=1
+                        )
+
+                        popped = hs.pop()
+                        ch = popped.shape[1]
+                        mult = ch // self.model_channels
+                        popped_base, popped_xtra = th.split(
+                            popped,
+                            [mult * self.expand_timestep_base_dim, ch - mult * self.expand_timestep_base_dim],
+                            dim=1
+                        )
+
+                        cat_in = th.cat([h_base, popped_base, h_xtra, popped_xtra], dim=1)
+                    else:
+                        cat_in = th.cat([h, hs.pop()], dim=1)
+                h, txt, capt = module((cat_in, txt, capt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs, capt_attn_mask=capt_attn_mask)
+                if getattr(module, 'bread_adapter_out_pt', False):
+                    h_bread_out = self.bread_adapter_out(h)
+                    skip_pop = True
+                # print(f'\th type: {h.dtype}')
+            # h = h.type(x.dtype)
+            # print(f'h type: {h.dtype}')
+
+            h = checkpoint(self.out.forward, (h,), self.out.parameters(), self.image_size <= self.use_checkpoint_below_res)
+
             # print(f'\th type: {h.dtype}')
-        # h = h.type(x.dtype)
-        # print(f'h type: {h.dtype}')
 
-        h = checkpoint(self.out.forward, (h,), self.out.parameters(), self.image_size <= self.use_checkpoint_below_res)
+            if self.using_bread_adapter:
+                if self.bread_adapter_only:
+                    h = h_bread_out
+                else:
+                    h = h + h_bread_out
 
-        # print(f'\th type: {h.dtype}')
-
-        if self.using_bread_adapter:
-            if self.bread_adapter_only:
-                h = h_bread_out
-            else:
-                h = h + h_bread_out
-
-        if self.rgb_adapter:
-            h = self.output_to_rgb(h)
-        if self.monochrome_adapter:
-            h = self.rgb_to_mono(h)
+            if self.rgb_adapter:
+                h = self.output_to_rgb(h)
+            if self.monochrome_adapter:
+                h = self.rgb_to_mono(h)
 
         return h
 

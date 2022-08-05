@@ -1440,6 +1440,10 @@ class UNetModel(nn.Module):
         self.main_stream.wait_stream(th.cuda.current_stream())
 
         with th.cuda.stream(self.main_stream):
+            timesteps.record_stream(self.main_stream)
+            if cond_timesteps is not None:
+                cond_timesteps.record_stream(self.main_stream)
+
             hs = []
             emb = self.time_embed(self.timestep_embedding(timesteps))
 
@@ -1458,6 +1462,8 @@ class UNetModel(nn.Module):
         with th.cuda.stream(self.capt_stream):
             if self.using_capt and capt is not None:
                 capt, capt_attn_mask = self.embed_capt_cached(capt) if self.use_inference_caching else self.embed_capt(capt)
+                capt.record_stream(self.capt_stream)
+                capt_attn_mask.record_stream(self.capt_stream)
                 if self.glide_style_capt_emb:
                     eos = capt[th.arange(capt_toks.shape[0]), :, capt_toks.argmax(dim=-1)]
                     emb = emb + self.capt_embed(eos)
@@ -1494,6 +1500,7 @@ class UNetModel(nn.Module):
             if txt is not None:
                 txt, attn_mask = self.text_encoder(txt, timesteps=timesteps)
                 txt = txt.type(self.inner_dtype)
+                txt.record_stream(self.txt_stream)
 
         with th.cuda.stream(self.main_stream):
             h, txt, capt = self.middle_block((h, txt, capt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs, capt_attn_mask=capt_attn_mask)

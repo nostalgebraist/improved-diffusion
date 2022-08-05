@@ -722,7 +722,7 @@ def save_first_batch(dataloader, path):
         txts = None
 
     if capts is not None:
-        capts = [_tokenizer.decode(c) for c in capts.cpu().numpy())]
+        capts = [_tokenizer.decode(c) for c in capts.cpu().numpy()]
 
     if capts is not None and all(s == '' for s in capts):
         capts = None

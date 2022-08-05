@@ -17,7 +17,7 @@ def turn_streaming_on():
 
 
 def turn_streaming_off():
-    _GLOBAL_FLAGS["streaming_on"] = Fals
+    _GLOBAL_FLAGS["streaming_on"] = False
 
 
 def main():

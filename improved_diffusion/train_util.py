@@ -495,7 +495,7 @@ class TrainLoop:
                 self.run_step(batch, cond, verbose = (self.step % self.log_interval == 0))
 
             # debug only
-            print(f"run_loop did self.step={self.step}")
+            # print(f"run_loop did self.step={self.step}")
 
             if self.step % self.log_interval == 0:
                 t2 = time.time()
@@ -584,7 +584,7 @@ class TrainLoop:
                         losses = compute_losses()
 
             # debug only
-            print(f"\trun_loop did fwd {i+1}/{batch.shape[0]}")
+            # print(f"\trun_loop did fwd {i+1}/{batch.shape[0]}")
 
             if isinstance(self.schedule_sampler, LossAwareSampler):
                 self.schedule_sampler.update_with_local_losses(
@@ -611,7 +611,7 @@ class TrainLoop:
             else:
                 (loss * grad_acc_scale).backward()
             # debug only
-            print(f"\trun_loop did bwd {i+1}/{batch.shape[0]}")
+            # print(f"\trun_loop did bwd {i+1}/{batch.shape[0]}")
 
     def _update_ema(self, params, rate, arith_from_step=0, arith_extra_shift=0, verbose=True):
         def _vprint(*args, **kwargs):

@@ -545,6 +545,7 @@ class TrainLoop:
 
                 txt = th.as_tensor(tokenize(self.tokenizer, micro_cond['txt']), device=dist_util.dev())
                 micro_cond['txt'] = txt
+            print(micro_cond['capt'].shape)
             # if 'capt' in micro_cond:
             #     capt = clip.tokenize(micro_cond['capt'], truncate=True).to(dist_util.dev(), non_blocking=True)
             #     micro_cond['capt'] = capt

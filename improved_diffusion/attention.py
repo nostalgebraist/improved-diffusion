@@ -78,8 +78,6 @@ def better_multi_head_attention_forward(
     value: th.Tensor,
     num_heads: int,
     dropout_p: float,
-    out_proj_weight: th.Tensor,
-    out_proj_bias: Optional[th.Tensor],
     training: bool = True,
     need_weights: bool = True,
     attn_mask: Optional[th.Tensor] = None,
@@ -123,7 +121,6 @@ def better_multi_head_attention_forward(
     #
     attn_output, attn_output_weights = _scaled_dot_product_attention(q, k, v, attn_mask, dropout_p)
     attn_output = attn_output.transpose(0, 1).contiguous().view(tgt_len, bsz, embed_dim)
-    attn_output = linear(attn_output, out_proj_weight, out_proj_bias)
 
     if need_weights:
         # optionally average attention weights over heads

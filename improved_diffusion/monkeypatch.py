@@ -15,7 +15,7 @@ def patched_Attention_forward(
     prev_attn = None,
     mem = None
 ):
-    b, n, _, h, talking_heads, head_scale, scale, device, has_context = *x.shape, self.heads, self.talking_heads, self.head_scale, self.scale, x.device, exists(context)
+    b, n, _, h, talking_heads, collab_heads, head_scale, scale, device, has_context = *x.shape, self.heads, self.talking_heads, self.collab_heads, self.head_scale, self.scale, x.device, exists(context)
     kv_input = default(context, x)
 
     q_input = x
@@ -34,12 +34,14 @@ def patched_Attention_forward(
 
     q = self.to_q(q_input)
     k = self.to_k(k_input)
-    v = self.to_v(v_input) if exists(self.to_v) else k
+    v = self.to_v(v_input)
 
-    q = rearrange(q, 'b n (h d) -> b h n d', h = h)
-
-    if not self.one_kv_head:
-        k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), (k, v))
+    if not collab_heads:
+        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), (q, k, v))
+    else:
+        q = einsum('b i d, h d -> b h i d', q, self.collab_mixing)
+        k = rearrange(k, 'b n d -> b () n d')
+        v = rearrange(v, 'b n (h d) -> b h n d', h = h)
 
     if exists(rotary_pos_emb) and not has_context:
         l = rotary_pos_emb.shape[-1]
@@ -52,8 +54,8 @@ def patched_Attention_forward(
         q_mask = default(mask, lambda: torch.ones((b, n), device = device).bool())
         k_mask = q_mask if not exists(context) else context_mask
         k_mask = default(k_mask, lambda: torch.ones((b, k.shape[-2]), device = device).bool())
-        q_mask = rearrange(q_mask, 'b i -> b 1 i 1')
-        k_mask = rearrange(k_mask, 'b j -> b 1 1 j')
+        q_mask = rearrange(q_mask, 'b i -> b () i ()')
+        k_mask = rearrange(k_mask, 'b j -> b () () j')
         input_mask = q_mask * k_mask
 
     if self.num_mem_kv > 0:
@@ -63,15 +65,14 @@ def patched_Attention_forward(
         if exists(input_mask):
             input_mask = F.pad(input_mask, (self.num_mem_kv, 0), value = True)
 
+    if collab_heads:
+        k = k.expand(-1, h, -1, -1)
+
     if self.qk_norm:
-        qk_l2norm = partial(l2norm, groups = self.qk_norm_groups)
-        q, k = map(qk_l2norm, (q, k))
-        scale = self.qk_norm_scale
+        q, k = map(l2norm, (q, k))
+        scale = 1 / (self.scale.exp().clamp(min = 1e-2))
 
-    kv_einsum_eq = 'b h j d' if not self.one_kv_head else 'b j d'
-
-    dots = einsum(f'b h i d, {kv_einsum_eq} -> b h i j', q, k) * scale
-
+    dots = einsum('b h i d, b h j d -> b h i j', q, k) * scale
     mask_value = max_neg_value(dots)
 
     if exists(prev_attn):
@@ -80,7 +81,7 @@ def patched_Attention_forward(
     # pre_softmax_attn = dots.clone()
 
     if talking_heads:
-        dots = self.pre_softmax_talking_heads(dots)
+        dots = einsum('b h i j, h k -> b k i j', dots, self.pre_softmax_proj).contiguous()
 
     if exists(rel_pos):
         dots = rel_pos(dots)
@@ -92,16 +93,16 @@ def patched_Attention_forward(
     if exists(attn_mask):
         assert 2 <= attn_mask.ndim <= 4, 'attention mask must have greater than 2 dimensions but less than or equal to 4'
         if attn_mask.ndim == 2:
-            attn_mask = rearrange(attn_mask, 'i j -> 1 1 i j')
+            attn_mask = rearrange(attn_mask, 'i j -> () () i j')
         elif attn_mask.ndim == 3:
-            attn_mask = rearrange(attn_mask, 'h i j -> 1 h i j')
+            attn_mask = rearrange(attn_mask, 'h i j -> () h i j')
         dots.masked_fill_(~attn_mask, mask_value)
 
     if exists(self.max_attend_past):
         i, j = dots.shape[-2:]
         range_q = torch.arange(j - i, j, device = device)
         range_k = torch.arange(j, device = device)
-        dist = rearrange(range_q, 'i -> 1 1 i 1') - rearrange(range_k, 'j -> 1 1 1 j')
+        dist = rearrange(range_q, 'i -> () () i ()') - rearrange(range_k, 'j -> () () () j')
         mask = dist > self.max_attend_past
         dots.masked_fill_(mask, mask_value)
         del mask
@@ -109,7 +110,7 @@ def patched_Attention_forward(
     if self.causal:
         i, j = dots.shape[-2:]
         r = torch.arange(i, device = device)
-        mask = rearrange(r, 'i -> 1 1 i 1') < rearrange(r, 'j -> 1 1 1 j')
+        mask = rearrange(r, 'i -> () () i ()') < rearrange(r, 'j -> () () () j')
         mask = F.pad(mask, (j - i, 0), value = False)
         dots.masked_fill_(mask, mask_value)
         del mask
@@ -127,9 +128,9 @@ def patched_Attention_forward(
     attn = self.dropout(attn)
 
     if talking_heads:
-        attn = self.post_softmax_talking_heads(attn)
+        attn = einsum('b h i j, h k -> b k i j', attn, self.post_softmax_proj).contiguous()
 
-    out = einsum(f'b h i j, {kv_einsum_eq} -> b h i d', attn, v)
+    out = einsum('b h i j, b h j d -> b h i d', attn, v)
 
     if head_scale:
         out = out * self.head_scale_params

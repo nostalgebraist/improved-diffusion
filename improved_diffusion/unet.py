@@ -888,6 +888,8 @@ class UNetModel(nn.Module):
         self.up_interp_mode = up_interp_mode
         self.expand_timestep_base_dim = expand_timestep_base_dim
 
+        self.first_attn_block_ix = None
+
         if self.txt:
             self.text_encoder = TextEncoder(
                 inner_dim=txt_dim,
@@ -1025,6 +1027,8 @@ class UNetModel(nn.Module):
                                 capt_stream=cuda_streams.capt,
                             )
                         )
+                        if self.first_attn_block_ix is None:
+                            self.first_attn_block_ix = len(self.input_blocks)
                     else:
                         layers.append(nn.Identity())
                 if self.txt and ds in self.txt_resolutions and (not txt_output_layers_only):
@@ -1351,6 +1355,8 @@ class UNetModel(nn.Module):
         if rgb_adapter:
             self.output_to_rgb = DropinRGBAdapter(needs_var=out_channels>3)
 
+        print(('self.first_attn_block_ix', self.first_attn_block_ix))
+
     def timestep_embedding(self, timesteps):
         if self.expand_timestep_base_dim > 0:
             return expanded_timestep_embedding(timesteps, self.model_channels, self.expand_timestep_base_dim)
@@ -1472,19 +1478,21 @@ class UNetModel(nn.Module):
                         h = h + h_bread_in
                 hs.append(h)
 
-                if i == 1:  # first heavy block
-                    with th.cuda.stream(cuda_streams.txt()):
-                        # TODO: get queries for itot ready in this step?
-                        if txt is not None:
-                            txt, attn_mask = self.text_encoder(txt, timesteps=timesteps)
-                            txt = txt.type(self.inner_dtype)
-
+                if i == self.first_attn_block_ix:
                     with th.cuda.stream(cuda_streams.capt()):
                         if self.using_capt and capt is not None:
                             capt, capt_attn_mask = self.embed_capt_cached(capt) if self.use_inference_caching else self.embed_capt(capt)
                             if self.glide_style_capt_emb:
                                 eos = capt[th.arange(capt_toks.shape[0]), :, capt_toks.argmax(dim=-1)]
                                 emb = emb + self.capt_embed(eos)
+
+                if i == (len(self.input_blocks)//2):  # heaviest cuda load
+                    with th.cuda.stream(cuda_streams.txt()):
+                        # TODO: get queries for itot ready in this step?
+                        if txt is not None:
+                            txt, attn_mask = self.text_encoder(txt, timesteps=timesteps)
+                            txt = txt.type(self.inner_dtype)
+
 
                 # print(f'\th type: {h.dtype}')
 

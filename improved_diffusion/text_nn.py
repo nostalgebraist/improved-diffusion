@@ -7,6 +7,8 @@ from einops import rearrange
 from x_transformers import TransformerWrapper, Encoder, XTransformer
 from x_transformers.x_transformers import AbsolutePositionalEmbedding, Attention, FeedForward, Rezero
 
+import improved_diffusion.monkeypatch
+
 from .nn import normalization_1group, timestep_embedding, silu, AdaGN, checkpoint, AxialPositionalEmbeddingShape
 
 

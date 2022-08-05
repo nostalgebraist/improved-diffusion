@@ -580,6 +580,9 @@ class TrainLoop:
                     with self.ddp_model.no_sync():
                         losses = compute_losses()
 
+            # debug only
+            print(f"\trun_loop did fwd {i+1}/{self.microbatch}")
+
             if isinstance(self.schedule_sampler, LossAwareSampler):
                 self.schedule_sampler.update_with_local_losses(
                     t, losses["loss"].detach()
@@ -604,6 +607,8 @@ class TrainLoop:
                 self.grad_scaler.scale(loss * grad_acc_scale).backward()
             else:
                 (loss * grad_acc_scale).backward()
+            # debug only
+            print(f"\trun_loop did bwd {i+1}/{self.microbatch}")
 
     def _update_ema(self, params, rate, arith_from_step=0, arith_extra_shift=0, verbose=True):
         def _vprint(*args, **kwargs):

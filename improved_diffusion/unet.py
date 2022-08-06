@@ -390,7 +390,7 @@ class ResBlock(TimestepBlock):
         emb_stream = cuda_streams.emb() if self.fused else th.cuda.current_stream()
 
         with th.cuda.stream(emb_stream):
-            emb_out = self.emb_layers(emb).type(h.dtype)
+            emb_out = self.emb_layers(emb)# .type(h.dtype)
             while len(emb_out.shape) < len(h.shape):
                 emb_out = emb_out[..., None]
 

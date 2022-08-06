@@ -5,6 +5,9 @@ _MAIN_STREAM = th.cuda.Stream()
 _TXT_STREAM = th.cuda.Stream()
 _CAPT_STREAM = th.cuda.Stream()
 
+_EMB_STREAM = th.cuda.Stream()
+_CONV_STREAM = th.cuda.Stream()
+
 _GLOBAL_FLAGS = {"streaming_on": False}
 
 
@@ -35,6 +38,18 @@ def txt():
 def capt():
     if is_streaming_on():
         return _CAPT_STREAM
+    return th.cuda.default_stream()
+
+
+def emb():
+    if is_streaming_on():
+        return _EMB_STREAM
+    return th.cuda.default_stream()
+
+
+def conb():
+    if is_streaming_on():
+        return _CONV_STREAM
     return th.cuda.default_stream()
 
 

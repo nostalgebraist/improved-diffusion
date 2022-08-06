@@ -384,6 +384,30 @@ class ResBlock(TimestepBlock):
         )
 
     def _forward(self, x, emb):
+        if self.fused or self.base_channels <= 0 or not self.use_scale_shift_norm:
+            raise NotImplementedError
+
+        emb_stream = cuda_streams.emb() if self.fused else th.cuda.current_stream()
+
+        with th.cuda.stream(emb_stream):
+            emb_out = self.emb_layers(emb).type(h.dtype)
+            while len(emb_out.shape) < len(h.shape):
+                emb_out = emb_out[..., None]
+
+            # AdaGN: not fused, extended
+
+            base, xtra = th.split(
+                emb_out,
+                [2 * self.base_out_channels, 2 * self.out_channels - 2 * self.base_out_channels],
+                dim=1
+            )
+            base_scale, base_shift = th.chunk(base, 2, dim=1)
+            xtra_scale, xtra_shift = th.chunk(xtra, 2, dim=1)
+            scale = th.cat([base_scale, xtra_scale], dim=1)
+            shift = th.cat([base_shift, xtra_shift], dim=1)
+            scale.record_stream(th.cuda.current_stream())
+            shift.record_stream(th.cuda.current_stream())
+
         if self.updown:
             in_rest, in_conv = self.in_layers[:-1], self.in_layers[-1]
             h = in_rest(x)
@@ -394,60 +418,14 @@ class ResBlock(TimestepBlock):
             # print(f'x shape: {x.shape}')
             # print(f'self.in_layers[0].weight shape: {self.in_layers[0].weight.shape}')
             h = self.in_layers(x)
-        emb_out = self.emb_layers(emb).type(h.dtype)
-        while len(emb_out.shape) < len(h.shape):
-            emb_out = emb_out[..., None]
-        if self.use_scale_shift_norm:
-            out_norm, out_rest = self.out_layers[0], self.out_layers[1:]
-            if self.fused:
-                if self.base_channels > 0:
-                    # AdaGN: fused, extended
-                    base, xtra = th.split(
-                        emb_out,
-                        [2 * self.base_out_channels, 2 * self.out_channels - 2 * self.base_out_channels],
-                        dim=1
-                    )
-                    base_h, xtra_h = th.split(h, [out_norm.num_channels_base, out_norm.num_channels_xtra], dim=1)
-                    if out_norm.num_groups_xtra == 8:
-                        fn = adagn_silu_extended_32_8
-                    elif out_norm.num_groups_xtra == 6:
-                        fn = adagn_silu_extended_32_6
-                    elif out_norm.num_groups_xtra == 1:
-                        fn = adagn_silu_extended_32_1
-                    else:
-                        raise ValueError(out_norm.num_groups_xtra)
-                    h = fn(
-                        base_h, xtra_h,
-                        base, xtra,
-                        out_norm.weight, out_norm.bias,
-                        out_norm.weight_xtra, out_norm.bias_xtra,
-                    )
-                else:
-                    # AdaGN: fused, not extended
-                    h = adagn_silu(h, emb_out, out_norm.weight, out_norm.bias)
-            else:
-                if self.base_channels > 0:
-                    # AdaGN: not fused, extended
-                    base, xtra = th.split(
-                        emb_out,
-                        [2 * self.base_out_channels, 2 * self.out_channels - 2 * self.base_out_channels],
-                        dim=1
-                    )
-                    base_scale, base_shift = th.chunk(base, 2, dim=1)
-                    xtra_scale, xtra_shift = th.chunk(xtra, 2, dim=1)
-                    scale = th.cat([base_scale, xtra_scale], dim=1)
-                    shift = th.cat([base_shift, xtra_shift], dim=1)
-                    h = out_norm(h) * (1 + scale) + shift
-                else:
-                    # AdaGN: not fused, not extended
-                    scale, shift = th.chunk(emb_out, 2, dim=1)
-                    h = out_norm(h) * (1 + scale) + shift
-            # AdaGN: any
-            h = out_rest(h)
-        else:
-            # not AdaGN
-            h = h + emb_out
-            h = self.out_layers(h)
+
+        out_norm, out_rest = self.out_layers[0], self.out_layers[1:]
+
+        th.cuda.current_stream().wait_stream(emb_stream)
+
+        h = out_norm(h) * (1 + scale) + shift
+        # AdaGN: any
+        h = out_rest(h)
         return self.skip_connection(x) + h
 
 

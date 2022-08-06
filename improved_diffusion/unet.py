@@ -391,7 +391,7 @@ class ResBlock(TimestepBlock):
 
         with th.cuda.stream(emb_stream):
             emb_out = self.emb_layers(emb)# .type(h.dtype)
-            while len(emb_out.shape) < len(h.shape):
+            while len(emb_out.shape) < len(x.shape):
                 emb_out = emb_out[..., None]
 
             # AdaGN: not fused, extended

@@ -387,7 +387,7 @@ class ResBlock(TimestepBlock):
         if self.fused or self.base_channels <= 0 or not self.use_scale_shift_norm:
             raise NotImplementedError
 
-        emb_stream = cuda_streams.emb() if self.fused else th.cuda.current_stream()
+        emb_stream = cuda_streams.emb()
 
         with th.cuda.stream(emb_stream):
             emb_out = self.emb_layers(emb)# .type(h.dtype)

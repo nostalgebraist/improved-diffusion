@@ -161,12 +161,13 @@ class AdaGN(nn.Module):
         # print(f'got out_channels {selfout_channels}')
         # print(f'got base_out_channels {selfbase_out_channels}')
 
-        with th.cuda.stream(cuda_streams.emb_stream()):
+        with th.cuda.stream(cuda_streams.emb()):
             emb_out = self.emb_layers(emb)#.type(h.dtype)
-            emb_out.record_stream(cuda_streams.main_stream())
 
-        while len(emb_out.shape) < len(h.shape):
-            emb_out = emb_out[..., None]
+            while len(emb_out.shape) < 4: #len(h.shape):
+                emb_out = emb_out[..., None]
+
+            emb_out.record_stream(cuda_streams.main())
 
         if side_emb is not None:
             emb_out = emb_out + side_emb.type(emb_out.dtype)

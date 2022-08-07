@@ -387,6 +387,7 @@ class ResBlock(TimestepBlock):
         if self.fused or self.base_channels <= 0 or not self.use_scale_shift_norm:
             raise NotImplementedError
 
+        main_stream = cuda_streams.main()
         emb_stream = cuda_streams.emb()
 
         with th.cuda.stream(emb_stream):
@@ -405,8 +406,8 @@ class ResBlock(TimestepBlock):
             xtra_scale, xtra_shift = th.chunk(xtra, 2, dim=1)
             scale = th.cat([base_scale, xtra_scale], dim=1)
             shift = th.cat([base_shift, xtra_shift], dim=1)
-            scale.record_stream(th.cuda.current_stream())
-            shift.record_stream(th.cuda.current_stream())
+            scale.record_stream(main_stream)
+            shift.record_stream(main_stream)
 
         if self.updown:
             in_rest, in_conv = self.in_layers[:-1], self.in_layers[-1]

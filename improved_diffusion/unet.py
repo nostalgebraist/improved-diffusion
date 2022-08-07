@@ -323,6 +323,9 @@ class ResBlock(TimestepBlock):
 
         self.fused = silu_impl=="fused"
 
+        if base_channels == channels:
+            base_channels = 0  # means "not expanded (in practice)"
+
         if base_channels > 0:
             self.base_channels = base_channels
             self.base_out_channels = self.base_channels * self.out_channels // channels
@@ -987,7 +990,7 @@ class UNetModel(nn.Module):
                         ch,
                         time_embed_dim,
                         dropout,
-                        out_channels=mult * model_channels,
+                        out_channels=int(mult * model_channels),
                         dims=dims,
                         use_checkpoint=use_checkpoint or use_checkpoint_down or ((image_size // ds) <= use_checkpoint_below_res),
                         use_scale_shift_norm=use_scale_shift_norm,
@@ -1004,7 +1007,7 @@ class UNetModel(nn.Module):
                                 ch,
                                 time_embed_dim,
                                 dropout,
-                                out_channels=mult * model_channels,
+                                out_channels=int(mult * model_channels),
                                 dims=dims,
                                 use_checkpoint=use_checkpoint or use_checkpoint_down or ((image_size // ds) <= use_checkpoint_below_res),
                                 use_scale_shift_norm=use_scale_shift_norm,
@@ -1165,7 +1168,7 @@ class UNetModel(nn.Module):
                         this_ch,
                         time_embed_dim,
                         dropout,
-                        out_channels=model_channels * mult,
+                        out_channels=int(model_channels * mult),
                         dims=dims,
                         use_checkpoint=use_checkpoint or use_checkpoint_up or ((image_size // ds) <= use_checkpoint_below_res),
                         use_scale_shift_norm=use_scale_shift_norm,
@@ -1182,7 +1185,7 @@ class UNetModel(nn.Module):
                                 ch,
                                 time_embed_dim,
                                 dropout,
-                                out_channels=model_channels * mult,
+                                out_channels=intmodel_channels * mult),
                                 dims=dims,
                                 use_checkpoint=use_checkpoint or use_checkpoint_up or ((image_size // ds) <= use_checkpoint_below_res),
                                 use_scale_shift_norm=use_scale_shift_norm,

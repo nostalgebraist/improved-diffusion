@@ -402,7 +402,7 @@ def create_model(
     if channel_mult != "":
         print(f"got channel_mult: {channel_mult}")
         try:
-            channel_mult = tuple(int(v) for v in channel_mult.strip().split(','))
+            channel_mult = tuple(float(v) for v in channel_mult.strip().split(','))
         except ValueError:
             pass
 

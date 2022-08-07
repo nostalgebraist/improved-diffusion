@@ -10,6 +10,8 @@ import torch.nn.functional as F
 
 from axial_positional_embedding import AxialPositionalEmbedding
 
+from improved_diffusion import cuda_streams
+
 
 # PyTorch 1.7 has SiLU, but we support PyTorch 1.5.
 class SiLUImplOpenAI(nn.Module):
@@ -130,7 +132,10 @@ class GroupNorm32(nn.GroupNorm):
 
 
 class AdaGN(nn.Module):
-    def __init__(self, emb_channels, out_channels, num_groups, nonlin_in=True, do_norm=True, base_channels=-1, silu_impl="torch"):
+    def __init__(
+        self, emb_channels, out_channels, num_groups, nonlin_in=True, do_norm=True, base_channels=-1, silu_impl="torch",
+        emb_stream=lambda: None,
+    ):
         super().__init__()
         self.emb_layers = nn.Sequential(
             silu(impl="torch" if silu_impl == "fused" else silu_impl) if nonlin_in else nn.Identity(),
@@ -156,7 +161,9 @@ class AdaGN(nn.Module):
         # print(f'got out_channels {selfout_channels}')
         # print(f'got base_out_channels {selfbase_out_channels}')
 
-        emb_out = self.emb_layers(emb).type(h.dtype)
+        with th.cuda.stream(cuda_streams.emb_stream()):
+            emb_out = self.emb_layers(emb)#.type(h.dtype)
+            emb_out.record_stream(cuda_streams.main_stream())
 
         while len(emb_out.shape) < len(h.shape):
             emb_out = emb_out[..., None]

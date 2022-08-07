@@ -1479,7 +1479,7 @@ class UNetModel(nn.Module):
                 hs.append(h)
 
                 # if i == max(0, self.first_attn_block_ix // 2):
-                if i == max(0, self.first_attn_block_ix // 2 + 1):
+                if i == max(0, self.first_attn_block_ix // 2 - 1):
                     with th.cuda.stream(cuda_streams.capt()):
                         if self.using_capt and capt is not None:
                             capt, capt_attn_mask = self.embed_capt_cached(capt) if self.use_inference_caching else self.embed_capt(capt)

@@ -1185,7 +1185,7 @@ class UNetModel(nn.Module):
                                 ch,
                                 time_embed_dim,
                                 dropout,
-                                out_channels=intmodel_channels * mult),
+                                out_channels=int(model_channels * mult),
                                 dims=dims,
                                 use_checkpoint=use_checkpoint or use_checkpoint_up or ((image_size // ds) <= use_checkpoint_below_res),
                                 use_scale_shift_norm=use_scale_shift_norm,

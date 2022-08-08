@@ -351,7 +351,8 @@ class ResBlock(TimestepBlock):
             self.h_upd = self.x_upd = nn.Identity()
 
         self.emb_layers = nn.Sequential(
-            silu(impl="torch" if self.fused else silu_impl, use_checkpoint=use_checkpoint_lowcost),
+            # silu(impl="torch" if self.fused else silu_impl, use_checkpoint=use_checkpoint_lowcost),
+            nn.Identity(),  # pre-silu
             linear(
                 emb_channels,
                 2 * self.out_channels if use_scale_shift_norm else self.out_channels,
@@ -1457,6 +1458,9 @@ class UNetModel(nn.Module):
             if self.num_classes is not None:
                 assert y.shape == (x.shape[0],)
                 emb = emb + self.label_emb(y)
+
+            # pre-silu
+            emb = F.silu(emb)
 
             h = x
 

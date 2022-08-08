@@ -130,10 +130,10 @@ class GroupNorm32(nn.GroupNorm):
 
 
 class AdaGN(nn.Module):
-    def __init__(self, emb_channels, out_channels, num_groups, nonlin_in=True, do_norm=True, base_channels=-1, silu_impl="torch"):
+    def __init__(self, emb_channels, out_channels, num_groups, silu_in=True, do_norm=True, base_channels=-1, silu_impl="torch"):
         super().__init__()
         self.emb_layers = nn.Sequential(
-            silu(impl="torch" if silu_impl == "fused" else silu_impl) if nonlin_in else nn.Identity(),
+            silu(impl="torch" if silu_impl == "fused" else silu_impl) if silu_in else nn.Identity(),
             nn.Linear(emb_channels, 2 * out_channels)
         )
         if not do_norm:

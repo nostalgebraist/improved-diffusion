@@ -226,7 +226,7 @@ class CrossAttention(nn.Module):
                 emb_channels=time_embed_dim,
                 out_channels=self.dim,
                 num_groups=1,
-                nonlin_in=False,  # pre-silu
+                silu_in=False,  # pre-silu
                 do_norm=not self.no_prenorm,
                 base_channels=image_base_channels,
                 silu_impl=silu_impl
@@ -405,7 +405,7 @@ class ImageToTextCrossAttention(nn.Module):
             emb_channels=time_embed_dim,
             out_channels=self.image_dim,
             num_groups=1,
-            nonlin_in=False,  # pre-silu
+            silu_in=False,  # pre-silu
             do_norm=True,
             base_channels=image_base_channels,
             silu_impl=silu_impl

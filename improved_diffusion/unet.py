@@ -1163,7 +1163,7 @@ class UNetModel(nn.Module):
         )
 
         self.output_blocks = nn.ModuleList([])
-        for level, (mult, nrb) in list(enumerate(zip(channel_mult, num_res_blocks))[::-1]:
+        for level, (mult, nrb) in list(enumerate(zip(channel_mult, num_res_blocks)))[::-1]:
             for i in range(nrb + 1):
                 this_ch = ch + input_block_chans.pop()
                 layers = [

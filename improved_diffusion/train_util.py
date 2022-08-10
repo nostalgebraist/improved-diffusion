@@ -984,13 +984,13 @@ def apply_resize(model, sd, mult=1., debug=False, dynamic_mult=True):
                     debug_slices = tuple(debug_slices)
                     # debug_slices = tuple(slice(max(0, i-2), min(j, i+2)) for i, j in zip(sd[n].shape, buffer.shape))
                     print(f"before {n}\t{repr(buffer[debug_slices].squeeze())}")
-                if is_norm_w:
+                if is_norm_w or all(i >= j for i, j in zip(sd[n].shape, p.shape)):
                     print(f'not scaling\t{n}')
                 else:
                     if dynamic_mult:
                         ournorm, theirnorm = buffer[slices].norm(), sd[n][slices].norm()
-                        mult = 1 if ournorm <= 0 else theirnorm / ournorm
-                    print(f"scaling: {mult.item()}")
+                        mult = 1 if ournorm <= 0 else (theirnorm / ournorm).item()
+                    print(f"scaling: {mult}")
                     buffer.mul_(mult)
                 if debug:
                     print(f"after scale\t{n}\n{repr(buffer[debug_slices].squeeze())}")

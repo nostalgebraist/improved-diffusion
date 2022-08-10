@@ -482,7 +482,7 @@ class TrainLoop:
             if self.use_profiler and (self.step > 0):
                 with th.profiler.profile(with_stack=True, profile_memory=False, with_flops=False) as _p:
                     try:
-                        self.run_step(batch, cond, verbose = (self.step % self.log_interval == 0))
+                        self.run_step(batch, cond, verbose=True, single_fwd_only=True)
                     except Exception as e:
                         print(repr(e))
                 print(_p.key_averages(
@@ -508,8 +508,10 @@ class TrainLoop:
         if (self.step - 1) % self.save_interval != 0:
             self.save()
 
-    def run_step(self, batch, cond, verbose=False):
-        self.forward_backward(batch, cond, verbose=verbose)
+    def run_step(self, batch, cond, verbose=False, single_fwd_only=False):
+        self.forward_backward(batch, cond, verbose=verbose, single_fwd_only=single_fwd_only)
+        if single_fwd_only:
+            return
         if self.use_amp:
             self.optimize_amp()
         elif self.use_fp16:
@@ -518,7 +520,7 @@ class TrainLoop:
             self.optimize_normal()
         self.log_step()
 
-    def forward_backward(self, batch, cond, verbose=False):
+    def forward_backward(self, batch, cond, verbose=False, single_fwd_only=False):
         if self.use_amp:
             self.opt.zero_grad(set_to_none=True)
         else:
@@ -582,6 +584,8 @@ class TrainLoop:
             log_loss_dict(
                 self.diffusion, t, {k: v * weights for k, v in losses.items()}
             )
+            if single_fwd_only:
+                break
             grad_acc_scale = micro.shape[0] / self.batch_size
             if self.use_fp16:
                 loss_scale = 2 ** self.lg_loss_scale

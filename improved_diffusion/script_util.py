@@ -419,6 +419,9 @@ def create_model(
 
     print(f"channel_mult: {channel_mult}")
 
+    if isinstance(num_res_blocks, str):
+        num_res_blocks = tuple(int(v) for v in num_res_blocks.strip().split(','))
+
     attention_ds = []
     for res in attention_resolutions.split(","):
         attention_ds.append(image_size // int(res))

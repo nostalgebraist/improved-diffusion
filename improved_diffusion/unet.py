@@ -459,7 +459,7 @@ class ResBlock(TimestepBlock):
             h = self.out_layers(h)
 
         if self.efficient_unet_tweaks:
-            h = h / 0.7071068
+            h = h * 0.7071068
         return self.skip_connection(x) + h
 
 

@@ -1009,7 +1009,7 @@ class UNetModel(nn.Module):
                     )
                 ]
                 ch = int(mult * model_channels)
-                if (ds in attention_resolutions) and (i < (max_attn_xattn_layers_per_res-1)):
+                if (ds in attention_resolutions) and (i < (max_attn_xattn_layers_per_res-2)):
                     if no_attn_substitute_resblock:
                         layers.append(
                             ResBlock(
@@ -1041,7 +1041,7 @@ class UNetModel(nn.Module):
                         )
                     else:
                         layers.append(nn.Identity())
-                if self.txt and ds in self.txt_resolutions and (not txt_output_layers_only) and (i < (max_attn_xattn_layers_per_res-1)):
+                if self.txt and ds in self.txt_resolutions and (not txt_output_layers_only) and (i < (max_attn_xattn_layers_per_res-2)):
                     num_heads_here = num_heads
                     if cross_attn_channels_per_head > 0:
                         num_heads_here = txt_dim // cross_attn_channels_per_head

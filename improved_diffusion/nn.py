@@ -416,6 +416,7 @@ class GroupNormExtended(GroupNorm32):
         self.num_channels_xtra = num_channels - num_channels_base
 
         self.num_groups_base = num_groups
+        self.num_groups_xtra = 0
 
         for channels_per_group_xtra in range(*sorted([num_channels // num_groups, self.num_channels_xtra])):
             ratio, mod = self.num_channels_xtra / channels_per_group_xtra, self.num_channels_xtra % channels_per_group_xtra
@@ -425,11 +426,12 @@ class GroupNormExtended(GroupNorm32):
 
         # print(f"base ch {self.num_channels_base} gr {self.num_groups_base}, xtra ch {self.num_channels_xtra} gr {self.num_groups_xtra}")
 
-        self.weight_xtra = nn.Parameter(th.empty(self.num_channels_xtra))
-        self.bias_xtra = nn.Parameter(th.empty(self.num_channels_xtra))
+        if self.num_channels_xtra > 0:
+            self.weight_xtra = nn.Parameter(th.empty(self.num_channels_xtra))
+            self.bias_xtra = nn.Parameter(th.empty(self.num_channels_xtra))
 
-        nn.init.ones_(self.weight_xtra)
-        nn.init.zeros_(self.bias_xtra)
+            nn.init.ones_(self.weight_xtra)
+            nn.init.zeros_(self.bias_xtra)
 
         self.fused = fused
 
@@ -440,13 +442,20 @@ class GroupNormExtended(GroupNorm32):
             #     self._num_groups_base, self._num_channels_base, self.weight, self.bias,
             #     self._num_groups_xtra, self._num_channels_xtra, self.weight_xtra, self.bias_xtra,
             # )
-            base, xtra = th.split(x, [self.num_channels_base, self.num_channels_xtra], dim=1)
+            if self.num_channels_xtra == 0:
+                base = x
+            else:
+                base, xtra = th.split(x, [self.num_channels_base, self.num_channels_xtra], dim=1)
+
             if self.num_groups_base == 32:
                 base_out = groupnorm_silu_32(base, self.weight, self.bias)
             elif self.num_groups_base == 24:
                 base_out = groupnorm_silu_24(base, self.weight, self.bias)
             else:
                 raise ValueError(self.num_groups_base)
+
+            if self.num_channels_xtra == 0:
+                return base_out
 
             if self.num_groups_xtra == 32:
                 xtra_out = groupnorm_silu_32(xtra, self.weight_xtra, self.bias_xtra)
@@ -469,9 +478,16 @@ class GroupNormExtended(GroupNorm32):
             dtype = x.type()
             x = x.float()
 
-            base, xtra = th.split(x, [self.num_channels_base, self.num_channels_xtra], dim=1)
+            if self.num_channels_xtra == 0:
+                base = x
+            else:
+                base, xtra = th.split(x, [self.num_channels_base, self.num_channels_xtra], dim=1)
 
             base_out = th.group_norm(base, self.num_groups_base, self.weight, self.bias, self.eps)
+
+            if self.num_channels_xtra == 0:
+                return base_out.type(dtype)
+
             xtra_out = th.group_norm(xtra, self.num_groups_xtra, self.weight_xtra, self.bias_xtra, self.eps)
 
             out = th.cat([base_out, xtra_out], dim=1).type(dtype)

@@ -13,6 +13,7 @@ MPI = FakeMPI()
 
 import tokenizers
 from tqdm.auto import trange
+from tqdm.contrib.concurrent import thread_map
 
 import imagesize
 
@@ -457,7 +458,8 @@ def _list_image_files_recursively(data_dir, txt=False, min_filesize=0, min_image
     n_excluded_filesize = 0
     n_excluded_imagesize = 0
     n_excluded_path = 0
-    for entry in sorted(bf.listdir(data_dir)):
+    subdirectories = []
+    def scan_entry(entry):
         full_path = bf.join(data_dir, entry)
 
         if full_path in excluded_paths:
@@ -505,15 +507,21 @@ def _list_image_files_recursively(data_dir, txt=False, min_filesize=0, min_image
                     # raise ValueError(path_txt)
 
         elif bf.isdir(full_path):
-            next_results, next_map, next_file_sizes, next_image_file_to_safebox, next_image_file_to_px_scales, next_image_file_to_capt = _list_image_files_recursively(
-                full_path, txt=txt, min_filesize=min_filesize, min_imagesize=min_imagesize, safeboxes=safeboxes, px_scales=px_scales, capts=capts, require_capts=require_capts, excluded_paths=excluded_paths
-            )
-            results.extend(next_results)
-            image_file_to_text_file.update(next_map)
-            file_sizes.update(next_file_sizes)
-            image_file_to_safebox.update(next_image_file_to_safebox)
-            image_file_to_px_scales.update(next_image_file_to_px_scales)
-            image_file_to_capt.update(next_image_file_to_capt)
+            subdirectories.append(full_path)
+
+        # for entry in sorted(bf.listdir(data_dir)):
+    thread_map(scan_entry, sorted(bf.listdir(data_dir)), max_workers=16)
+
+    for full_path in subdirectories:
+        next_results, next_map, next_file_sizes, next_image_file_to_safebox, next_image_file_to_px_scales, next_image_file_to_capt = _list_image_files_recursively(
+            full_path, txt=txt, min_filesize=min_filesize, min_imagesize=min_imagesize, safeboxes=safeboxes, px_scales=px_scales, capts=capts, require_capts=require_capts, excluded_paths=excluded_paths
+        )
+        results.extend(next_results)
+        image_file_to_text_file.update(next_map)
+        file_sizes.update(next_file_sizes)
+        image_file_to_safebox.update(next_image_file_to_safebox)
+        image_file_to_px_scales.update(next_image_file_to_px_scales)
+        image_file_to_capt.update(next_image_file_to_capt)
     print(f"_list_image_files_recursively: data_dir={data_dir}, n_excluded_filesize={n_excluded_filesize}, n_excluded_imagesize={n_excluded_imagesize},\n\tn_excluded_path={n_excluded_path}")
     image_file_to_safebox = {k: v for k, v in image_file_to_safebox.items() if v is not None}
     image_file_to_px_scales = {k: v for k, v in image_file_to_px_scales.items() if v is not None}

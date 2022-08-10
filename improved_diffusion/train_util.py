@@ -960,7 +960,7 @@ def log_loss_dict(diffusion, ts, losses):
                 logger.logkv_mean(f"{key}_s{stage}", sub_loss)
 
 
-def apply_resize(model, sd, mult=1., debug=False):
+def apply_resize(model, sd, mult=1., debug=True):
     for n, p in model.named_parameters():
         if n not in sd:
             continue

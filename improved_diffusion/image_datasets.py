@@ -464,20 +464,20 @@ def _list_image_files_recursively(data_dir, txt=False, min_filesize=0, min_image
 
         if full_path in excluded_paths:
             n_excluded_path += 1
-            continue
+            return
 
         prefix, _, ext = entry.rpartition(".")
         safebox_key = prefix.replace('/', '_')
 
         if "." in entry and ext.lower() in ["jpg", "jpeg", "png", "gif"]:
             if require_capts and (safebox_key not in capts):
-                continue
+                return
 
             if min_filesize > 0:
                 filesize = os.path.getsize(full_path)
                 if filesize < min_filesize:
                     n_excluded_filesize += 1
-                    continue
+                    return
                 file_sizes[full_path] = filesize
 
             image_file_to_capt[full_path] = capts.get(safebox_key)
@@ -488,7 +488,7 @@ def _list_image_files_recursively(data_dir, txt=False, min_filesize=0, min_image
                 edge = min(wh[0]/max(1, pxs[0]), wh[1]/max(pxs[1], 1))
                 if edge < min_imagesize:
                     n_excluded_imagesize += 1
-                    continue
+                    return
             results.append(full_path)
             if txt:
                 prefix, _, ext = full_path.rpartition(".")

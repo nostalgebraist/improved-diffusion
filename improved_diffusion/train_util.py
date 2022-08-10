@@ -966,7 +966,7 @@ def apply_resize(model, sd, mult=1., debug=True):
             continue
         if p.shape != sd[n].shape:
             print(f"resize\t{n}\t\t{sd[n].shape} -> {p.shape}")
-            slices = tuple(slice(0, i) for i in sd[n].shape)
+            slices = tuple(slice(0, min(i, j)) for i, j in zip(sd[n].shape, p.shape))
             with th.no_grad():
                 buffer = p.data.clone()
 

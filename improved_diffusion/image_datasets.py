@@ -455,15 +455,15 @@ def _list_image_files_recursively(data_dir, txt=False, min_filesize=0, min_image
         capts = {}
     if excluded_paths is None:
         excluded_paths = set()
-    n_excluded_filesize = 0
-    n_excluded_imagesize = 0
-    n_excluded_path = 0
+    n_excluded_filesize = {'n': 0}
+    n_excluded_imagesize = {'n': 0}
+    n_excluded_path = {'n': 0}
     subdirectories = []
     def scan_entry(entry):
         full_path = bf.join(data_dir, entry)
 
         if full_path in excluded_paths:
-            n_excluded_path += 1
+            n_excluded_path['n'] += 1
             return
 
         prefix, _, ext = entry.rpartition(".")
@@ -476,7 +476,7 @@ def _list_image_files_recursively(data_dir, txt=False, min_filesize=0, min_image
             if min_filesize > 0:
                 filesize = os.path.getsize(full_path)
                 if filesize < min_filesize:
-                    n_excluded_filesize += 1
+                    n_excluded_filesize['n'] += 1
                     return
                 file_sizes[full_path] = filesize
 
@@ -487,7 +487,7 @@ def _list_image_files_recursively(data_dir, txt=False, min_filesize=0, min_image
                 pxs = px_scales.get(safebox_key, (1, 1))
                 edge = min(wh[0]/max(1, pxs[0]), wh[1]/max(pxs[1], 1))
                 if edge < min_imagesize:
-                    n_excluded_imagesize += 1
+                    n_excluded_imagesize['n'] += 1
                     return
             results.append(full_path)
             if txt:
@@ -511,6 +511,10 @@ def _list_image_files_recursively(data_dir, txt=False, min_filesize=0, min_image
 
         # for entry in sorted(bf.listdir(data_dir)):
     thread_map(scan_entry, sorted(bf.listdir(data_dir)), max_workers=16)
+
+    n_excluded_filesize = n_excluded_filesize['n']
+    n_excluded_imagesize = n_excluded_imagesize['n']
+    n_excluded_path = n_excluded_path['n']
 
     for full_path in subdirectories:
         next_results, next_map, next_file_sizes, next_image_file_to_safebox, next_image_file_to_px_scales, next_image_file_to_capt = _list_image_files_recursively(

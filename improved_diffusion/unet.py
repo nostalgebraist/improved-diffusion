@@ -828,6 +828,7 @@ class UNetModel(nn.Module):
         clipmod=None,
         post_txt_image_attn='none',  # 'none', 'final', 'final_res', or 'all'
         efficient_unet_tweaks=False,
+        max_attn_xattn_layers_per_res=3,
     ):
         super().__init__()
 
@@ -992,7 +993,7 @@ class UNetModel(nn.Module):
         ch = model_channels
         ds = 1
         for level, (mult, nrb) in enumerate(zip(channel_mult, num_res_blocks)):
-            for _ in range(nrb):
+            for i in range(nrb):
                 layers = [
                     ResBlock(
                         ch,
@@ -1008,7 +1009,7 @@ class UNetModel(nn.Module):
                     )
                 ]
                 ch = int(mult * model_channels)
-                if (ds in attention_resolutions):
+                if (ds in attention_resolutions) and (i < (max_attn_xattn_layers_per_res-1)):
                     if no_attn_substitute_resblock:
                         layers.append(
                             ResBlock(
@@ -1040,7 +1041,7 @@ class UNetModel(nn.Module):
                         )
                     else:
                         layers.append(nn.Identity())
-                if self.txt and ds in self.txt_resolutions and (not txt_output_layers_only):
+                if self.txt and ds in self.txt_resolutions and (not txt_output_layers_only) and (i < (max_attn_xattn_layers_per_res-1)):
                     num_heads_here = num_heads
                     if cross_attn_channels_per_head > 0:
                         num_heads_here = txt_dim // cross_attn_channels_per_head
@@ -1185,7 +1186,7 @@ class UNetModel(nn.Module):
                     )
                 ]
                 ch = int(model_channels * mult)
-                if ds in attention_resolutions:
+                if ds in attention_resolutions and (i < (max_attn_xattn_layers_per_res-1)):
                     if no_attn_substitute_resblock:
                         layers.append(
                             ResBlock(
@@ -1218,7 +1219,7 @@ class UNetModel(nn.Module):
                         )
                     else:
                         layers.append(nn.Identity())
-                if self.txt and ds in self.txt_resolutions:
+                if self.txt and ds in self.txt_resolutions and (i < (max_attn_xattn_layers_per_res-1)):
                     use_capts = [False, True] if (self.using_capt and self.xattn_capt) else [False]
                     if self.glide_style_capt_attn:
                         use_capts = [False]

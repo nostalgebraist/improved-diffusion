@@ -307,6 +307,7 @@ class ResBlock(TimestepBlock):
         base_channels=None,
         silu_impl="torch",
         efficient_unet_tweaks=False,
+        efficient_unet_sqrt2=False,
     ):
         super().__init__()
         self.channels = channels
@@ -332,6 +333,7 @@ class ResBlock(TimestepBlock):
             self.base_out_channels = base_channels
 
         self.efficient_unet_tweaks = efficient_unet_tweaks
+        self.efficient_unet_sqrt2 = efficient_unet_sqrt2
 
         self.in_layers = nn.Sequential(
             normalization(channels, base_channels=self.base_channels, fused=self.fused),
@@ -458,7 +460,7 @@ class ResBlock(TimestepBlock):
             h = h + emb_out
             h = self.out_layers(h)
 
-        if self.efficient_unet_tweaks:
+        if self.efficient_unet_tweaks and self.efficient_unet_sqrt2:
             h = h * 0.7071068
         return self.skip_connection(x) + h
 
@@ -1024,6 +1026,7 @@ class UNetModel(nn.Module):
                                 base_channels=expand_timestep_base_dim * ch // model_channels,
                                 silu_impl=silu_impl,
                                 efficient_unet_tweaks=efficient_unet_tweaks,
+                                efficient_unet_sqrt2=i>1,
                             )
                         )
                     elif use_attn:
@@ -1183,6 +1186,7 @@ class UNetModel(nn.Module):
                         base_channels=expand_timestep_base_dim * this_ch // model_channels,
                         silu_impl=silu_impl,
                         efficient_unet_tweaks=efficient_unet_tweaks,
+                        efficient_unet_sqrt2=i>2,
                     )
                 ]
                 ch = int(model_channels * mult)
@@ -1201,6 +1205,7 @@ class UNetModel(nn.Module):
                                 base_channels=expand_timestep_base_dim * this_ch // model_channels,
                                 silu_impl=silu_impl,
                                 efficient_unet_tweaks=efficient_unet_tweaks,
+                                efficient_unet_sqrt2=i>2,
                             )
                         )
                     elif use_attn:

@@ -960,7 +960,7 @@ def log_loss_dict(diffusion, ts, losses):
                 logger.logkv_mean(f"{key}_s{stage}", sub_loss)
 
 
-def apply_resize(model, sd, mult=1., debug=True):
+def apply_resize(model, sd, mult=1., debug=False, dynamic_mult=True):
     for n, p in model.named_parameters():
         if n not in sd:
             continue
@@ -982,13 +982,15 @@ def apply_resize(model, sd, mult=1., debug=True):
                         i, j = min(i_, j_), max(i_, j_)
                         debug_slices.append(slice(max(0, i-2), min(j, i+2)))
                     debug_slices = tuple(debug_slices)
-                    print(("slices", slices))
-                    print(("debug_slices", debug_slices))
                     # debug_slices = tuple(slice(max(0, i-2), min(j, i+2)) for i, j in zip(sd[n].shape, buffer.shape))
                     print(f"before {n}\t{repr(buffer[debug_slices].squeeze())}")
                 if is_norm_w:
                     print(f'not scaling\t{n}')
                 else:
+                    if dynamic_mult:
+                        ournorm, theirnorm = buffer[slices].norm(), sd[n][slices].norm()
+                        mult = 1 if ournorm <= 0 else theirnorm / ournorm
+                    print(f"scaling: {mult.item()}")
                     buffer.mul_(mult)
                 if debug:
                     print(f"after scale\t{n}\n{repr(buffer[debug_slices].squeeze())}")

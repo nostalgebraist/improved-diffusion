@@ -856,7 +856,10 @@ class UNetModel(nn.Module):
             no_attn_substitute_resblock = False
 
         if isinstance(num_res_blocks, int):
-            num_res_blocks = [num_res_blocks for _ in channel_mult]
+            num_res_blocks = [num_res_blocks]
+
+        if len(num_res_blocks) == 1:
+            num_res_blocks = num_res_blocks * len(channel_mult)
 
         self.in_channels = in_channels
         self.model_channels = model_channels

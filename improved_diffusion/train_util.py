@@ -979,7 +979,7 @@ def apply_resize(model, sd, mult=1., debug=True):
                 if debug:
                     debug_slices = []
                     for i_, j_ in zip(sd[n].shape, buffer.shape):
-                        i, j = min(i, j), max(i, j)
+                        i, j = min(i_, j_), max(i_, j_)
                         debug_slices.append(slice(max(0, i-2), min(j, i+2)))
                     debug_slices = tuple(debug_slices)
                     print(("slices", slices))
@@ -992,7 +992,7 @@ def apply_resize(model, sd, mult=1., debug=True):
                     buffer.mul_(mult)
                 if debug:
                     print(f"after scale\t{n}\n{repr(buffer[debug_slices].squeeze())}")
-                buffer.__setitem__(slices, sd[n])
+                buffer.__setitem__(slices, sd[n][slices])
                 if debug:
                     print(f"after set\t{n}\n{repr(buffer[debug_slices].squeeze())}")
                 sd[n] = buffer

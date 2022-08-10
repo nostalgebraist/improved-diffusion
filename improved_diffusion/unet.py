@@ -376,8 +376,12 @@ class ResBlock(TimestepBlock):
             self.skip_connection = conv_nd(
                 dims, channels, self.out_channels, 3, padding=1
             )
+            nn.init.dirac_(self.skip_connection.weight)
+            nn.init.zeros_(self.skip_connection.bias)
         else:
             self.skip_connection = conv_nd(dims, channels, self.out_channels, 1)
+            nn.init.dirac_(self.skip_connection.weight)
+            nn.init.zeros_(self.skip_connection.bias)
 
     def forward(self, x, emb):
         """

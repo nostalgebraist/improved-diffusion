@@ -393,6 +393,7 @@ def create_model(
     use_inference_caching=False,
     clipmod=None,
     post_txt_image_attn='none',
+    efficient_unet_tweaks=False,
 ):
     text_lr_mult = 1.
     print(
@@ -515,6 +516,7 @@ def create_model(
         use_inference_caching=use_inference_caching,
         clipmod=clipmod,
         post_txt_image_attn=post_txt_image_attn,
+        efficient_unet_tweaks=efficient_unet_tweaks,
     )
 
 
@@ -525,6 +527,7 @@ def sr_model_and_diffusion_defaults():
     res["colorize"] = False
     res["up_interp_mode"] = "bilinear"
     res["noise_cond"] = False
+    res["efficient_unet_tweaks"] = False
     arg_names = inspect.getfullargspec(sr_create_model_and_diffusion)[0]
     for k in res.copy().keys():
         if k not in arg_names:
@@ -623,6 +626,7 @@ def sr_create_model_and_diffusion(
     use_inference_caching=False,
     clipmod=None,
     post_txt_image_attn='none',
+    efficient_unet_tweaks=False,
 ):
     model = sr_create_model(
         large_size,
@@ -700,6 +704,7 @@ def sr_create_model_and_diffusion(
         use_inference_caching=use_inference_caching,
         clipmod=clipmod,
         post_txt_image_attn=post_txt_image_attn,
+        efficient_unet_tweaks=efficient_unet_tweaks,
     )
     diffusion = create_gaussian_diffusion(
         steps=diffusion_steps,

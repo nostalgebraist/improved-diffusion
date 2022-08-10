@@ -305,7 +305,8 @@ class ResBlock(TimestepBlock):
         down=False,
         use_checkpoint_lowcost=False,
         base_channels=None,
-        silu_impl="torch"
+        silu_impl="torch",
+        efficient_unet_tweaks=False,
     ):
         super().__init__()
         self.channels = channels
@@ -330,6 +331,8 @@ class ResBlock(TimestepBlock):
             self.base_channels = base_channels
             self.base_out_channels = base_channels
 
+        self.efficient_unet_tweaks = efficient_unet_tweaks
+
         self.in_layers = nn.Sequential(
             normalization(channels, base_channels=self.base_channels, fused=self.fused),
             silu(impl=silu_impl, use_checkpoint=use_checkpoint_lowcost),
@@ -337,6 +340,7 @@ class ResBlock(TimestepBlock):
         )
 
         self.updown = up or down
+        self.up = up
 
         if up:
             self.h_upd = Upsample(channels, False, dims, use_checkpoint_lowcost=use_checkpoint_lowcost)
@@ -388,9 +392,13 @@ class ResBlock(TimestepBlock):
         if self.updown:
             in_rest, in_conv = self.in_layers[:-1], self.in_layers[-1]
             h = in_rest(x)
-            h = self.h_upd(h)
             x = self.x_upd(x)
-            h = in_conv(h)
+            if self.efficient_unet_tweaks and self.up:
+                h = in_conv(h)
+                h = self.h_upd(h)
+            else:
+                h = self.h_upd(h)
+                h = in_conv(h)
         else:
             # print(f'x shape: {x.shape}')
             # print(f'self.in_layers[0].weight shape: {self.in_layers[0].weight.shape}')
@@ -449,6 +457,9 @@ class ResBlock(TimestepBlock):
             # not AdaGN
             h = h + emb_out
             h = self.out_layers(h)
+
+        if self.efficient_unet_tweaks:
+            h = h / 0.7071068
         return self.skip_connection(x) + h
 
 
@@ -816,6 +827,7 @@ class UNetModel(nn.Module):
         use_inference_caching=False,
         clipmod=None,
         post_txt_image_attn='none',  # 'none', 'final', 'final_res', or 'all'
+        efficient_unet_tweaks=False,
     ):
         super().__init__()
 
@@ -1004,6 +1016,7 @@ class UNetModel(nn.Module):
                                 use_checkpoint_lowcost=use_checkpoint_lowcost,
                                 base_channels=expand_timestep_base_dim * ch // model_channels,
                                 silu_impl=silu_impl,
+                                efficient_unet_tweaks=efficient_unet_tweaks,
                             )
                         )
                     elif use_attn:
@@ -1095,6 +1108,7 @@ class UNetModel(nn.Module):
                             use_checkpoint_lowcost=use_checkpoint_lowcost,
                             base_channels=expand_timestep_base_dim * ch // model_channels,
                             silu_impl=silu_impl,
+                            efficient_unet_tweaks=efficient_unet_tweaks,
                         )
                         if resblock_updown
                         else Downsample(
@@ -1126,6 +1140,7 @@ class UNetModel(nn.Module):
                 use_checkpoint_lowcost=use_checkpoint_lowcost,
                 base_channels=expand_timestep_base_dim * ch // model_channels,
                 silu_impl=silu_impl,
+                efficient_unet_tweaks=efficient_unet_tweaks,
             )
 
         def _middle_attnblock():
@@ -1160,6 +1175,7 @@ class UNetModel(nn.Module):
                         use_checkpoint_lowcost=use_checkpoint_lowcost,
                         base_channels=expand_timestep_base_dim * this_ch // model_channels,
                         silu_impl=silu_impl,
+                        efficient_unet_tweaks=efficient_unet_tweaks,
                     )
                 ]
                 ch = int(model_channels * mult)
@@ -1177,6 +1193,7 @@ class UNetModel(nn.Module):
                                 use_checkpoint_lowcost=use_checkpoint_lowcost,
                                 base_channels=expand_timestep_base_dim * this_ch // model_channels,
                                 silu_impl=silu_impl,
+                                efficient_unet_tweaks=efficient_unet_tweaks,
                             )
                         )
                     elif use_attn:
@@ -1316,6 +1333,7 @@ class UNetModel(nn.Module):
                             use_checkpoint_lowcost=use_checkpoint_lowcost,
                             base_channels=expand_timestep_base_dim * ch // model_channels,
                             silu_impl=silu_impl,
+                            efficient_unet_tweaks=efficient_unet_tweaks,
                         )
                         if resblock_updown
                         else Upsample(ch, conv_resample, dims=dims)

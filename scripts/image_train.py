@@ -5,7 +5,7 @@ Train a diffusion model on images.
 import argparse, os, json
 import torch as th
 
-from improved_diffusion import dist_util, logger
+from improved_diffusion import dist_util, logger, cuda_streams
 from improved_diffusion.image_datasets import load_data, load_tokenizer, save_first_batch
 from improved_diffusion.resample import create_named_schedule_sampler
 from improved_diffusion.script_util import (
@@ -34,6 +34,9 @@ def main():
 
     dist_util.setup_dist()
     logger.configure()
+
+    if args.use_streams:
+        cuda_streams.turn_streaming_on()
 
     # if args.channels_last_mem:
     #     import improved_diffusion.channels_last_checker
@@ -139,6 +142,7 @@ def main():
         clip_prob_middle_pkeep=args.clip_prob_middle_pkeep,
         exclusions_data_path=args.exclusions_data_path,
         num_workers=args.perf_num_workers,
+        tokenizer=tokenizer,
     )
 
     if args.save_first_batch:
@@ -272,6 +276,7 @@ def create_argparser():
         cudnn_benchmark=False,
         float32_matmul_precision="medium",
         exclusions_data_path="",
+        use_streams=True,
     )
     defaults.update(model_and_diffusion_defaults())
     parser = argparse.ArgumentParser()

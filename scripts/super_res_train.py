@@ -7,7 +7,7 @@ import argparse, os
 import torch as th
 import torch.nn.functional as F
 
-from improved_diffusion import dist_util, logger
+from improved_diffusion import dist_util, logger, cuda_streams
 from improved_diffusion.image_datasets import load_superres_data, load_tokenizer, save_first_batch
 from improved_diffusion.resample import create_named_schedule_sampler
 from improved_diffusion.script_util import (
@@ -38,6 +38,9 @@ def main():
 
     dist_util.setup_dist()
     logger.configure()
+
+    if args.use_streams:
+        cuda_streams.turn_streaming_on()
 
     logger.log("creating model...")
 
@@ -127,6 +130,7 @@ def main():
         class_ix_drop=args.class_ix_drop,
         class_pdrop=args.class_pdrop,
         exclusions_data_path=args.exclusions_data_path,
+        tokenizer=tokenizer,
     )
 
     if args.save_first_batch:
@@ -261,6 +265,7 @@ def create_argparser():
         noise_cond_max_step=-1,
         cudnn_benchmark=False,
         exclusions_data_path="",
+        use_streams=True,
         use_profiler=False,
     )
     defaults.update(sr_model_and_diffusion_defaults())

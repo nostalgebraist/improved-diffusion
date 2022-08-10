@@ -27,6 +27,8 @@ from .gaussian_diffusion import SimpleForwardDiffusion, get_named_beta_schedule
 
 from .image_datasets import tokenize
 
+from improved_diffusion import cuda_streams
+
 import clip
 
 # For ImageNet experiments, this was a good default value.
@@ -471,8 +473,10 @@ class TrainLoop:
     def _setup_amp(self):
         self.grad_scaler = th.cuda.amp.GradScaler(init_scale=2 ** self.lg_loss_scale, growth_interval=int(1 / self.fp16_scale_growth))
 
+    @cuda_streams.use_main_stream
     def run_loop(self):
         t1 = time.time()
+        print(f"run_loop start: self.step={self.step}")
         while (
             not self.lr_anneal_steps
             or self.step + self.resume_step < self.lr_anneal_steps
@@ -492,6 +496,9 @@ class TrainLoop:
                 raise ValueError('done saving')
             else:
                 self.run_step(batch, cond, verbose = (self.step % self.log_interval == 0))
+
+            # debug only
+            # print(f"run_loop did self.step={self.step}")
 
             if self.step % self.log_interval == 0:
                 t2 = time.time()
@@ -526,10 +533,10 @@ class TrainLoop:
         else:
             zero_grad(self.model_params)
         for i in range(0, batch.shape[0], self.microbatch):
-            micro = batch[i : i + self.microbatch].to(dist_util.dev())
+            micro = batch[i : i + self.microbatch].to(dist_util.dev(), non_blocking=True)
             micro_cond = {
-                k: v[i : i + self.microbatch].to(dist_util.dev())
-                if k not in {'txt', 'capt'}
+                k: v[i : i + self.microbatch].to(dist_util.dev(), non_blocking=True)
+                if k not in {'txt'} #{'txt', 'capt'}
                 else v[i : i + self.microbatch]
                 for k, v in cond.items()
             }
@@ -539,9 +546,10 @@ class TrainLoop:
                 # micro_cond['txt'] = th.as_tensor(tokenize(self.tokenizer, micro_cond['txt']), device=dist_util.dev())
 
                 txt = th.as_tensor(tokenize(self.tokenizer, micro_cond['txt']), device=dist_util.dev())
-                capt = clip.tokenize(micro_cond['capt'], truncate=True).to(dist_util.dev())
                 micro_cond['txt'] = txt
-                micro_cond['capt'] = capt
+            # if 'capt' in micro_cond:
+            #     capt = clip.tokenize(micro_cond['capt'], truncate=True).to(dist_util.dev(), non_blocking=True)
+            #     micro_cond['capt'] = capt
             last_batch = (i + self.microbatch) >= batch.shape[0]
             t, weights = self.schedule_sampler.sample(micro.shape[0], dist_util.dev())
 
@@ -562,11 +570,26 @@ class TrainLoop:
                     model_kwargs=micro_cond,
                 )
 
+                if self.use_profiler and (i > 0) and False:
+                    with th.profiler.profile(with_stack=True, profile_memory=False, with_flops=False) as _p:
+                        try:
+                            compute_losses()
+                        except Exception as e:
+                            print(repr(e))
+                    # print(_p.key_averages(
+                    #     # group_by_stack_n=15
+                    # ).table(sort_by="self_cuda_time_total", row_limit=50))
+                    _p.export_chrome_trace('chromeprof')
+                    raise ValueError('done saving')
+
                 if last_batch or not self.use_ddp:
                     losses = compute_losses()
                 else:
                     with self.ddp_model.no_sync():
                         losses = compute_losses()
+
+            # debug only
+            # print(f"\trun_loop did fwd {i+1}/{batch.shape[0]}")
 
             if isinstance(self.schedule_sampler, LossAwareSampler):
                 self.schedule_sampler.update_with_local_losses(
@@ -594,6 +617,8 @@ class TrainLoop:
                 self.grad_scaler.scale(loss * grad_acc_scale).backward()
             else:
                 (loss * grad_acc_scale).backward()
+            # debug only
+            # print(f"\trun_loop did bwd {i+1}/{batch.shape[0]}")
 
     def _update_ema(self, params, rate, arith_from_step=0, arith_extra_shift=0, verbose=True):
         def _vprint(*args, **kwargs):

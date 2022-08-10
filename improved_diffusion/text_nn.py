@@ -7,7 +7,10 @@ from einops import rearrange
 from x_transformers import TransformerWrapper, Encoder, XTransformer
 from x_transformers.x_transformers import AbsolutePositionalEmbedding, Attention, FeedForward, Rezero
 
+import improved_diffusion.monkeypatch
+
 from .nn import normalization_1group, timestep_embedding, silu, AdaGN, checkpoint, AxialPositionalEmbeddingShape
+from .attention import BetterMultiheadAttention
 
 
 def make_grad_mult_hook(mult, debug=False):
@@ -152,79 +155,6 @@ class TextEncoder(nn.Module):
             if not self.return_sequences:
                 out = out[:, 0, :], attn_mask
             return out, attn_mask
-
-
-class BetterMultiheadAttention(torch.nn.MultiheadAttention):
-    def __init__(self, src_embed_dim, tgt_embed_dim, num_heads, qkv_dim=None, dropout=0., batch_first=True, device=None, dtype=None):
-        factory_kwargs = {'device': device, 'dtype': dtype}
-        super(torch.nn.MultiheadAttention, self).__init__()
-        self.src_embed_dim = src_embed_dim
-        self.tgt_embed_dim = tgt_embed_dim
-        self.embed_dim = self.src_embed_dim
-        if qkv_dim is None:
-            qkv_dim = src_embed_dim
-        self.qkv_dim = qkv_dim
-        # self._qkv_same_embed_dim = self.src_embed_dim == self.tgt_embed_dim  # ??
-
-        self.num_heads = num_heads
-        self.dropout = dropout
-        self.batch_first = batch_first
-        self.head_dim = self.qkv_dim // num_heads
-        assert self.head_dim * num_heads == self.qkv_dim, "qkv_dim must be divisible by num_heads"
-
-        self.q = torch.nn.Linear(tgt_embed_dim, self.qkv_dim, bias=False)
-        self.k = torch.nn.Linear(src_embed_dim, self.qkv_dim, bias=False)
-        self.v = torch.nn.Linear(src_embed_dim, self.qkv_dim, bias=False)
-
-        # self.scale = self.num_heads ** 0.5
-
-        self.register_parameter('in_proj_weight', None)
-        self.register_parameter('in_proj_bias', None)
-
-        self.out_proj = torch.nn.modules.linear.NonDynamicallyQuantizableLinear(self.qkv_dim, tgt_embed_dim, bias=False, **factory_kwargs)
-
-        self.bias_k = self.bias_v = None
-        self.add_zero_attn = False
-
-        self.register_buffer("fake_proj_weight", torch.eye(self.qkv_dim, **factory_kwargs), persistent=False)
-
-        # self._reset_parameters()
-
-    def _reset_parameters(self):
-        torch.nn.init.xavier_uniform_(self.q.weight)
-        torch.nn.init.xavier_uniform_(self.k.weight)
-        torch.nn.init.xavier_uniform_(self.v.weight)
-        torch.nn.init.xavier_uniform_(self.out_proj.weight)
-
-    def forward(self, query, key, value,
-                attn_mask=None,
-                need_weights: bool = True):
-        if self.batch_first:
-            query, key, value = [x.transpose(1, 0) for x in (query, key, value)]
-
-        query = self.q(query)
-        key = self.k(key)
-        value = self.v(value)
-
-        in_dtype = query.dtype
-
-        attn_output, attn_output_weights = torch.nn.functional.multi_head_attention_forward(
-            query, key, value, self.qkv_dim, self.num_heads,
-            self.in_proj_weight, self.in_proj_bias,
-            self.bias_k, self.bias_v, self.add_zero_attn,
-            self.dropout, self.out_proj.weight, self.out_proj.bias,
-            training=self.training,
-            key_padding_mask=None, need_weights=need_weights,
-            attn_mask=attn_mask, use_separate_proj_weight=True,
-            q_proj_weight=self.fake_proj_weight, k_proj_weight=self.fake_proj_weight,
-            v_proj_weight=self.fake_proj_weight)
-
-        attn_output = attn_output.to(in_dtype)
-
-        if self.batch_first:
-            return attn_output.transpose(1, 0), attn_output_weights
-        else:
-            return attn_output, attn_output_weights
 
 
 class CrossAttention(nn.Module):
@@ -621,6 +551,7 @@ class WeaveAttention(nn.Module):
         no_itot=False,
         txt_already_normed=False,
         post_txt_image_attn=None,
+        txt_stream=lambda: None,
         **text_to_image_kwargs,
     ):
         super().__init__()
@@ -682,8 +613,14 @@ class WeaveAttention(nn.Module):
             *[CrossAttention(**text_to_image_kwargs) for _ in range(n_layers)]
         )
 
+        self.txt_stream = txt_stream
+        print(("self.txt_stream", self.txt_stream))
+
 
     def forward(self, text, image, attn_mask=None, tgt_pos_embs=None, timestep_emb=None):
+        if self.txt_stream() is not None:
+            torch.cuda.current_stream().wait_stream(self.txt_stream())
+
         shared_kwargs = dict(attn_mask=attn_mask, timestep_emb=timestep_emb)
 
         orig_text = text

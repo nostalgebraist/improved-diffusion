@@ -33,6 +33,7 @@ from .nn import (
 )
 
 from .text_nn import TextEncoder, CrossAttention, WeaveAttention
+from improved_diffusion import cuda_streams
 
 import clip
 from transformer_utils.partial_forward import partial_forward
@@ -144,7 +145,9 @@ class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
     support it as an extra input.
     """
 
-    def forward(self, inps, emb, attn_mask=None, tgt_pos_embs=None, timesteps=None, capt_attn_mask=None):
+    def forward(
+        self, inps, emb, attn_mask=None, tgt_pos_embs=None, timesteps=None, capt_attn_mask=None,
+    ):
         x, txt, capt = inps
         for layer in self:
             if isinstance(layer, TimestepBlock):
@@ -482,6 +485,7 @@ class AttentionBlock(GlideStyleBlock):
                  zero_init_pos_emb=True,
                  zero_init_proj_out=True,
                  use_rotary_pos_emb=False,
+                 capt_stream=lambda: None,
                  ):
         super().__init__()
         self.channels = channels
@@ -526,6 +530,8 @@ class AttentionBlock(GlideStyleBlock):
             self.encoder_kv = None
             self.encoder_norm = None
 
+        self.capt_stream = capt_stream
+
     def forward(self, x, encoder_out=None, capt_attn_mask=None):
         return checkpoint(self._forward, (x, encoder_out, capt_attn_mask), self.parameters(), self.use_checkpoint)
 
@@ -547,6 +553,9 @@ class AttentionBlock(GlideStyleBlock):
             norm_out = self.norm(x)
         qkv = self.qkv(norm_out)
         qkv = qkv.reshape(b * self.num_heads, -1, qkv.shape[2])
+
+        if self.capt_stream() is not None:
+            th.cuda.current_stream().wait_stream(self.capt_stream())
 
         if (encoder_out is not None) and (self.encoder_kv is not None):
             encoder_kv = self.encoder_kv(encoder_out)
@@ -904,6 +913,8 @@ class UNetModel(nn.Module):
         self.up_interp_mode = up_interp_mode
         self.expand_timestep_base_dim = expand_timestep_base_dim
 
+        self.first_attn_block_ix = None
+
         if self.txt:
             self.text_encoder = TextEncoder(
                 inner_dim=txt_dim,
@@ -1039,9 +1050,12 @@ class UNetModel(nn.Module):
                                 num_heads=num_heads_here,
                                 use_checkpoint_lowcost=use_checkpoint_lowcost,
                                 base_channels=expand_timestep_base_dim * ch // model_channels,
-                                encoder_channels=self.capt_embd_dim if self.glide_style_capt_attn else None
+                                encoder_channels=self.capt_embd_dim if self.glide_style_capt_attn else None,
+                                capt_stream=cuda_streams.capt,
                             )
                         )
+                        if self.first_attn_block_ix is None:
+                            self.first_attn_block_ix = len(self.input_blocks)
                     else:
                         layers.append(nn.Identity())
                 if self.txt and ds in self.txt_resolutions and (not txt_output_layers_only) and (i < (max_attn_xattn_layers_per_res-2)):
@@ -1090,6 +1104,7 @@ class UNetModel(nn.Module):
                             qkv_dim_always_text=weave_qkv_dim_always_text,
                             weave_v2=weave_v2,
                             use_ff_gain=weave_use_ff_gain,
+                            txt_stream=cuda_streams.txt,
                         ))
                         caa = WeaveAttentionAdapter(**caa_args) if use_attn else nn.Identity()
                     else:
@@ -1160,7 +1175,8 @@ class UNetModel(nn.Module):
                 num_heads=num_heads,
                 use_checkpoint_lowcost=use_checkpoint_lowcost,
                 base_channels=expand_timestep_base_dim * ch // model_channels,
-                encoder_channels=self.capt_embd_dim if self.glide_style_capt_attn else None
+                encoder_channels=self.capt_embd_dim if self.glide_style_capt_attn else None,
+                capt_stream=cuda_streams.capt,
             )
 
         self.middle_block = TimestepEmbedSequential(
@@ -1219,7 +1235,8 @@ class UNetModel(nn.Module):
                                 num_heads=num_heads_here,
                                 use_checkpoint_lowcost=use_checkpoint_lowcost,
                                 base_channels=expand_timestep_base_dim * ch // model_channels,
-                                encoder_channels=self.capt_embd_dim if self.glide_style_capt_attn else None
+                                encoder_channels=self.capt_embd_dim if self.glide_style_capt_attn else None,
+                                capt_stream=cuda_streams.capt,
                             )
                         )
                     else:
@@ -1313,6 +1330,7 @@ class UNetModel(nn.Module):
                                 weave_v2=weave_v2,
                                 use_ff_gain=weave_use_ff_gain,
                                 no_itot=use_capt and (not weave_capt),
+                                txt_stream=cuda_streams.txt,
                             ))
                             caa = WeaveAttentionAdapter(**caa_args) if use_attn else nn.Identity()
                         else:
@@ -1375,6 +1393,8 @@ class UNetModel(nn.Module):
         if rgb_adapter:
             self.output_to_rgb = DropinRGBAdapter(needs_var=out_channels>3)
 
+        print(('self.first_attn_block_ix', self.first_attn_block_ix))
+
     def timestep_embedding(self, timesteps):
         if self.expand_timestep_base_dim > 0 and self.expand_timestep_base_dim != self.model_channels:
             return expanded_timestep_embedding(timesteps, self.model_channels, self.expand_timestep_base_dim)
@@ -1433,6 +1453,7 @@ class UNetModel(nn.Module):
             )
         return capt, capt_attn_mask
 
+    @cuda_streams.use_main_stream
     def forward(self, x, timesteps, y=None, txt=None, capt=None, cond_timesteps=None):
         """
         Apply the model to an input batch.
@@ -1473,106 +1494,114 @@ class UNetModel(nn.Module):
         emb = F.silu(emb)
 
         attn_mask = None
-        if txt is not None:
-            txt, attn_mask = self.text_encoder(txt, timesteps=timesteps)
-            txt = txt.type(self.inner_dtype)
-
         capt_attn_mask = None
-        if self.using_capt and capt is not None:
-            capt, capt_attn_mask = self.embed_capt_cached(capt) if self.use_inference_caching else self.embed_capt(capt)
-            # capt_toks = capt
-            # capt_attn_mask = capt_toks != 0
-            # capt = clip_encode_text_nopool(
-            #     self.clipmod.token_embedding, self.clipmod.positional_embedding, self.clipmod.transformer,
-            #     capt_toks,
-            #     ln_final=self.capt_ln_final if self.glide_style_capt_attn else None,
-            #     use_penultimate_layer=self.clip_use_penultimate_layer,
-            #     out_format='ndl' if self.glide_style_capt_attn else 'nld',
-            #     dtype = self.inner_dtype,
-            #     )
-            # capt = capt.type(self.inner_dtype)
-            if self.glide_style_capt_emb:
-                eos = capt[th.arange(capt_toks.shape[0]), :, capt_toks.argmax(dim=-1)]
-                emb = emb + self.capt_embed(eos)
 
-        h = x
+        with th.cuda.stream(cuda_streams.main()):
+            hs = []
+            emb = self.time_embed(self.timestep_embedding(timesteps))
 
-        if self.monochrome_adapter:
-            h = self.mono_to_rgb(h)
-        if self.rgb_adapter:
-            h = self.rgb_to_input(h)
+            if cond_timesteps is not None:
+                emb = emb + self.time_embed_noise_cond(self.timestep_embedding(cond_timesteps))
 
-        # print(f'x type: {x.dtype}')
-        # h = h.type(self.inner_dtype)
-        # print(f'h type: {h.dtype}')
-        if self.channels_last_mem:
-            h = h.to(memory_format=th.channels_last)
-        if self.using_bread_adapter:
-            h_bread_in = self.bread_adapter_in(h)
-            h_bread_out = None
-        for module in self.input_blocks:
-            # print(module)
-            # print(f"h: {h.shape} | hs: {[t.shape for t in hs]}")
-            h, txt, capt = module((h, txt, capt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs, capt_attn_mask=capt_attn_mask)
-            if getattr(module, 'bread_adapter_in_pt', False):
+            if self.num_classes is not None:
+                assert y.shape == (x.shape[0],)
+                emb = emb + self.label_emb(y)
+
+            h = x
+
+            if self.monochrome_adapter:
+                h = self.mono_to_rgb(h)
+            if self.rgb_adapter:
+                h = self.rgb_to_input(h)
+
+            if self.channels_last_mem:
+                h = h.to(memory_format=th.channels_last)
+            if self.using_bread_adapter:
+                h_bread_in = self.bread_adapter_in(h)
+                h_bread_out = None
+            for i, module in enumerate(self.input_blocks):
+                # print(module)
+                # print(f"h: {h.shape} | hs: {[t.shape for t in hs]}")
+                h, txt, capt = module((h, txt, capt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs, capt_attn_mask=capt_attn_mask)
+                if getattr(module, 'bread_adapter_in_pt', False):
+                    if self.bread_adapter_only:
+                        h = h_bread_in
+                    else:
+                        h = h + h_bread_in
+                hs.append(h)
+
+                if i == max(0, self.first_attn_block_ix // 2):
+                    with th.cuda.stream(cuda_streams.capt()):
+                        if self.using_capt and capt is not None:
+                            capt, capt_attn_mask = self.embed_capt_cached(capt) if self.use_inference_caching else self.embed_capt(capt)
+                            if self.glide_style_capt_emb:
+                                eos = capt[th.arange(capt_toks.shape[0]), :, capt_toks.argmax(dim=-1)]
+                                emb = emb + self.capt_embed(eos)
+
+                if i == min(len(self.input_blocks), self.first_attn_block_ix + 2):
+                    with th.cuda.stream(cuda_streams.txt()):
+                        # TODO: get queries for itot ready in this step?
+                        if txt is not None:
+                            txt, attn_mask = self.text_encoder(txt, timesteps=timesteps)
+                            # txt = txt.type(self.inner_dtype)
+
+
+                # print(f'\th type: {h.dtype}')
+
+            h, txt, capt = self.middle_block((h, txt, capt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs, capt_attn_mask=capt_attn_mask)
+            skip_pop = False
+            for module in self.output_blocks:
+                # print(module)
+                # print(f"h: {h.shape} | hs: {[t.shape for t in hs]}")
+                if skip_pop:
+                    cat_in = h
+                    skip_pop = False
+                else:
+                    if self.expand_timestep_base_dim > 0:
+                        ch = h.shape[1]
+                        mult = ch // self.model_channels
+                        h_base, h_xtra = th.split(
+                            h,
+                            [mult * self.expand_timestep_base_dim, ch - mult * self.expand_timestep_base_dim],
+                            dim=1
+                        )
+
+                        popped = hs.pop()
+                        ch = popped.shape[1]
+                        mult = ch // self.model_channels
+                        popped_base, popped_xtra = th.split(
+                            popped,
+                            [mult * self.expand_timestep_base_dim, ch - mult * self.expand_timestep_base_dim],
+                            dim=1
+                        )
+
+                        cat_in = th.cat([h_base, popped_base, h_xtra, popped_xtra], dim=1)
+                    else:
+                        cat_in = th.cat([h, hs.pop()], dim=1)
+                h, txt, capt = module((cat_in, txt, capt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs, capt_attn_mask=capt_attn_mask)
+                if getattr(module, 'bread_adapter_out_pt', False):
+                    h_bread_out = self.bread_adapter_out(h)
+                    skip_pop = True
+                # print(f'\th type: {h.dtype}')
+            # h = h.type(x.dtype)
+            # print(f'h type: {h.dtype}')
+
+            h = checkpoint(self.out.forward, (h,), self.out.parameters(), self.image_size <= self.use_checkpoint_below_res)
+
+            # print(f'\th type: {h.dtype}')
+
+            if self.using_bread_adapter:
                 if self.bread_adapter_only:
-                    h = h_bread_in
+                    h = h_bread_out
                 else:
-                    h = h + h_bread_in
-            hs.append(h)
-            # print(f'\th type: {h.dtype}')
-        h, txt, capt = self.middle_block((h, txt, capt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs, capt_attn_mask=capt_attn_mask)
-        skip_pop = False
-        for module in self.output_blocks:
-            # print(module)
-            # print(f"h: {h.shape} | hs: {[t.shape for t in hs]}")
-            if skip_pop:
-                cat_in = h
-                skip_pop = False
-            else:
-                if self.expand_timestep_base_dim > 0:
-                    ch = h.shape[1]
-                    mult = ch // self.model_channels
-                    h_base, h_xtra = th.split(
-                        h,
-                        [mult * self.expand_timestep_base_dim, ch - mult * self.expand_timestep_base_dim],
-                        dim=1
-                    )
+                    h = h + h_bread_out
 
-                    popped = hs.pop()
-                    ch = popped.shape[1]
-                    mult = ch // self.model_channels
-                    popped_base, popped_xtra = th.split(
-                        popped,
-                        [mult * self.expand_timestep_base_dim, ch - mult * self.expand_timestep_base_dim],
-                        dim=1
-                    )
+            if self.rgb_adapter:
+                h = self.output_to_rgb(h)
+            if self.monochrome_adapter:
+                h = self.rgb_to_mono(h)
 
-                    cat_in = th.cat([h_base, popped_base, h_xtra, popped_xtra], dim=1)
-                else:
-                    cat_in = th.cat([h, hs.pop()], dim=1)
-            h, txt, capt = module((cat_in, txt, capt), emb, attn_mask=attn_mask, tgt_pos_embs=self.tgt_pos_embs, capt_attn_mask=capt_attn_mask)
-            if getattr(module, 'bread_adapter_out_pt', False):
-                h_bread_out = self.bread_adapter_out(h)
-                skip_pop = True
-            # print(f'\th type: {h.dtype}')
-        # h = h.type(x.dtype)
-        # print(f'h type: {h.dtype}')
-
-        h = checkpoint(self.out.forward, (h,), self.out.parameters(), self.image_size <= self.use_checkpoint_below_res)
-
-        # print(f'\th type: {h.dtype}')
-
-        if self.using_bread_adapter:
-            if self.bread_adapter_only:
-                h = h_bread_out
-            else:
-                h = h + h_bread_out
-
-        if self.rgb_adapter:
-            h = self.output_to_rgb(h)
-        if self.monochrome_adapter:
-            h = self.rgb_to_mono(h)
+        th.cuda.synchronize()
 
         return h
 
@@ -1619,6 +1648,7 @@ class SuperResModel(UNetModel):
     def __init__(self, in_channels, *args, **kwargs):
         super().__init__(in_channels + 1 if kwargs.get('colorize') else in_channels * 2, *args, **kwargs)
 
+    @cuda_streams.use_main_stream
     def forward(self, x, timesteps, low_res=None, **kwargs):
         _, _, new_height, new_width = x.shape
         upsampled = F.interpolate(low_res, (new_height, new_width), mode=self.up_interp_mode)

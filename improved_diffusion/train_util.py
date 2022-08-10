@@ -977,7 +977,14 @@ def apply_resize(model, sd, mult=1., debug=True):
                 is_norm_w = n.endswith('.weight') and (isinstance(mod, th.nn.GroupNorm) or isinstance(mod, th.nn.LayerNorm))
 
                 if debug:
-                    debug_slices = tuple(slice(max(0, i-2), min(j, i+2)) for i, j in zip(sd[n].shape, buffer.shape))
+                    debug_slices = []
+                    for i_, j_ in zip(sd[n].shape, buffer.shape):
+                        i, j = min(i, j), max(i, j)
+                        debug_slices.append(slice(max(0, i-2), min(j, i+2)))
+                    debug_slices = tuple(debug_slices)
+                    print(("slices", slices))
+                    print(("debug_slices", debug_slices))
+                    # debug_slices = tuple(slice(max(0, i-2), min(j, i+2)) for i, j in zip(sd[n].shape, buffer.shape))
                     print(f"before {n}\t{repr(buffer[debug_slices].squeeze())}")
                 if is_norm_w:
                     print(f'not scaling\t{n}')

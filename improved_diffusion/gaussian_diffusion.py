@@ -1167,7 +1167,7 @@ class GaussianDiffusion:
                 ModelVarType.LEARNED_RANGE,
             ]:
                 B, C = x_t.shape[:2]
-                assert model_output.shape == (B, C * 2, *x_t.shape[2:])
+                assert model_output.shape == (B, C * 2, *x_t.shape[2:]), f"wrong shape {model_output.shape} vs {(B, C * 2, *x_t.shape[2:])}"
                 model_output, model_var_values = th.split(model_output, C, dim=1)
                 # Learn the variance using the variational bound, but don't let
                 # it affect our mean prediction.

@@ -400,10 +400,17 @@ def create_model(
         f"create_model: got txt={txt}, num_heads={num_heads}, channels_per_head={channels_per_head}, cross_attn_channels_per_head={cross_attn_channels_per_head}, text_lr_mult={text_lr_mult}"
     )
     print(f"create_model: noise_cond={noise_cond}, use_checkpoint={use_checkpoint}, use_checkpoint_lowcost={use_checkpoint_lowcost}")
+    middle_mult = -1
     if channel_mult != "":
         print(f"got channel_mult: {channel_mult}")
         try:
-            channel_mult = tuple(float(v) for v in channel_mult.strip().split(','))
+            channel_mult_ = []
+            for v in channel_mult.strip().split(','):
+                if v.startswith('m'):
+                    middle_mult = float(v[1:])
+                else:
+                    channel_mult_.append(float(v))
+            channel_mult = tuple(channel_mult_)
         except ValueError:
             pass
 
@@ -520,6 +527,7 @@ def create_model(
         clipmod=clipmod,
         post_txt_image_attn=post_txt_image_attn,
         efficient_unet_tweaks=efficient_unet_tweaks,
+        middle_mult=middle_mult,
     )
 
 

@@ -467,9 +467,10 @@ class ResBlock(TimestepBlock):
             h = h + emb_out
             h = self.out_layers(h)
 
+        skip = self.skip_connection(x)
         if self.efficient_unet_tweaks and self.efficient_unet_sqrt2:
-            h = h * 0.7071068
-        return self.skip_connection(x) + h
+            skip = skip * 0.7071068
+        return skip + h
 
 
 class AttentionBlock(GlideStyleBlock):
@@ -844,6 +845,7 @@ class UNetModel(nn.Module):
         post_txt_image_attn='none',  # 'none', 'final', 'final_res', or 'all'
         efficient_unet_tweaks=False,
         max_attn_xattn_layers_per_res=3,
+        middle_mult=-1,
     ):
         super().__init__()
 
@@ -1011,21 +1013,26 @@ class UNetModel(nn.Module):
         ds = 1
         for level, (mult, nrb) in enumerate(zip(channel_mult, num_res_blocks)):
             for i in range(nrb):
+                out_channels_ = int(mult * model_channels)
+                if middle_mult > 0 and (i == nrb-1) and (level == len(channel_mult)-1):
+                    out_channels_ = int(middle_mult * model_channels)
                 layers = [
                     ResBlock(
                         ch,
                         time_embed_dim,
                         dropout,
-                        out_channels=int(mult * model_channels),
+                        out_channels=out_channels_,
                         dims=dims,
                         use_checkpoint=use_checkpoint or use_checkpoint_down or ((image_size // ds) <= use_checkpoint_below_res),
                         use_scale_shift_norm=use_scale_shift_norm,
                         use_checkpoint_lowcost=use_checkpoint_lowcost,
                         base_channels=expand_timestep_base_dim * ch // model_channels,
                         silu_impl=silu_impl,
+                        efficient_unet_tweaks=efficient_unet_tweaks,
+                        efficient_unet_sqrt2=i>1,
                     )
                 ]
-                ch = int(mult * model_channels)
+                ch = out_channels_
                 if (ds in attention_resolutions) and (i < (max_attn_xattn_layers_per_res-2)):
                     if no_attn_substitute_resblock:
                         layers.append(

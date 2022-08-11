@@ -13,6 +13,7 @@ MPI = FakeMPI()
 
 import tokenizers
 from tqdm.auto import trange
+from tqdm.contrib.concurrent import thread_map
 
 import imagesize
 
@@ -460,31 +461,32 @@ def _list_image_files_recursively(data_dir, txt=False, min_filesize=0, min_image
         capts = {}
     if excluded_paths is None:
         excluded_paths = set()
-    n_excluded_filesize = 0
-    n_excluded_imagesize = 0
-    n_excluded_path = 0
-    n_capts = 0
-    for entry in sorted(bf.listdir(data_dir)):
+    n_excluded_filesize = {'n': 0}
+    n_excluded_imagesize = {'n': 0}
+    n_excluded_path = {'n': 0}
+    n_capts = {'n': 0}
+    subdirectories = []
+    def scan_entry(entry):
         full_path = bf.join(data_dir, entry)
 
         if full_path in excluded_paths:
-            n_excluded_path += 1
-            continue
+            n_excluded_path['n'] += 1
+            return
 
         prefix, _, ext = entry.rpartition(".")
         safebox_key = prefix.replace('/', '_')
 
         if "." in entry and ext.lower() in ["jpg", "jpeg", "png", "gif"]:
             if require_capts and (safebox_key not in capts):
-                continue
+                return
 
-            n_capts += int(safebox_key in capts)
+            n_capts['n'] += int(safebox_key in capts)
 
             if min_filesize > 0:
                 filesize = os.path.getsize(full_path)
                 if filesize < min_filesize:
-                    n_excluded_filesize += 1
-                    continue
+                    n_excluded_filesize['n'] += 1
+                    return
                 file_sizes[full_path] = filesize
 
             image_file_to_capt[full_path] = capts.get(safebox_key)
@@ -494,8 +496,8 @@ def _list_image_files_recursively(data_dir, txt=False, min_filesize=0, min_image
                 pxs = px_scales.get(safebox_key, (1, 1))
                 edge = min(wh[0]/max(1, pxs[0]), wh[1]/max(pxs[1], 1))
                 if edge < min_imagesize:
-                    n_excluded_imagesize += 1
-                    continue
+                    n_excluded_imagesize['n'] += 1
+                    return
             results.append(full_path)
             if txt:
                 prefix, _, ext = full_path.rpartition(".")
@@ -514,15 +516,26 @@ def _list_image_files_recursively(data_dir, txt=False, min_filesize=0, min_image
                     # raise ValueError(path_txt)
 
         elif bf.isdir(full_path):
-            next_results, next_map, next_file_sizes, next_image_file_to_safebox, next_image_file_to_px_scales, next_image_file_to_capt = _list_image_files_recursively(
-                full_path, txt=txt, min_filesize=min_filesize, min_imagesize=min_imagesize, safeboxes=safeboxes, px_scales=px_scales, capts=capts, require_capts=require_capts, excluded_paths=excluded_paths
-            )
-            results.extend(next_results)
-            image_file_to_text_file.update(next_map)
-            file_sizes.update(next_file_sizes)
-            image_file_to_safebox.update(next_image_file_to_safebox)
-            image_file_to_px_scales.update(next_image_file_to_px_scales)
-            image_file_to_capt.update(next_image_file_to_capt)
+            subdirectories.append(full_path)
+
+        # for entry in sorted(bf.listdir(data_dir)):
+    thread_map(scan_entry, sorted(bf.listdir(data_dir)), max_workers=32)
+
+    n_excluded_filesize = n_excluded_filesize['n']
+    n_excluded_imagesize = n_excluded_imagesize['n']
+    n_excluded_path = n_excluded_path['n']
+    n_capts = n_capts['n']
+
+    for full_path in subdirectories:
+        next_results, next_map, next_file_sizes, next_image_file_to_safebox, next_image_file_to_px_scales, next_image_file_to_capt = _list_image_files_recursively(
+            full_path, txt=txt, min_filesize=min_filesize, min_imagesize=min_imagesize, safeboxes=safeboxes, px_scales=px_scales, capts=capts, require_capts=require_capts, excluded_paths=excluded_paths
+        )
+        results.extend(next_results)
+        image_file_to_text_file.update(next_map)
+        file_sizes.update(next_file_sizes)
+        image_file_to_safebox.update(next_image_file_to_safebox)
+        image_file_to_px_scales.update(next_image_file_to_px_scales)
+        image_file_to_capt.update(next_image_file_to_capt)
     print(f"_list_image_files_recursively: data_dir={data_dir}, n_excluded_filesize={n_excluded_filesize}, n_excluded_imagesize={n_excluded_imagesize},\n\tn_excluded_path={n_excluded_path}, n_capts={n_capts}")
     image_file_to_safebox = {k: v for k, v in image_file_to_safebox.items() if v is not None}
     image_file_to_px_scales = {k: v for k, v in image_file_to_px_scales.items() if v is not None}

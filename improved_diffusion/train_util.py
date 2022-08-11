@@ -116,6 +116,7 @@ class TrainLoop:
         self.lr_warmup_steps = lr_warmup_steps
         self.lr_warmup_shift = lr_warmup_shift
         self.tokenizer = tokenizer
+        self.channels_per_head = channels_per_head
         self.state_dict_sandwich = state_dict_sandwich
         self.state_dict_sandwich_manual_remaps = {kv.split(":")[0]: kv.split(":")[1]
                                                   for kv in state_dict_sandwich_manual_remaps.split(",")
@@ -1002,12 +1003,12 @@ def apply_resize(model, sd, mult=1., debug=False, dynamic_mult=False, channels_p
                     raise ValueError(n)
                 # is_norm_w = n.endswith('ln.weight') or n.endswith('normalization.weight')
                 is_norm_w = n.endswith('.weight') and (isinstance(mod, th.nn.GroupNorm) or isinstance(mod, th.nn.LayerNorm))
-                is_qkv = '.qkv' in n
+                is_qkv = '.qkv' in n or '.encoder_kv' in n
 
                 if is_qkv:
-                    head_shape = (p.shape[0] // channels_per_head, p.shape[1])
+                    head_shape = [p.shape[0] // channels_per_head] + list(p.shape[1:])
                     buffer = buffer.reshape(head_shape)
-                    sd[n] = sd[n].reshape((sd[n].shape[0] // channels_per_head, sd[n].shape[1]))
+                    sd[n] = sd[n].reshape([sd[n].shape[0] // channels_per_head] + list(sd[n].shape[1:]))
                     slices = tuple(slice(0, min(i, j)) for i, j in zip(sd[n].shape, buffer.shape))
                     print(f"\tqkv resize\t{n}\t\t{sd[n].shape} -> {buffer.shape}")
 

@@ -179,6 +179,7 @@ def main():
         capt_lr=args.capt_lr,
         freeze_capt_encoder=args.freeze_capt_encoder,
         use_profiler=args.use_profiler,
+        channels_per_head=args.channels_per_head,
     ).run_loop()
 
 

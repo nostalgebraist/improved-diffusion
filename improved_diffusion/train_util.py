@@ -87,6 +87,7 @@ class TrainLoop:
         noise_cond_schedule='cosine',
         noise_cond_steps=1000,
         noise_cond_max_step=-1,
+        channels_per_head=64,
     ):
         self.model = model
         self.diffusion = diffusion
@@ -397,7 +398,8 @@ class TrainLoop:
                 newsd = apply_resize(
                     self.model,
                     newsd,
-                    mult=self.resize_mult
+                    mult=self.resize_mult,
+                    channels_per_head=self.channels_per_head,
                 )
 
                 incompatible_keys = self.model.load_state_dict(
@@ -985,7 +987,7 @@ def log_loss_dict(diffusion, ts, losses):
                 logger.logkv_mean(f"{key}_s{stage}", sub_loss)
 
 
-def apply_resize(model, sd, mult=1., debug=False, dynamic_mult=False):
+def apply_resize(model, sd, mult=1., debug=False, dynamic_mult=False, channels_per_head=64,):
     for n, p in model.named_parameters():
         if n not in sd:
             continue
@@ -1000,6 +1002,14 @@ def apply_resize(model, sd, mult=1., debug=False, dynamic_mult=False):
                     raise ValueError(n)
                 # is_norm_w = n.endswith('ln.weight') or n.endswith('normalization.weight')
                 is_norm_w = n.endswith('.weight') and (isinstance(mod, th.nn.GroupNorm) or isinstance(mod, th.nn.LayerNorm))
+                is_qkv = '.qkv' in n
+
+                if is_qkv:
+                    head_shape = (p.shape[0] // channels_per_head, p.shape[1])
+                    buffer = buffer.reshape(head_shape)
+                    sd[n] = sd[n].reshape((sd[n].shape[0] // channels_per_head, sd[n].shape[1]))
+                    slices = tuple(slice(0, min(i, j)) for i, j in zip(sd[n].shape, buffer.shape))
+                    print(f"\tqkv resize\t{n}\t\t{sd[n].shape} -> {buffer.shape}")
 
                 if debug:
                     debug_slices = []
@@ -1020,6 +1030,8 @@ def apply_resize(model, sd, mult=1., debug=False, dynamic_mult=False):
                 if debug:
                     print(f"after scale\t{n}\n{repr(buffer[debug_slices].squeeze())}")
                 buffer.__setitem__(slices, sd[n][slices])
+                if is_qkv:
+                    buffer = buffer.reshape(p.shape)
                 if debug:
                     print(f"after set\t{n}\n{repr(buffer[debug_slices].squeeze())}")
                 sd[n] = buffer

@@ -404,13 +404,13 @@ def create_model(
     if channel_mult != "":
         print(f"got channel_mult: {channel_mult}")
         try:
-            channel_mult = []
+            channel_mult_ = []
             for v in channel_mult.strip().split(','):
                 if v.startswith('m'):
                     middle_mult = float(v[1:])
                 else:
-                    channel_mult.append(float(v))
-            channel_mult = tuple(channel_mult)
+                    channel_mult_.append(float(v))
+            channel_mult = tuple(channel_mult_)
         except ValueError:
             pass
 

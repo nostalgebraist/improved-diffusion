@@ -1009,7 +1009,7 @@ def apply_resize(model, sd, mult=1., debug=False, dynamic_mult=False, channels_p
                     n_qkv = 2 if '.encoder_kv' in n else 3
                     head_shape = [p.shape[0] // (channels_per_head * n_qkv), channels_per_head, n_qkv] + list(p.shape[2:])
                     buffer = buffer.reshape(head_shape)
-                    sd[n] = sd[n].reshape([sd[n].shape[0] // channels_per_head, channels_per_head, n_qkv] + list(sd[n].shape[2:]))
+                    sd[n] = sd[n].reshape([sd[n].shape[0] // (channels_per_head * n_qkv), channels_per_head, n_qkv] + list(sd[n].shape[2:]))
                     slices = tuple(slice(0, min(i, j)) for i, j in zip(sd[n].shape, buffer.shape))
                     print(f"\tqkv resize\t{n}\t\t{sd[n].shape} -> {buffer.shape}")
 

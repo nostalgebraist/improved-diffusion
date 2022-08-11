@@ -311,6 +311,7 @@ class ResBlock(TimestepBlock):
         silu_impl="torch",
         efficient_unet_tweaks=False,
         efficient_unet_sqrt2=False,
+        zero_init_out=True,
     ):
         super().__init__()
         self.channels = channels
@@ -364,11 +365,12 @@ class ResBlock(TimestepBlock):
                 2 * self.out_channels if use_scale_shift_norm else self.out_channels,
             ),
         )
+        scaler = zero_module if zero_init_out else lambda x: x
         self.out_layers = nn.Sequential(
             normalization(self.out_channels, base_channels=self.base_out_channels, fused=self.fused),
             silu(impl=silu_impl, use_checkpoint=use_checkpoint_lowcost),
             nn.Dropout(p=dropout) if dropout > 0 else nn.Identity(),
-            zero_module(
+            scaler(
                 conv_nd(dims, self.out_channels, self.out_channels, 3, padding=1)
             ),
         )
@@ -1032,6 +1034,7 @@ class UNetModel(nn.Module):
                         silu_impl=silu_impl,
                         efficient_unet_tweaks=efficient_unet_tweaks,
                         efficient_unet_sqrt2=i>1,
+                        zero_init_out=i<=1,
                     )
                 ]
                 ch = out_channels_
@@ -1051,6 +1054,7 @@ class UNetModel(nn.Module):
                                 silu_impl=silu_impl,
                                 efficient_unet_tweaks=efficient_unet_tweaks,
                                 efficient_unet_sqrt2=i>1,
+                                zero_init_out=i<=1,
                             )
                         )
                     elif use_attn:
@@ -1216,6 +1220,7 @@ class UNetModel(nn.Module):
                         silu_impl=silu_impl,
                         efficient_unet_tweaks=efficient_unet_tweaks,
                         efficient_unet_sqrt2=i>2,
+                        zero_init_out=i<=2,
                     )
                 ]
                 ch = int(model_channels * mult)
@@ -1235,6 +1240,7 @@ class UNetModel(nn.Module):
                                 silu_impl=silu_impl,
                                 efficient_unet_tweaks=efficient_unet_tweaks,
                                 efficient_unet_sqrt2=i>2,
+                                zero_init_out=i<=2,
                             )
                         )
                     elif use_attn:

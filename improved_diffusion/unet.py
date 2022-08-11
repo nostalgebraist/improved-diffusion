@@ -335,8 +335,6 @@ class ResBlock(TimestepBlock):
         self.efficient_unet_tweaks = efficient_unet_tweaks
         self.efficient_unet_sqrt2 = efficient_unet_sqrt2
 
-        print(f"ResBlock {efficient_unet_tweaks}=efficient_unet_tweaks efficient_unet_sqrt2={efficient_unet_sqrt2}")
-
         self.in_layers = nn.Sequential(
             normalization(channels, base_channels=self.base_channels, fused=self.fused),
             silu(impl=silu_impl, use_checkpoint=use_checkpoint_lowcost),
@@ -1019,6 +1017,8 @@ class UNetModel(nn.Module):
                         use_checkpoint_lowcost=use_checkpoint_lowcost,
                         base_channels=expand_timestep_base_dim * ch // model_channels,
                         silu_impl=silu_impl,
+                        efficient_unet_tweaks=efficient_unet_tweaks,
+                        efficient_unet_sqrt2=i>1,
                     )
                 ]
                 ch = out_channels_

@@ -835,6 +835,7 @@ class UNetModel(nn.Module):
         post_txt_image_attn='none',  # 'none', 'final', 'final_res', or 'all'
         efficient_unet_tweaks=False,
         max_attn_xattn_layers_per_res=3,
+        middle_mult=-1,
     ):
         super().__init__()
 
@@ -1000,12 +1001,15 @@ class UNetModel(nn.Module):
         ds = 1
         for level, (mult, nrb) in enumerate(zip(channel_mult, num_res_blocks)):
             for i in range(nrb):
+                out_channels = int(mult * model_channels)
+                if middle_mult > 0 and (i == nrb-1) and (level == len(channel_mult)-1):
+                    out_channels = int(middle_mult * model_channels)
                 layers = [
                     ResBlock(
                         ch,
                         time_embed_dim,
                         dropout,
-                        out_channels=int(mult * model_channels),
+                        out_channels=out_channels,
                         dims=dims,
                         use_checkpoint=use_checkpoint or use_checkpoint_down or ((image_size // ds) <= use_checkpoint_below_res),
                         use_scale_shift_norm=use_scale_shift_norm,
@@ -1014,7 +1018,7 @@ class UNetModel(nn.Module):
                         silu_impl=silu_impl,
                     )
                 ]
-                ch = int(mult * model_channels)
+                ch = out_channels
                 if (ds in attention_resolutions) and (i < (max_attn_xattn_layers_per_res-2)):
                     if no_attn_substitute_resblock:
                         layers.append(

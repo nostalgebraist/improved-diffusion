@@ -879,6 +879,8 @@ class UNetModel(nn.Module):
         if len(num_res_blocks) == 1:
             num_res_blocks = num_res_blocks * len(channel_mult)
 
+        print(f"unet: have num_res_blocks={num_res_blocks}")
+
         self.in_channels = in_channels
         self.model_channels = model_channels
         self.out_channels = out_channels

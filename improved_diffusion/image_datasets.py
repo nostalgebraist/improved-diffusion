@@ -510,7 +510,7 @@ def _list_image_files_recursively(data_dir, txt=False, min_filesize=0, min_image
             subdirectories.append(full_path)
 
         # for entry in sorted(bf.listdir(data_dir)):
-    thread_map(scan_entry, sorted(bf.listdir(data_dir)), max_workers=16)
+    thread_map(scan_entry, sorted(bf.listdir(data_dir)), max_workers=32)
 
     n_excluded_filesize = n_excluded_filesize['n']
     n_excluded_imagesize = n_excluded_imagesize['n']

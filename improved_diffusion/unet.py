@@ -309,8 +309,8 @@ class ResBlock(TimestepBlock):
         use_checkpoint_lowcost=False,
         base_channels=None,
         silu_impl="torch",
-        efficient_unet_tweaks=False,
-        efficient_unet_sqrt2=False,
+        efficient_unet_tweaks=True,
+        efficient_unet_sqrt2=True,
         zero_init_out=True,
     ):
         super().__init__()
@@ -1033,8 +1033,6 @@ class UNetModel(nn.Module):
                         base_channels=expand_timestep_base_dim * ch // model_channels,
                         silu_impl=silu_impl,
                         efficient_unet_tweaks=efficient_unet_tweaks,
-                        efficient_unet_sqrt2=i>1,
-                        zero_init_out=i<=1,
                     )
                 ]
                 ch = out_channels_
@@ -1053,8 +1051,6 @@ class UNetModel(nn.Module):
                                 base_channels=expand_timestep_base_dim * ch // model_channels,
                                 silu_impl=silu_impl,
                                 efficient_unet_tweaks=efficient_unet_tweaks,
-                                efficient_unet_sqrt2=i>1,
-                                zero_init_out=i<=1,
                             )
                         )
                     elif use_attn:
@@ -1219,8 +1215,6 @@ class UNetModel(nn.Module):
                         base_channels=expand_timestep_base_dim * this_ch // model_channels,
                         silu_impl=silu_impl,
                         efficient_unet_tweaks=efficient_unet_tweaks,
-                        efficient_unet_sqrt2=i>2,
-                        zero_init_out=i<=2,
                     )
                 ]
                 ch = int(model_channels * mult)
@@ -1239,8 +1233,6 @@ class UNetModel(nn.Module):
                                 base_channels=expand_timestep_base_dim * this_ch // model_channels,
                                 silu_impl=silu_impl,
                                 efficient_unet_tweaks=efficient_unet_tweaks,
-                                efficient_unet_sqrt2=i>2,
-                                zero_init_out=i<=2,
                             )
                         )
                     elif use_attn:

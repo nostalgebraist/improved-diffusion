@@ -1541,7 +1541,7 @@ class UNetModel(nn.Module):
                         h = h + h_bread_in
                 hs.append(h)
 
-                if (capt is not None) and (i == max(0, 3 * self.first_attn_block_ix // 4)):
+                if (self.first_attn_block_ix is not None) and (i == max(0, 3 * self.first_attn_block_ix // 4)):
                 # if i == max(0, self.first_attn_block_ix // 2):
                     with th.cuda.stream(cuda_streams.capt()):
                         if self.using_capt and capt is not None:
@@ -1550,7 +1550,7 @@ class UNetModel(nn.Module):
                                 eos = capt[th.arange(capt_toks.shape[0]), :, capt_toks.argmax(dim=-1)]
                                 emb = emb + self.capt_embed(eos)
 
-                if (txt is not None) and (i == (self.first_attn_block_ix + (len(self.input_blocks) - self.first_attn_block_ix) //2)):
+                if (self.first_attn_block_ix is not None) and (i == (self.first_attn_block_ix + (len(self.input_blocks) - self.first_attn_block_ix) //2)):
                 # if i == min(len(self.input_blocks), self.first_attn_block_ix + 2):
                     with th.cuda.stream(cuda_streams.txt()):
                         # TODO: get queries for itot ready in this step?

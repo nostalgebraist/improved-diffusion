@@ -1205,6 +1205,16 @@ class UNetModel(nn.Module):
         self.output_blocks = nn.ModuleList([])
         for level, (mult, nrb) in list(enumerate(zip(channel_mult, num_res_blocks)))[::-1]:
             for i in range(nrb + 1):
+                input_i  = nrb - i
+                # nrb 2
+                # in [0, 1]
+                # out [0, 1, 2]
+                # input_i [2, 1, 0]
+
+                # nrb 3
+                # in [0, 1, 2]
+                # out [0, 1, 2, 3]
+                # input_i [3, 2, 1, 0]
                 this_ch = ch + input_block_chans.pop()
                 layers = [
                     ResBlock(
@@ -1219,12 +1229,12 @@ class UNetModel(nn.Module):
                         base_channels=expand_timestep_base_dim * this_ch // model_channels,
                         silu_impl=silu_impl,
                         efficient_unet_tweaks=efficient_unet_tweaks,
-                        efficient_unet_sqrt2=i>2,
-                        zero_init_out=i<=2,
+                        efficient_unet_sqrt2=input_i>2,
+                        zero_init_out=input_i<=2,
                     )
                 ]
                 ch = int(model_channels * mult)
-                if ds in attention_resolutions and (i <= (max_attn_xattn_layers_per_res-1)):
+                if ds in attention_resolutions and (input_i <= (max_attn_xattn_layers_per_res-1)):
                     if no_attn_substitute_resblock:
                         layers.append(
                             ResBlock(
@@ -1239,8 +1249,8 @@ class UNetModel(nn.Module):
                                 base_channels=expand_timestep_base_dim * this_ch // model_channels,
                                 silu_impl=silu_impl,
                                 efficient_unet_tweaks=efficient_unet_tweaks,
-                                efficient_unet_sqrt2=i>2,
-                                zero_init_out=i<=2,
+                                efficient_unet_sqrt2=input_i>2,
+                                zero_init_out=input_i<=2,
                             )
                         )
                     elif use_attn:
@@ -1260,7 +1270,7 @@ class UNetModel(nn.Module):
                         )
                     else:
                         layers.append(nn.Identity())
-                if self.txt and ds in self.txt_resolutions and (i <= (max_attn_xattn_layers_per_res-1)):
+                if self.txt and ds in self.txt_resolutions and (input_i <= (max_attn_xattn_layers_per_res-1)):
                     use_capts = [False, True] if (self.using_capt and self.xattn_capt) else [False]
                     if self.glide_style_capt_attn:
                         use_capts = [False]

@@ -174,6 +174,8 @@ class AdaGN(nn.Module):
                 base_h, xtra_h = th.split(h, [self.normalization.num_channels_base, self.normalization.num_channels_xtra], dim=1)
                 if self.normalization.num_groups_xtra == 1:
                     fn = adagn_extended_32_1
+                elif self.normalization.num_groups_xtra == 8:
+                    fn = adagn_extended_32_8
                 else:
                     raise ValueError(self.normalization.num_groups_xtra)
                 h = fn(
@@ -264,6 +266,21 @@ def adagn_silu_extended_32_1(h, h2, emb_out, emb_out2, w, b, w2, b2):
 def adagn_extended_32_1(h, h2, emb_out, emb_out2, w, b, w2, b2):
     h = th.group_norm(h.float(), 32, w, b).type(h.dtype)
     h2 = th.group_norm(h2.float(), 1, w2, b2).type(h.dtype)
+
+    h = th.cat([h, h2], dim=1)
+
+    scale, shift = th.chunk(emb_out, 2, dim=1)
+    scale2, shift2 = th.chunk(emb_out2, 2, dim=1)
+    scale = th.cat([scale, scale2], dim=1)
+    shift = th.cat([shift, shift2], dim=1)
+    h = h * (1 + scale) + shift
+    return h
+
+
+@th.jit.script
+def adagn_extended_32_8(h, h2, emb_out, emb_out2, w, b, w2, b2):
+    h = th.group_norm(h.float(), 32, w, b).type(h.dtype)
+    h2 = th.group_norm(h2.float(), 8, w2, b2).type(h.dtype)
 
     h = th.cat([h, h2], dim=1)
 

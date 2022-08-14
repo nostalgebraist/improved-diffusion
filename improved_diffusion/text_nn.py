@@ -9,7 +9,7 @@ from x_transformers.x_transformers import AbsolutePositionalEmbedding, Attention
 
 import improved_diffusion.monkeypatch
 
-from .nn import normalization_1group, timestep_embedding, silu, AdaGN, checkpoint, AxialPositionalEmbeddingShape
+from .nn import normalization, normalization_1group, timestep_embedding, silu, AdaGN, checkpoint, AxialPositionalEmbeddingShape
 from .attention import BetterMultiheadAttention
 
 
@@ -171,6 +171,7 @@ class CrossAttention(nn.Module):
         lr_mult=None,
         needs_tgt_pos_emb=True,
         avoid_groupnorm=False,
+        groupnorm_1group=True,
         orth_init=False,
         q_t_emb=False,
         use_rezero=False,
@@ -225,7 +226,7 @@ class CrossAttention(nn.Module):
             self.tgt_ln = AdaGN(
                 emb_channels=time_embed_dim,
                 out_channels=self.dim,
-                num_groups=1,
+                num_groups=1 if groupnorm_1group else 32,
                 silu_in=False,  # pre-silu
                 do_norm=not self.no_prenorm,
                 base_channels=image_base_channels,
@@ -236,7 +237,8 @@ class CrossAttention(nn.Module):
         elif avoid_groupnorm:
             self.tgt_ln = torch.nn.LayerNorm(self.dim)
         else:
-            self.tgt_ln = normalization_1group(self.dim, base_channels=image_base_channels)
+            cls = normalization_1group if groupnorm_1group else normalization
+            self.tgt_ln = cls(self.dim, base_channels=image_base_channels)
 
         self.gain_scale = gain_scale
         if self.use_layerscale:
@@ -376,6 +378,7 @@ class ImageToTextCrossAttention(nn.Module):
         image_base_channels=-1,
         silu_impl="torch",
         txt_already_normed=False,
+        groupnorm_1group=True,
     ):
         super().__init__()
         if qkv_dim is None:
@@ -404,7 +407,7 @@ class ImageToTextCrossAttention(nn.Module):
         self.src_ln = AdaGN(
             emb_channels=time_embed_dim,
             out_channels=self.image_dim,
-            num_groups=1,
+            num_groups=1 if groupnorm_1group else 32,
             silu_in=False,  # pre-silu
             do_norm=True,
             base_channels=image_base_channels,
@@ -552,6 +555,7 @@ class WeaveAttention(nn.Module):
         txt_already_normed=False,
         post_txt_image_attn=None,
         txt_stream=lambda: None,
+        groupnorm_1group=True,
         **text_to_image_kwargs,
     ):
         super().__init__()
@@ -573,6 +577,7 @@ class WeaveAttention(nn.Module):
             image_base_channels=image_base_channels,
             silu_impl=silu_impl,
             txt_already_normed=txt_already_normed,
+            groupnorm_1group=groupnorm_1group,
         )
 
         text_to_image_kwargs.update(

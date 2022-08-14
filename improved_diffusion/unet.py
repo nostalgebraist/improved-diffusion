@@ -883,6 +883,7 @@ class UNetModel(nn.Module):
         efficient_unet_tweaks=False,
         max_attn_xattn_layers_per_res=3,
         middle_mult=-1,
+        txt_groupnorm_1group=True,
     ):
         super().__init__()
 
@@ -1135,6 +1136,7 @@ class UNetModel(nn.Module):
                         use_layerscale=cross_attn_use_layerscale,
                         image_base_channels=expand_timestep_base_dim * ch // model_channels,
                         silu_impl=silu_impl,
+                        groupnorm_1group=txt_groupnorm_1group,
                     )
                     if weave_attn:
                         caa_args['image_dim'] = caa_args.pop('dim')
@@ -1320,7 +1322,8 @@ class UNetModel(nn.Module):
                             image_base_channels=expand_timestep_base_dim * ch // model_channels,
                             silu_impl=silu_impl,
                             use_capt=use_capt,
-                            txt_already_normed=use_capt and (self.clipmod.ln_final is not None)
+                            txt_already_normed=use_capt and (self.clipmod.ln_final is not None),
+                            groupnorm_1group=txt_groupnorm_1group,
                         )
 
                         is_final_res = (ds == min(txt_resolutions))

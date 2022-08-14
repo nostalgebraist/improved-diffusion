@@ -108,6 +108,7 @@ def model_and_diffusion_defaults():
         freeze_capt_encoder=False,
         clipmod=None,
         post_txt_image_attn='none',
+        efficient_unet_tweaks=False,
         txt_groupnorm_1group=True,
     )
 
@@ -204,6 +205,7 @@ def create_model_and_diffusion(
     use_inference_caching=False,
     clipmod=None,
     post_txt_image_attn='none',
+    efficient_unet_tweaks=False,
     txt_groupnorm_1group=True,
 ):
     print(f"create_model_and_diffusion: got txt={txt}")
@@ -287,6 +289,7 @@ def create_model_and_diffusion(
         use_inference_caching=use_inference_caching,
         clipmod=clipmod,
         post_txt_image_attn=post_txt_image_attn,
+        efficient_unet_tweaks=efficient_unet_tweaks,
         txt_groupnorm_1group=txt_groupnorm_1group,
     )
     diffusion = create_gaussian_diffusion(

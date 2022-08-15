@@ -1547,20 +1547,6 @@ class UNetModel(nn.Module):
             self.noise_cond
         ), "must specify noise_cond if and only if the model uses noise cond"
 
-
-        hs = []
-        emb = self.time_embed(self.timestep_embedding(timesteps))
-
-        if cond_timesteps is not None:
-            emb = emb + self.time_embed_noise_cond(self.timestep_embedding(cond_timesteps))
-
-        if self.num_classes is not None:
-            assert y.shape == (x.shape[0],)
-            emb = emb + self.label_emb(y)
-
-        # pre-silu
-        emb = F.silu(emb)
-
         attn_mask = None
         capt_attn_mask = None
 
@@ -1574,6 +1560,9 @@ class UNetModel(nn.Module):
             if self.num_classes is not None:
                 assert y.shape == (x.shape[0],)
                 emb = emb + self.label_emb(y)
+
+            # pre-silu
+            emb = F.silu(emb)
 
             h = x
 

@@ -36,7 +36,53 @@ from .text_nn import TextEncoder, CrossAttention, WeaveAttention
 from improved_diffusion import cuda_streams
 
 import clip
-from transformer_utils.partial_forward import partial_forward
+from transformer_utils.partial_forward import *
+
+
+def partial_forward(
+    model,
+    output_names,
+    *args,
+    verbose=False,
+    debug=False,
+    unsafe=False,
+    **kwargs,
+):
+    vprint = make_print_if_verbose(verbose)
+
+    if (not unsafe) or (not hasattr(model, "_output_sink_names")):
+        add_partial_forward_hooks(
+            model, verbose=verbose, debug=debug, output_names=output_names
+        )
+
+    for k in model._partial_forward_force_false_kwargs:
+        if kwargs.get(k):
+            warnings.warn(PARTIAL_FORWARD_FORCE_FALSE_KWARGS_MSG.format(kwarg=repr(k)))
+        kwargs[k] = False
+
+    model._output_sink_names = output_names
+
+    if hasattr(model, "_output_sink"):
+        vprint("clearing existing _output_sink")
+        for v in model._output_sink.values():
+            del v
+        del model._output_sink
+
+    model._output_sink = {}
+
+    try:
+        model(*args, **kwargs)
+    except AfterStoppingPointException as e:
+        pass
+
+    if not unsafe:
+        del model._output_sink_names
+
+    return_val = model._output_sink
+    del model._output_sink
+
+    return return_val
+
 
 def clip_encode_text_nopool(token_embedding, positional_embedding, transformer, toks, dtype=th.float32, out_format='nld',
                             ln_final=None,
@@ -50,7 +96,7 @@ def clip_encode_text_nopool(token_embedding, positional_embedding, transformer, 
     if use_penultimate_layer:
         # from imagen paper - note that cos sims between layer outputs get way lower in the final one
         out_name = 'resblocks.' + str(len(transformer.resblocks) - 2)
-        x = partial_forward(transformer, [out_name], x)[out_name]
+        x = partial_forward(transformer, [out_name], x, unsafe=True)[out_name]
     else:
         x = transformer(x)
 

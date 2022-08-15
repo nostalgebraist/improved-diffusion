@@ -110,6 +110,7 @@ def model_and_diffusion_defaults():
         post_txt_image_attn='none',
         efficient_unet_tweaks=False,
         txt_groupnorm_1group=True,
+        no_middle=False,
     )
 
 
@@ -207,6 +208,7 @@ def create_model_and_diffusion(
     post_txt_image_attn='none',
     efficient_unet_tweaks=False,
     txt_groupnorm_1group=True,
+    no_middle=False,
 ):
     print(f"create_model_and_diffusion: got txt={txt}")
     print(f"create_model_and_diffusion: use_checkpoint={use_checkpoint}")
@@ -291,6 +293,7 @@ def create_model_and_diffusion(
         post_txt_image_attn=post_txt_image_attn,
         efficient_unet_tweaks=efficient_unet_tweaks,
         txt_groupnorm_1group=txt_groupnorm_1group,
+        no_middle=no_middle,
     )
     diffusion = create_gaussian_diffusion(
         steps=diffusion_steps,
@@ -401,6 +404,7 @@ def create_model(
     post_txt_image_attn='none',
     efficient_unet_tweaks=False,
     txt_groupnorm_1group=True,
+    no_middle=False,
 ):
     text_lr_mult = 1.
     print(
@@ -536,6 +540,7 @@ def create_model(
         efficient_unet_tweaks=efficient_unet_tweaks,
         middle_mult=middle_mult,
         txt_groupnorm_1group=txt_groupnorm_1group,
+        no_middle=no_middle,
     )
 
 
@@ -647,6 +652,7 @@ def sr_create_model_and_diffusion(
     post_txt_image_attn='none',
     efficient_unet_tweaks=False,
     txt_groupnorm_1group=True,
+    no_middle=False,
 ):
     model = sr_create_model(
         large_size,
@@ -726,6 +732,7 @@ def sr_create_model_and_diffusion(
         post_txt_image_attn=post_txt_image_attn,
         efficient_unet_tweaks=efficient_unet_tweaks,
         txt_groupnorm_1group=txt_groupnorm_1group,
+        no_middle=no_middle,
     )
     diffusion = create_gaussian_diffusion(
         steps=diffusion_steps,

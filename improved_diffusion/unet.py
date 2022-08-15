@@ -894,6 +894,7 @@ class UNetModel(nn.Module):
         efficient_unet_tweaks=False,
         max_attn_xattn_layers_per_res=3,
         middle_mult=-1,
+        no_middle=False,
         txt_groupnorm_1group=True,
     ):
         super().__init__()
@@ -1220,6 +1221,8 @@ class UNetModel(nn.Module):
         vprint(f"input_block_chans: {input_block_chans}")
 
         def _middle_resblock():
+            if no_middle:
+                return nn.Identity()
             return ResBlock(
                 ch,
                 time_embed_dim,
@@ -1234,6 +1237,8 @@ class UNetModel(nn.Module):
             )
 
         def _middle_attnblock():
+            if no_middle:
+                return nn.Identity()
             return AttentionBlock(
                 ch,
                 use_checkpoint=use_checkpoint or use_checkpoint_middle or ((image_size // ds) <= use_checkpoint_below_res),

@@ -536,7 +536,7 @@ class AttentionBlock(GlideStyleBlock):
                  use_adagn_pos_emb=False,
                  pos_emb_res=None,
                  zero_init_pos_emb=True,
-                 zero_init_proj_out=True,
+                 zero_init_proj_out=False,
                  use_rotary_pos_emb=False,
                  capt_stream=lambda: None,
                  ):

@@ -10,10 +10,7 @@ from x_transformers.x_transformers import AbsolutePositionalEmbedding, Attention
 import improved_diffusion.monkeypatch
 
 from .nn import normalization, normalization_1group, timestep_embedding, silu, AdaGN, checkpoint, AxialPositionalEmbeddingShape
-<<<<<<< HEAD
 from .attention import BetterMultiheadAttention
-=======
->>>>>>> final-attn-dev
 
 
 def make_grad_mult_hook(mult, debug=False):
@@ -557,10 +554,7 @@ class WeaveAttention(nn.Module):
         no_itot=False,
         txt_already_normed=False,
         post_txt_image_attn=None,
-<<<<<<< HEAD
         txt_stream=lambda: None,
-=======
->>>>>>> final-attn-dev
         groupnorm_1group=True,
         **text_to_image_kwargs,
     ):

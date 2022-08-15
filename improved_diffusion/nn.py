@@ -185,7 +185,7 @@ class AdaGN(nn.Module):
                     self.normalization.weight_xtra, self.normalization.bias_xtra,
                 )
             else:
-                return adagn_silu(h, emb_out, self.normalization.weight, self.normalization.bias)
+                return adagn(h, emb_out, self.normalization.weight, self.normalization.bias)
         else:
             if self.base_channels > 0:
                 base, xtra = th.split(

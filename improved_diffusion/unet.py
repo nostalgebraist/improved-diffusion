@@ -616,7 +616,7 @@ class AttentionBlock(GlideStyleBlock):
 
             my_attn_mask = th.tile(attn_mask.unsqueeze(1), (self.num_heads, qkv.shape[2], 1))
 
-            my_attn_mask = th.cat([th.ones((qkv.shape[0], qkv.shape[2], qkv.shape[2]), dtype=bool, device=qkv.device), my_attn_mask], dim=2)
+            my_attn_mask = th.cat([my_attn_mask, th.ones((qkv.shape[0], qkv.shape[2], qkv.shape[2]), dtype=bool, device=qkv.device)], dim=2)
             my_attn_mask = (~my_attn_mask).to(encoder_kv.dtype) * -10000.
 
             h = self.attention(qkv, encoder_kv, my_attn_mask)

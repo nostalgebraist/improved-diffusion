@@ -358,6 +358,7 @@ class ResBlock(TimestepBlock):
         efficient_unet_tweaks=False,
         efficient_unet_sqrt2=False,
         zero_init_out=True,
+        verbose=False,
     ):
         super().__init__()
         self.channels = channels
@@ -385,6 +386,10 @@ class ResBlock(TimestepBlock):
         self.efficient_unet_tweaks = efficient_unet_tweaks
         self.efficient_unet_sqrt2 = efficient_unet_sqrt2
 
+        def vprint(*args):
+            if verbose:
+                print(*args)
+
         self.in_layers = nn.Sequential(
             normalization(channels, base_channels=self.base_channels, fused=self.fused),
             silu(impl=silu_impl, use_checkpoint=use_checkpoint_lowcost),
@@ -393,6 +398,8 @@ class ResBlock(TimestepBlock):
 
         self.updown = up or down
         self.up = up
+
+        vprint(f"ResBlock channels={channels} out_channels={out_channels} updown={self.updown}")
 
         if up:
             self.h_upd = Upsample(channels, False, dims, use_checkpoint_lowcost=use_checkpoint_lowcost)
@@ -1083,6 +1090,7 @@ class UNetModel(nn.Module):
                         efficient_unet_tweaks=efficient_unet_tweaks,
                         efficient_unet_sqrt2=True,
                         zero_init_out=True,
+                        verbose=verbose,
                     )
                 ]
                 ch = out_channels_
@@ -1103,6 +1111,7 @@ class UNetModel(nn.Module):
                                 efficient_unet_tweaks=efficient_unet_tweaks,
                                 efficient_unet_sqrt2=True,
                                 zero_init_out=True,
+                                verbose=verbose,
                             )
                         )
                     elif use_attn:
@@ -1200,6 +1209,7 @@ class UNetModel(nn.Module):
                             base_channels=expand_timestep_base_dim * ch // model_channels,
                             silu_impl=silu_impl,
                             efficient_unet_tweaks=efficient_unet_tweaks,
+                            verbose=verbose,
                         )
                         if resblock_updown
                         else Downsample(
@@ -1234,6 +1244,7 @@ class UNetModel(nn.Module):
                 base_channels=expand_timestep_base_dim * ch // model_channels,
                 silu_impl=silu_impl,
                 efficient_unet_tweaks=efficient_unet_tweaks,
+                verbose=verbose,
             )
 
         def _middle_attnblock():
@@ -1274,6 +1285,7 @@ class UNetModel(nn.Module):
                         efficient_unet_tweaks=efficient_unet_tweaks,
                         efficient_unet_sqrt2=True,
                         zero_init_out=True,
+                        verbose=verbose,
                     )
                 ]
                 ch = int(model_channels * mult)
@@ -1294,6 +1306,7 @@ class UNetModel(nn.Module):
                                 efficient_unet_tweaks=efficient_unet_tweaks,
                                 efficient_unet_sqrt2=True,
                                 zero_init_out=True,
+                                verbose=verbose,
                             )
                         )
                     elif use_attn:
@@ -1437,6 +1450,7 @@ class UNetModel(nn.Module):
                             base_channels=expand_timestep_base_dim * ch // model_channels,
                             silu_impl=silu_impl,
                             efficient_unet_tweaks=efficient_unet_tweaks,
+                            verbose=verbose,
                         )
                         if resblock_updown
                         else Upsample(ch, conv_resample, dims=dims)

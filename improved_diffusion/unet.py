@@ -1064,8 +1064,8 @@ class UNetModel(nn.Module):
         ch = model_channels
         ds = 1
         for level, (mult, nrb) in enumerate(zip(channel_mult, num_res_blocks)):
+            out_channels_ = int(mult * model_channels)
             for i in range(nrb):
-                out_channels_ = int(mult * model_channels)
                 if middle_mult > 0 and (i == nrb-1) and (level == len(channel_mult)-1):
                     out_channels_ = int(middle_mult * model_channels)
                 layers = [

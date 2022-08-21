@@ -564,7 +564,7 @@ class TrainLoop:
 
         if self.cuda_graph_warmup_steps_remaining == None:
             self.cuda_graph_warmup_steps_remaining = 3 + batch.shape[0] // self.microbatch
-        
+
         for i in range(0, batch.shape[0], self.microbatch):
             dprint(f"micro {i}")
             micro = batch[i : i + self.microbatch].to(dist_util.dev())
@@ -644,10 +644,15 @@ class TrainLoop:
                             )
 
                             if last_batch or not self.use_ddp:
-                                losses = compute_losses()
+                                losses_ = compute_losses()
                             else:
                                 with self.ddp_model.no_sync():
-                                    losses = compute_losses()
+                                    losses_ = compute_losses()
+
+                        if 'losses' not in self.cuda_graph_statics:
+                            self.cuda_graph_statics['losses'] = th.zeros_like(losses_)
+
+                        losses = self.cuda_graph_statics['losses']
 
                         if isinstance(self.schedule_sampler, LossAwareSampler):
                             self.schedule_sampler.update_with_local_losses(
@@ -674,6 +679,8 @@ class TrainLoop:
                             (loss * grad_acc_scale).backward()
 
             th.cuda.current_stream().wait_stream(self.cuda_graph_current_stream())
+
+            losses = self.cuda_graph_statics['losses']
 
             if self.cuda_graph_state() != 'needs_capture':
                 log_loss_dict(

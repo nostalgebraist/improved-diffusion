@@ -30,7 +30,13 @@ def make_char_level_tokenizer(legacy_padding_behavior=True):
     return tokenizer
 
 
-def load_tokenizer(tokenizer_path  = "tokenizer_file", max_seq_len=64, char_level=False, legacy_padding_behavior=True):
+def load_tokenizer(
+        tokenizer_path="tokenizer_file",
+        max_seq_len=64,
+        char_level=False,
+        legacy_padding_behavior=True,
+        pad_to_max_len=False
+    ):
     if char_level:
         tokenizer = make_char_level_tokenizer(legacy_padding_behavior=legacy_padding_behavior)
     else:
@@ -38,7 +44,7 @@ def load_tokenizer(tokenizer_path  = "tokenizer_file", max_seq_len=64, char_leve
     tokenizer.enable_truncation(max_seq_len)
 
     pad_id = 0 if legacy_padding_behavior else tokenizer.token_to_id('<pad>')
-    tokenizer.enable_padding(pad_id=pad_id)
+    tokenizer.enable_padding(pad_id=pad_id, length=max_seq_len if pad_to_max_len else None)
     return tokenizer
 
 

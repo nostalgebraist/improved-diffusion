@@ -540,7 +540,8 @@ class TrainLoop:
         return 'needs_capture'
 
     def run_step(self, batch, cond, verbose=False, single_fwd_only=False):
-        self.forward_backward(batch, cond, verbose=verbose, single_fwd_only=single_fwd_only)
+        skip_loss_log = self.cuda_graph_state() == 'needs_capture'
+        self.forward_backward(batch, cond, verbose=verbose, single_fwd_only=single_fwd_only, skip_loss_log=skip_loss_log)
 
         if single_fwd_only:
             return

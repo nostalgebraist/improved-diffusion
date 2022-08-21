@@ -20,23 +20,28 @@ import imagesize
 import clip
 
 
-def make_char_level_tokenizer():
+def make_char_level_tokenizer(legacy_padding_behavior=True):
     tokenizer = tokenizers.Tokenizer(tokenizers.models.BPE(unk_token="<unk>"))
-    trainer = tokenizers.trainers.BpeTrainer(special_tokens=["<s>", "</s>", "<unk>", "<pad>", "<mask>"])
+    if legacy_padding_behavior:
+        trainer = tokenizers.trainers.BpeTrainer(special_tokens=["<s>", "</s>", "<unk>", "<pad>", "<mask>"])
+    else:
+        trainer = tokenizers.trainers.BpeTrainer(special_tokens=["<pad>", "</s>", "<s>", "<unk>", "<mask>"])
     tokenizer.train_from_iterator([[c] for c in string.printable], trainer)
     tokenizer.post_processor = tokenizers.processors.TemplateProcessing(
-        "<s> $0 </s>", special_tokens=[("<s>", 0), ("</s>", 1)]
+        "<s> $0 </s>", special_tokens=[("<s>", tokenizer.token_to_id('<s>')), ("</s>", tokenizer.token_to_id('</s>'))]
     )
     return tokenizer
 
 
-def load_tokenizer(tokenizer_path  = "tokenizer_file", max_seq_len=64, char_level=False):
+def load_tokenizer(tokenizer_path  = "tokenizer_file", max_seq_len=64, char_level=False, legacy_padding_behavior=True):
     if char_level:
-        tokenizer = make_char_level_tokenizer()
+        tokenizer = make_char_level_tokenizer(legacy_padding_behavior=legacy_padding_behavior)
     else:
         tokenizer = tokenizers.Tokenizer.from_file(tokenizer_path)
     tokenizer.enable_truncation(max_seq_len)
-    tokenizer.enable_padding()
+
+    pad_id = 0 if legacy_padding_behavior else tokenizer.token_to_id('<pad>')
+    tokenizer.enable_padding(pad_id=pad_id)
     return tokenizer
 
 

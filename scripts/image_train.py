@@ -72,6 +72,7 @@ def main():
     tokenizer_config = dict(
         max_seq_len=getattr(args, 'max_seq_len', None),
         char_level=getattr(args, 'char_level', None),
+        legacy_padding_behavior=not getattr(args, 'fix_char_level_pad_bug', False),
     )
     if args.txt:
         tokenizer = load_tokenizer(**tokenizer_config)
@@ -227,6 +228,7 @@ def create_argparser():
         beta2=0.999,
         verbose=False,
         char_level=False,
+        fix_char_level_pad_bug=False,
         text_encoder_warmstart="",
         weave_legacy_param_names=False,
         config_path="",

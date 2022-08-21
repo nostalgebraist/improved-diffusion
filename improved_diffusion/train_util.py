@@ -521,7 +521,7 @@ class TrainLoop:
             return self.cuda_graph_warmup_stream
         return th.cuda.current_stream()
 
-    def cuda_graph_state(self, debug=True):
+    def cuda_graph_state(self, debug=False):
         state = self._cuda_graph_state()
         if debug:
             print(f"cuda_graph_state: {state} | self.cuda_graph_warmup_steps_remaining {self.cuda_graph_warmup_steps_remaining}")
@@ -611,6 +611,7 @@ class TrainLoop:
                     for k in micro_cond:
                         self.cuda_graph_statics['kwargs'][k].copy_(micro_cond[k])
 
+                print(self.cuda_graph_state())
                 if self.cuda_graph_state() == 'captured':
                     self.cuda_graph.replay()
                 else:

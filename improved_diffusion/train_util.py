@@ -585,20 +585,20 @@ class TrainLoop:
                 micro_cond['low_res'] = self.noise_cond_diffusion.q_sample(micro_cond['low_res'], t_noise_cond)
                 micro_cond['cond_timesteps'] = t_noise_cond
 
-            if self.cuda_graph_state() in ['warmup', 'needs_capture']:
-                if True: #'micro' not in self.cuda_graph_statics:
-                    self.cuda_graph_statics['micro'] = micro
-                if True: #'t' not in self.cuda_graph_statics:
-                    self.cuda_graph_statics['t'] = micro
-                if 'kwargs' not in self.cuda_graph_statics:
-                    self.cuda_graph_statics['kwargs'] = {}
-                for k, v in micro_cond.items():
-                    if True: #k not in self.cuda_graph_statics['kwargs']:
-                        self.cuda_graph_statics['kwargs'][k] = v
-
             self.cuda_graph_current_stream().wait_stream(th.cuda.current_stream())
 
             with th.cuda.stream(self.cuda_graph_current_stream()):
+                if self.cuda_graph_state() in ['warmup', 'needs_capture']:
+                    if True: #'micro' not in self.cuda_graph_statics:
+                        self.cuda_graph_statics['micro'] = micro
+                    if True: #'t' not in self.cuda_graph_statics:
+                        self.cuda_graph_statics['t'] = micro
+                    if 'kwargs' not in self.cuda_graph_statics:
+                        self.cuda_graph_statics['kwargs'] = {}
+                    for k, v in micro_cond.items():
+                        if True: #k not in self.cuda_graph_statics['kwargs']:
+                            self.cuda_graph_statics['kwargs'][k] = v
+
                 if self.cuda_graph_state() == 'captured':
                     self.cuda_graph_statics['micro'].copy_(micro)
                     self.cuda_graph_statics['t'].copy_(t)

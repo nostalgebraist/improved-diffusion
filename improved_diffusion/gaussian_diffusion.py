@@ -320,9 +320,11 @@ class GaussianDiffusion:
         # are we doing clf free guide?
         guidance_scale = model_kwargs.get("guidance_scale", 0)
         unconditional_key = "unconditional_model_kwargs"
-        t_py = set(t.cpu().tolist())
-        if "txt_guidance_drop_ixs" in model_kwargs and (t_py.intersection(model_kwargs["txt_guidance_drop_ixs"]) != set()):
-            unconditional_key = "unconditional_drop_model_kwargs"
+        if "txt_guidance_drop_ixs" in model_kwargs:
+            raise ValueError("txt_guidance_drop_ixs not supported anymore, to enable cuda graphs")
+        # t_py = set(t.cpu().tolist())
+        # if "txt_guidance_drop_ixs" in model_kwargs and (t_py.intersection(model_kwargs["txt_guidance_drop_ixs"]) != set()):
+        #     unconditional_key = "unconditional_drop_model_kwargs"
         unconditional_model_kwargs = model_kwargs.get(unconditional_key)
         guidance_after_step = float(model_kwargs.get("guidance_after_step", 100000.))
         is_eps = self.model_mean_type == ModelMeanType.EPSILON

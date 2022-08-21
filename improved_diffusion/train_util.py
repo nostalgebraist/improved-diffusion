@@ -572,8 +572,9 @@ class TrainLoop:
                 # micro_cond['txt'] = th.as_tensor(tokenize(self.tokenizer, micro_cond['txt']), device=dist_util.dev())
 
                 txt = th.as_tensor(tokenize(self.tokenizer, micro_cond['txt']), device=dist_util.dev())
-                capt = clip.tokenize(micro_cond['capt'], truncate=True).to(dist_util.dev())
                 micro_cond['txt'] = txt
+            if 'capt' in micro_cond:
+                capt = clip.tokenize(micro_cond['capt'], truncate=True).to(dist_util.dev())
                 micro_cond['capt'] = capt
             last_batch = (i + self.microbatch) >= batch.shape[0]
             t, weights = self.schedule_sampler.sample(micro.shape[0], dist_util.dev())

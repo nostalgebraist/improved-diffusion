@@ -586,6 +586,8 @@ class TrainLoop:
                 micro_cond['low_res'] = self.noise_cond_diffusion.q_sample(micro_cond['low_res'], t_noise_cond)
                 micro_cond['cond_timesteps'] = t_noise_cond
 
+            print({k: type(v) for k, v in micro_cond.items()})
+
             self.cuda_graph_current_stream().wait_stream(th.cuda.current_stream())
 
             with th.cuda.stream(self.cuda_graph_current_stream()):

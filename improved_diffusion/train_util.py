@@ -641,11 +641,11 @@ class TrainLoop:
                                 with self.ddp_model.no_sync():
                                     losses = compute_losses()
 
-                    if self.cuda_graph_warmup_steps_remaining > 0:
-                        self.cuda_graph_warmup_steps_remaining -= 1
-
                     if self.cuda_graph_state() == 'needs_capture':
                         self.cuda_graph_captured = True
+
+                    if self.cuda_graph_warmup_steps_remaining > 0:
+                        self.cuda_graph_warmup_steps_remaining -= 1
 
             th.cuda.current_stream().wait_stream(self.cuda_graph_current_stream())
 

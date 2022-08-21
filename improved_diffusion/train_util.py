@@ -540,8 +540,7 @@ class TrainLoop:
         return 'needs_capture'
 
     def run_step(self, batch, cond, verbose=False, single_fwd_only=False):
-        skip_loss_log = self.cuda_graph_state() == 'needs_capture'
-        self.forward_backward(batch, cond, verbose=verbose, single_fwd_only=single_fwd_only, skip_loss_log=skip_loss_log)
+        self.forward_backward(batch, cond, verbose=verbose, single_fwd_only=single_fwd_only)
 
         if single_fwd_only:
             return
@@ -655,7 +654,7 @@ class TrainLoop:
                                     print(f"w_avg: {w_avg:.1f} (vs {w_avg_ref:.1f})")
 
                         loss = (losses["loss"] * weights).mean()
-                        if not skip_loss_log:
+                        if self.cuda_graph_state() != 'needs_capture':
                             log_loss_dict(
                                 self.diffusion, t, {k: v * weights for k, v in losses.items()}
                             )

@@ -1615,8 +1615,14 @@ class UNetModel(nn.Module):
                                 eos = capt[th.arange(capt_toks.shape[0]), :, capt_toks.argmax(dim=-1)]
                                 emb = emb + self.capt_embed(eos)
 
-                if self.first_attn_block_ix is not None and i == (self.first_attn_block_ix + (len(self.input_blocks) - self.first_attn_block_ix) //2):
-                # if i == min(len(self.input_blocks), self.first_attn_block_ix + 2):
+                txt_stream_trigger = False
+                if self.using_capt:
+                    txt_stream_trigger = \
+                    self.first_attn_block_ix is not None and i == (self.first_attn_block_ix + (len(self.input_blocks) - self.first_attn_block_ix) //2)
+                else:
+                    txt_stream_trigger = i == (self.first_attn_block_ix - 1)
+
+                if txt_stream_trigger:
                     with th.cuda.stream(cuda_streams.txt()):
                         # TODO: get queries for itot ready in this step?
                         if txt is not None:

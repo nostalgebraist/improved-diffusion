@@ -85,6 +85,7 @@ class TrainLoop:
         noise_cond_schedule='cosine',
         noise_cond_steps=1000,
         noise_cond_max_step=-1,
+        use_cuda_graph=False,
     ):
         self.model = model
         self.diffusion = diffusion
@@ -375,6 +376,13 @@ class TrainLoop:
             self.use_ddp = False
             self.ddp_model = self.model
 
+        self.use_cuda_graph = use_cuda_graph
+        self.cuda_graph = th.cuda.CUDAGraph() if self.use_cuda_graph else None
+        self.cuda_graph_warmup_stream = th.cuda.Stream() if self.use_cuda_graph else th.cuda.current_stream()
+        self.cuda_graph_warmup_steps_remaining = 3
+        self.cuda_graph_captured = False
+        self.cuda_graph_statics = {}
+
     def _load_and_sync_parameters(self):
         resume_checkpoint = find_resume_checkpoint() or self.resume_checkpoint
 
@@ -508,8 +516,26 @@ class TrainLoop:
         if (self.step - 1) % self.save_interval != 0:
             self.save()
 
+    def cuda_graph_current_stream(self):
+        if self.cuda_graph_state() == 'warmup':
+            return self.cuda_graph_warmup_stream
+        return th.cuda.current_stream()
+
+    def cuda_graph_state(self):
+        if not self.use_cuda_graph:
+            return 'disabled'
+
+        if self.cuda_graph_captured:
+            return 'captured'
+
+        if self.cuda_graph_warmup_steps_remaining > 0:
+            return 'warmup'
+
+        return 'needs_capture'
+
     def run_step(self, batch, cond, verbose=False, single_fwd_only=False):
         self.forward_backward(batch, cond, verbose=verbose, single_fwd_only=single_fwd_only)
+
         if single_fwd_only:
             return
         if self.use_amp:
@@ -520,7 +546,7 @@ class TrainLoop:
             self.optimize_normal()
         self.log_step()
 
-    def forward_backward(self, batch, cond, verbose=False, single_fwd_only=False):
+    def forward_backward(self, batch, cond, verbose=False, single_fwd_only=False, skip_loss_log=False):
         if self.use_amp:
             self.opt.zero_grad(set_to_none=True)
         else:
@@ -553,20 +579,51 @@ class TrainLoop:
                 micro_cond['low_res'] = self.noise_cond_diffusion.q_sample(micro_cond['low_res'], t_noise_cond)
                 micro_cond['cond_timesteps'] = t_noise_cond
 
-            with th.cuda.amp.autocast(enabled=self.use_amp, dtype=th.bfloat16 if self.use_bf16 else th.float16):
-                compute_losses = functools.partial(
-                    self.diffusion.training_losses,
-                    self.ddp_model,
-                    micro,
-                    t,
-                    model_kwargs=micro_cond,
-                )
+            if self.cuda_graph_state() in ['warmup', 'needs_capture']:
+                if True: #'micro' not in self.cuda_graph_statics:
+                    self.cuda_graph_statics['micro'] = micro
+                if True: #'t' not in self.cuda_graph_statics:
+                    self.cuda_graph_statics['t'] = micro
+                if 'kwargs' not in self.cuda_graph_statics:
+                    self.cuda_graph_statics['kwargs'] = {}
+                for k, v in micro_cond.items():
+                    if True: #k not in self.cuda_graph_statics['kwargs']:
+                        self.cuda_graph_statics['kwargs'][k] = v
 
-                if last_batch or not self.use_ddp:
-                    losses = compute_losses()
+            self.cuda_graph_current_stream().wait_stream(th.cuda.current_stream())
+
+            with th.cuda.stream(self.cuda_graph_current_stream()):
+                if self.cuda_graph_state() == 'captured':
+                    self.cuda_graph_statics['micro'].copy_(micro)
+                    self.cuda_graph_statics['t'].copy_(t)
+                    for k in micro_cond:
+                        self.cuda_graph_statics['kwargs'][k].copy_(micro_cond[k])
+                    self.cuda_graph.replay()
                 else:
-                    with self.ddp_model.no_sync():
-                        losses = compute_losses()
+                    graph_cman = \
+                    th.cuda.graph(self.cuda_graph) if self.cuda_graph_state() == 'needs_capture' else th.cuda.stream(th.cuda.current_stream())
+
+                    with graph_cman:
+                        with th.cuda.amp.autocast(enabled=self.use_amp, dtype=th.bfloat16 if self.use_bf16 else th.float16):
+                            compute_losses = functools.partial(
+                                self.diffusion.training_losses,
+                                self.ddp_model,
+                                self.cuda_graph_statics['micro'],
+                                self.cuda_graph_statics['t'],
+                                model_kwargs=self.cuda_graph_statics['kwargs'],
+                                # micro,
+                                # t,
+                                # model_kwargs=micro_cond,
+                            )
+
+                            if last_batch or not self.use_ddp:
+                                losses = compute_losses()
+                            else:
+                                with self.ddp_model.no_sync():
+                                    losses = compute_losses()
+
+                    if self.cuda_graph_warmup_steps_remaining > 0:
+                        self.cuda_graph_warmup_steps_remaining -= 1
 
             if isinstance(self.schedule_sampler, LossAwareSampler):
                 self.schedule_sampler.update_with_local_losses(
@@ -581,9 +638,10 @@ class TrainLoop:
                         print(f"w_avg: {w_avg:.1f} (vs {w_avg_ref:.1f})")
 
             loss = (losses["loss"] * weights).mean()
-            log_loss_dict(
-                self.diffusion, t, {k: v * weights for k, v in losses.items()}
-            )
+            if not skip_loss_log:
+                log_loss_dict(
+                    self.diffusion, t, {k: v * weights for k, v in losses.items()}
+                )
             if single_fwd_only:
                 break
             grad_acc_scale = micro.shape[0] / self.batch_size

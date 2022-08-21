@@ -53,6 +53,7 @@ def main():
         max_seq_len=getattr(args, 'max_seq_len', None),
         char_level=getattr(args, 'char_level', None),
         legacy_padding_behavior=not getattr(args, 'fix_char_level_pad_bug', False),
+        pad_to_max_len=args.use_cuda_graph,
     )
     if args.txt:
         tokenizer = load_tokenizer(**tokenizer_config)
@@ -176,6 +177,7 @@ def main():
         noise_cond_max_step=args.noise_cond_max_step,
         capt_lr=args.capt_lr,
         freeze_capt_encoder=args.freeze_capt_encoder,
+        use_cuda_graph=args.use_cuda_graph,
     ).run_loop()
 
 
@@ -264,6 +266,7 @@ def create_argparser():
         noise_cond_max_step=-1,
         cudnn_benchmark=False,
         exclusions_data_path="",
+        use_cuda_graph=False,
     )
     defaults.update(sr_model_and_diffusion_defaults())
     parser = argparse.ArgumentParser()

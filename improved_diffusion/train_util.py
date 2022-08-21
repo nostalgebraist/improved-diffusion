@@ -594,26 +594,32 @@ class TrainLoop:
             self.cuda_graph_current_stream().wait_stream(th.cuda.current_stream())
 
             with th.cuda.stream(self.cuda_graph_current_stream()):
-                if self.cuda_graph_state() in ['warmup', 'needs_capture']:
-                    if True: #'micro' not in self.cuda_graph_statics:
-                        self.cuda_graph_statics['micro'] = micro
-                    if True: #'t' not in self.cuda_graph_statics:
-                        self.cuda_graph_statics['t'] = t
+                if self.cuda_graph_state() in ['warmup']:
+                    if 'micro' not in self.cuda_graph_statics:
+                        self.cuda_graph_statics['micro'] = th.zeros_like(micro)
+                    if 't' not in self.cuda_graph_statics:
+                        self.cuda_graph_statics['t'] = th.zeros_like(t)
                     if 'kwargs' not in self.cuda_graph_statics:
                         self.cuda_graph_statics['kwargs'] = {}
                     for k, v in micro_cond.items():
-                        if True: #k not in self.cuda_graph_statics['kwargs']:
-                            self.cuda_graph_statics['kwargs'][k] = v
+                        if k not in self.cuda_graph_statics['kwargs']:
+                            self.cuda_graph_statics['kwargs'][k] = th.zeros_like(v)
 
-                if self.cuda_graph_state() == 'captured':
+                if self.use_cuda_graph:
                     self.cuda_graph_statics['micro'].copy_(micro)
                     self.cuda_graph_statics['t'].copy_(t)
                     for k in micro_cond:
                         self.cuda_graph_statics['kwargs'][k].copy_(micro_cond[k])
+
+                if self.cuda_graph_state() == 'captured':
                     self.cuda_graph.replay()
                 else:
                     graph_cman = \
                     th.cuda.graph(self.cuda_graph) if self.cuda_graph_state() == 'needs_capture' else th.cuda.stream(th.cuda.current_stream())
+
+                    print(("self.cuda_graph_warmup_stream", self.cuda_graph_warmup_stream))
+                    print(("self.cuda_graph_current_stream()", self.cuda_graph_current_stream()))
+                    print(("graph_cman", graph_cman))
 
                     with graph_cman:
                         with th.cuda.amp.autocast(enabled=self.use_amp, dtype=th.bfloat16 if self.use_bf16 else th.float16):

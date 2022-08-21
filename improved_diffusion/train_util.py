@@ -593,7 +593,7 @@ class TrainLoop:
                     if True: #'micro' not in self.cuda_graph_statics:
                         self.cuda_graph_statics['micro'] = micro
                     if True: #'t' not in self.cuda_graph_statics:
-                        self.cuda_graph_statics['t'] = micro
+                        self.cuda_graph_statics['t'] = t
                     if 'kwargs' not in self.cuda_graph_statics:
                         self.cuda_graph_statics['kwargs'] = {}
                     for k, v in micro_cond.items():

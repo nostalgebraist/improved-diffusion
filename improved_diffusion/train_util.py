@@ -552,13 +552,17 @@ class TrainLoop:
             self.optimize_normal()
         self.log_step()
 
-    def forward_backward(self, batch, cond, verbose=False, single_fwd_only=False, skip_loss_log=False):
+    def forward_backward(self, batch, cond, verbose=False, single_fwd_only=False, skip_loss_log=False, debug=False):
+        def dprint(*args, **kwargs):
+            if debug:
+                print(*args, **kwargs)
+
         if self.use_amp:
             self.opt.zero_grad(set_to_none=True)
         else:
             zero_grad(self.model_params)
         for i in range(0, batch.shape[0], self.microbatch):
-            print(f"micro {i}")
+            dprint(f"micro {i}")
             micro = batch[i : i + self.microbatch].to(dist_util.dev())
             micro_cond = {
                 k: v[i : i + self.microbatch].to(dist_util.dev())
@@ -589,7 +593,7 @@ class TrainLoop:
                 micro_cond['low_res'] = self.noise_cond_diffusion.q_sample(micro_cond['low_res'], t_noise_cond)
                 micro_cond['cond_timesteps'] = t_noise_cond
 
-            print({k: type(v) for k, v in micro_cond.items()})
+            dprint({k: type(v) for k, v in micro_cond.items()})
 
             self.cuda_graph_current_stream().wait_stream(th.cuda.current_stream())
 
@@ -611,7 +615,7 @@ class TrainLoop:
                     for k in micro_cond:
                         self.cuda_graph_statics['kwargs'][k].copy_(micro_cond[k])
 
-                print(self.cuda_graph_state())
+                dprint(self.cuda_graph_state())
                 if self.cuda_graph_state() == 'captured':
                     self.cuda_graph.replay()
                 else:

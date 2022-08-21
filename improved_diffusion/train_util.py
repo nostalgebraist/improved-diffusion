@@ -650,7 +650,7 @@ class TrainLoop:
                                     losses_ = compute_losses()
 
                         if 'losses' not in self.cuda_graph_statics:
-                            self.cuda_graph_statics['losses'] = th.zeros_like(losses_)
+                            self.cuda_graph_statics['losses'] = {k: th.zeros_like(v) for k, v in losses_.items()}
 
                         losses = self.cuda_graph_statics['losses']
 

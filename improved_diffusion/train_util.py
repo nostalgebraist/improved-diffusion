@@ -641,41 +641,40 @@ class TrainLoop:
                                 with self.ddp_model.no_sync():
                                     losses = compute_losses()
 
-                    if self.cuda_graph_state() == 'needs_capture':
-                        self.cuda_graph_captured = True
+                        if isinstance(self.schedule_sampler, LossAwareSampler):
+                            self.schedule_sampler.update_with_local_losses(
+                                t, losses["loss"].detach()
+                            )
+                            if i == 0:
+                                warm = self.schedule_sampler._warmed_up(verbose=verbose)
+                                if warm and verbose:
+                                    _weights = self.schedule_sampler.weights()
+                                    w_avg = np.average(np.arange(len(_weights)), weights=_weights)
+                                    w_avg_ref = np.average(np.arange(len(_weights)), weights=np.ones_like(_weights))
+                                    print(f"w_avg: {w_avg:.1f} (vs {w_avg_ref:.1f})")
 
-                    if self.cuda_graph_warmup_steps_remaining > 0:
-                        self.cuda_graph_warmup_steps_remaining -= 1
-
+                        loss = (losses["loss"] * weights).mean()
+                        if not skip_loss_log:
+                            log_loss_dict(
+                                self.diffusion, t, {k: v * weights for k, v in losses.items()}
+                            )
+                        if single_fwd_only:
+                            break
+                        grad_acc_scale = micro.shape[0] / self.batch_size
+                        if self.use_fp16:
+                            loss_scale = 2 ** self.lg_loss_scale
+                            (loss * loss_scale * grad_acc_scale).backward()
+                        elif self.use_amp:
+                            self.grad_scaler.scale(loss * grad_acc_scale).backward()
+                        else:
+                            (loss * grad_acc_scale).backward()
             th.cuda.current_stream().wait_stream(self.cuda_graph_current_stream())
 
-            if isinstance(self.schedule_sampler, LossAwareSampler):
-                self.schedule_sampler.update_with_local_losses(
-                    t, losses["loss"].detach()
-                )
-                if i == 0:
-                    warm = self.schedule_sampler._warmed_up(verbose=verbose)
-                    if warm and verbose:
-                        _weights = self.schedule_sampler.weights()
-                        w_avg = np.average(np.arange(len(_weights)), weights=_weights)
-                        w_avg_ref = np.average(np.arange(len(_weights)), weights=np.ones_like(_weights))
-                        print(f"w_avg: {w_avg:.1f} (vs {w_avg_ref:.1f})")
+            if self.cuda_graph_state() == 'needs_capture':
+                self.cuda_graph_captured = True
 
-            loss = (losses["loss"] * weights).mean()
-            if not skip_loss_log:
-                log_loss_dict(
-                    self.diffusion, t, {k: v * weights for k, v in losses.items()}
-                )
-            if single_fwd_only:
-                break
-            grad_acc_scale = micro.shape[0] / self.batch_size
-            if self.use_fp16:
-                loss_scale = 2 ** self.lg_loss_scale
-                (loss * loss_scale * grad_acc_scale).backward()
-            elif self.use_amp:
-                self.grad_scaler.scale(loss * grad_acc_scale).backward()
-            else:
-                (loss * grad_acc_scale).backward()
+            if self.cuda_graph_warmup_steps_remaining > 0:
+                self.cuda_graph_warmup_steps_remaining -= 1
 
     def _update_ema(self, params, rate, arith_from_step=0, arith_extra_shift=0, verbose=True):
         def _vprint(*args, **kwargs):

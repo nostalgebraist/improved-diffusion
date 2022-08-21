@@ -622,6 +622,7 @@ class TrainLoop:
                 dprint(self.cuda_graph_state())
                 if self.cuda_graph_state() == 'captured':
                     self.cuda_graph.replay()
+                    losses = self.cuda_graph_statics['losses']
                 else:
                     graph_cman = \
                     th.cuda.graph(self.cuda_graph) if self.cuda_graph_state() == 'needs_capture' else th.cuda.stream(th.cuda.current_stream())
@@ -644,15 +645,12 @@ class TrainLoop:
                             )
 
                             if last_batch or not self.use_ddp:
-                                losses_ = compute_losses()
+                                losses = compute_losses()
                             else:
                                 with self.ddp_model.no_sync():
-                                    losses_ = compute_losses()
+                                    losses = compute_losses()
 
-                        if 'losses' not in self.cuda_graph_statics:
-                            self.cuda_graph_statics['losses'] = {k: th.zeros_like(v) for k, v in losses_.items()}
-
-                        losses = self.cuda_graph_statics['losses']
+                        self.cuda_graph_statics['losses'] = losses
 
                         if isinstance(self.schedule_sampler, LossAwareSampler):
                             self.schedule_sampler.update_with_local_losses(

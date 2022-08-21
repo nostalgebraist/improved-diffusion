@@ -521,7 +521,13 @@ class TrainLoop:
             return self.cuda_graph_warmup_stream
         return th.cuda.current_stream()
 
-    def cuda_graph_state(self):
+    def cuda_graph_state(self, debug=True):
+        state = self._cuda_graph_state()
+        if debug:
+            print(f"cuda_graph_state: {state} | self.cuda_graph_warmup_steps_remaining {self.cuda_graph_warmup_steps_remaining}")
+        return state
+
+    def _cuda_graph_state(self):
         if not self.use_cuda_graph:
             return 'disabled'
 
@@ -624,6 +630,9 @@ class TrainLoop:
 
                     if self.cuda_graph_warmup_steps_remaining > 0:
                         self.cuda_graph_warmup_steps_remaining -= 1
+
+                    if self.cuda_graph_state() == 'needs_capture':
+                        self.cuda_graph_captured = True
 
             if isinstance(self.schedule_sampler, LossAwareSampler):
                 self.schedule_sampler.update_with_local_losses(

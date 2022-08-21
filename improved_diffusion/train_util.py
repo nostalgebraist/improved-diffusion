@@ -379,7 +379,7 @@ class TrainLoop:
         self.use_cuda_graph = use_cuda_graph
         self.cuda_graph = th.cuda.CUDAGraph() if self.use_cuda_graph else None
         self.cuda_graph_warmup_stream = th.cuda.Stream() if self.use_cuda_graph else th.cuda.current_stream()
-        self.cuda_graph_warmup_steps_remaining = 3
+        self.cuda_graph_warmup_steps_remaining = None
         self.cuda_graph_captured = False
         self.cuda_graph_statics = {}
 
@@ -561,6 +561,10 @@ class TrainLoop:
             self.opt.zero_grad(set_to_none=True)
         else:
             zero_grad(self.model_params)
+
+        if self.cuda_graph_warmup_steps_remaining == None:
+            self.cuda_graph_warmup_steps_remaining = 3 + batch.shape[0] // self.microbatch
+        
         for i in range(0, batch.shape[0], self.microbatch):
             dprint(f"micro {i}")
             micro = batch[i : i + self.microbatch].to(dist_util.dev())
@@ -658,10 +662,6 @@ class TrainLoop:
                                     print(f"w_avg: {w_avg:.1f} (vs {w_avg_ref:.1f})")
 
                         loss = (losses["loss"] * weights).mean()
-                        if self.cuda_graph_state() != 'needs_capture':
-                            log_loss_dict(
-                                self.diffusion, t, {k: v * weights for k, v in losses.items()}
-                            )
                         if single_fwd_only:
                             break
                         grad_acc_scale = micro.shape[0] / self.batch_size
@@ -672,7 +672,13 @@ class TrainLoop:
                             self.grad_scaler.scale(loss * grad_acc_scale).backward()
                         else:
                             (loss * grad_acc_scale).backward()
+
             th.cuda.current_stream().wait_stream(self.cuda_graph_current_stream())
+
+            if self.cuda_graph_state() != 'needs_capture':
+                log_loss_dict(
+                    self.diffusion, t, {k: v * weights for k, v in losses.items()}
+                )
 
             if self.cuda_graph_state() == 'needs_capture':
                 self.cuda_graph_captured = True
@@ -738,21 +744,22 @@ class TrainLoop:
                              verbose=verbose)
 
     def optimize_amp(self):
-        self.grad_scaler.unscale_(self.opt)
-        self._log_grad_norm()
-        self._anneal_lr()
-        self.grad_scaler.step(self.opt)
-        self.grad_scaler.update()
-        verboses = [False] * (len(self.ema_rate) - 1) + [True]
-        for rate, params, arith_from_step, arith_extra_shift, verbose in zip(
-            self.ema_rate,
-            self.ema_params,
-            self.arithmetic_avg_from_step,
-            self.arithmetic_avg_extra_shift,
-            verboses
-        ):
-            self._update_ema(params, rate=rate, arith_from_step=arith_from_step, arith_extra_shift=arith_extra_shift,
-                             verbose=verbose)
+        with th.cuda.stream(self.cuda_graph_current_stream()):
+            self.grad_scaler.unscale_(self.opt)
+            self._log_grad_norm()
+            self._anneal_lr()
+            self.grad_scaler.step(self.opt)
+            self.grad_scaler.update()
+            verboses = [False] * (len(self.ema_rate) - 1) + [True]
+            for rate, params, arith_from_step, arith_extra_shift, verbose in zip(
+                self.ema_rate,
+                self.ema_params,
+                self.arithmetic_avg_from_step,
+                self.arithmetic_avg_extra_shift,
+                verboses
+            ):
+                self._update_ema(params, rate=rate, arith_from_step=arith_from_step, arith_extra_shift=arith_extra_shift,
+                                 verbose=verbose)
 
     def _log_grad_norm(self):
         sqsum = 0.0

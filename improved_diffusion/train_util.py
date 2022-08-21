@@ -634,6 +634,8 @@ class TrainLoop:
                     if self.cuda_graph_state() == 'needs_capture':
                         self.cuda_graph_captured = True
 
+            th.cuda.current_stream().wait_stream(self.cuda_graph_current_stream())
+
             if isinstance(self.schedule_sampler, LossAwareSampler):
                 self.schedule_sampler.update_with_local_losses(
                     t, losses["loss"].detach()

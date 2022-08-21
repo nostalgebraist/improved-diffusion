@@ -576,10 +576,8 @@ class TrainLoop:
                 txt = th.as_tensor(tokenize(self.tokenizer, micro_cond['txt']), device=dist_util.dev())
                 micro_cond['txt'] = txt
             if 'capt' in micro_cond:
-                print(repr(micro_cond['capt']))
                 capt = clip.tokenize(micro_cond['capt'], truncate=True).to(dist_util.dev())
                 micro_cond['capt'] = capt
-                print(repr(micro_cond['capt']))
             last_batch = (i + self.microbatch) >= batch.shape[0]
             t, weights = self.schedule_sampler.sample(micro.shape[0], dist_util.dev())
 
@@ -606,7 +604,6 @@ class TrainLoop:
                     for k, v in micro_cond.items():
                         if True: #k not in self.cuda_graph_statics['kwargs']:
                             self.cuda_graph_statics['kwargs'][k] = v
-                            print((k, repr(self.cuda_graph_statics['kwargs'][k])))
 
                 if self.cuda_graph_state() == 'captured':
                     self.cuda_graph_statics['micro'].copy_(micro)

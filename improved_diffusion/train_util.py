@@ -87,14 +87,14 @@ class TrainLoop:
         noise_cond_max_step=-1,
         use_cuda_graph=False,
     ):
-        if use_cuda_graph:
-            # DEBUG
-            import torch.nn as nn
-            for n, m in model.text_encoder.named_modules():
-                if isinstance(m, nn.Embedding):
-                    print(f'found {n}')
-                    for p in m.parameters():
-                        p.requires_grad_(False)
+        # if use_cuda_graph:
+        #     # DEBUG
+        #     import torch.nn as nn
+        #     for n, m in model.text_encoder.named_modules():
+        #         if isinstance(m, nn.Embedding):
+        #             print(f'found {n}')
+        #             for p in m.parameters():
+        #                 p.requires_grad_(False)
         self.model = model
         self.diffusion = diffusion
         self.data = data
@@ -547,6 +547,8 @@ class TrainLoop:
         for i in range(0, batch.shape[0], self.microbatch):
             dprint(f"micro {i}")
             micro = batch[i : i + self.microbatch].to(dist_util.dev())
+            t, weights = self.schedule_sampler.sample(micro.shape[0], dist_util.dev())
+
             micro_cond = {
                 k: v[i : i + self.microbatch].to(dist_util.dev())
                 if k not in {'txt', 'capt'}
@@ -561,12 +563,14 @@ class TrainLoop:
                 # micro_cond['txt'] = th.as_tensor(tokenize(self.tokenizer, micro_cond['txt']), device=dist_util.dev())
 
                 txt = th.as_tensor(tokenize(self.tokenizer, micro_cond['txt']), device=dist_util.dev())
+                with th.cuda.amp.autocast(enabled=self.use_amp, dtype=th.bfloat16 if self.use_bf16 else th.float16):
+                    txt, attn_mask = self.model.text_encoder.compute_embeddings_and_mask(txt, t)
                 micro_cond['txt'] = txt
+                micro_cond['attn_mask'] = attn_mask
             if 'capt' in micro_cond:
                 capt = clip.tokenize(micro_cond['capt'], truncate=True).to(dist_util.dev())
                 micro_cond['capt'] = capt
             last_batch = (i + self.microbatch) >= batch.shape[0]
-            t, weights = self.schedule_sampler.sample(micro.shape[0], dist_util.dev())
 
             if self.noise_cond:
                 if 'low_res' not in micro_cond:
@@ -580,7 +584,7 @@ class TrainLoop:
 
             with th.cuda.amp.autocast(enabled=self.use_amp, dtype=th.bfloat16 if self.use_bf16 else th.float16):
                 if self.cuda_graph_callable is None:
-                    self.ordkeys = [k for k in ['txt', 'capt', 'cond_timesteps', 'low_res'] if k in micro_cond]
+                    self.ordkeys = [k for k in ['txt', 'attn_mask', 'capt', 'cond_timesteps', 'low_res'] if k in micro_cond]
 
                     graph_callable_args = [micro, t] + [micro_cond[k] for k in self.ordkeys]
                     graph_callable_args = tuple(graph_callable_args)

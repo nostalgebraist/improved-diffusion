@@ -126,34 +126,34 @@ class TextEncoder(nn.Module):
     def _model_forward(self, x, attn_mask):
         return self.model.forward(x, attn_mask=attn_mask)
 
-    def forward(self, tokens, timesteps=None):
-        if self.use_encoder_decoder:
-            raise ValueError('no longer supported')
-        else:
-            x = tokens
-            x = self.token_emb(x)
-            # tok_norm = (x ** 2).sum().sqrt().item()
-            pe = self.pos_emb(x)
-            # pe_norm = (pe ** 2).sum().sqrt().item()
-            x = x + pe
-            if self.use_line_emb:
-                le = self.line_emb(tokens)
-                x = x + le
+    def compute_embeddings_and_mask(self, tokens, timesteps):
+        x = tokens
+        x = self.token_emb(x)
+        # tok_norm = (x ** 2).sum().sqrt().item()
+        pe = self.pos_emb(x)
+        # pe_norm = (pe ** 2).sum().sqrt().item()
+        x = x + pe
+        if self.use_line_emb:
+            le = self.line_emb(tokens)
+            x = x + le
 
-            if timesteps is not None:
-                emb = self.time_embed_scale * self.time_embed(timestep_embedding(timesteps, self.dim))
-                emb = emb.unsqueeze(1).tile((1, x.shape[1], 1))
-                x = x + emb
+        if timesteps is not None:
+            emb = self.time_embed_scale * self.time_embed(timestep_embedding(timesteps, self.dim))
+            emb = emb.unsqueeze(1).tile((1, x.shape[1], 1))
+            x = x + emb
 
-            # TODO: workaround for HF tokenizers setting PAD and CLS to id 0
-            # cf. pad_id arg of enable_padding()
-            attn_mask = tokens != 0
-            my_attn_mask = torch.tile(attn_mask.unsqueeze(1).unsqueeze(1), (self.n_heads, tokens.shape[1], 1))
+        # TODO: workaround for HF tokenizers setting PAD and CLS to id 0
+        # cf. pad_id arg of enable_padding()
+        attn_mask = tokens != 0
+        my_attn_mask = torch.tile(attn_mask.unsqueeze(1).unsqueeze(1), (self.n_heads, tokens.shape[1], 1))
 
-            out = self.model_forward(x, attn_mask=my_attn_mask)
-            if not self.return_sequences:
-                out = out[:, 0, :], attn_mask
-            return out, attn_mask
+        return x, my_attn_mask
+
+    def forward(self, x, attn_mask):
+        out = self.model_forward(x, attn_mask=attn_mask)
+        if not self.return_sequences:
+            out = out[:, 0, :], attn_mask
+        return out, attn_mask
 
 
 class BetterMultiheadAttention(torch.nn.MultiheadAttention):

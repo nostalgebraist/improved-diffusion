@@ -1452,7 +1452,7 @@ class UNetModel(nn.Module):
             )
         return capt, capt_attn_mask
 
-    def forward(self, x, timesteps, txt=None, capt=None, cond_timesteps=None, ):
+    def forward(self, x, timesteps, txt=None, attn_mask=None, capt=None, cond_timesteps=None, ):
         """
         Apply the model to an input batch.
 
@@ -1493,9 +1493,9 @@ class UNetModel(nn.Module):
         # pre-silu
         emb = F.silu(emb)
 
-        attn_mask = None
         if txt is not None:
-            txt, attn_mask = self.text_encoder(txt, timesteps=timesteps)
+            # txt, attn_mask = self.text_encoder(txt, timesteps=timesteps)
+            txt = self.text_encoder(txt, attn_mask)
             txt = txt.type(self.inner_dtype)
 
         capt_attn_mask = None
@@ -1640,11 +1640,11 @@ class SuperResModel(UNetModel):
     def __init__(self, in_channels, *args, **kwargs):
         super().__init__(in_channels + 1 if kwargs.get('colorize') else in_channels * 2, *args, **kwargs)
 
-    def forward(self, x, timesteps, txt=None, capt=None, cond_timesteps=None, low_res=None,):
+    def forward(self, x, timesteps, txt=None, attn_mask=None, capt=None, cond_timesteps=None, low_res=None,):
         _, _, new_height, new_width = x.shape
         upsampled = F.interpolate(low_res, (new_height, new_width), mode=self.up_interp_mode)
         x = th.cat([x, upsampled], dim=1)
-        return super().forward(x, timesteps, txt=txt, capt=capt, cond_timesteps=cond_timesteps)
+        return super().forward(x, timesteps, txt=txt, attn_mask=attn_mask, capt=capt, cond_timesteps=cond_timesteps)
 
     def get_feature_vectors(self, x, timesteps, low_res=None, **kwargs):
         _, new_height, new_width, _ = x.shape

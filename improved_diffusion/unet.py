@@ -1477,7 +1477,6 @@ class UNetModel(nn.Module):
         ), "must specify noise_cond if and only if the model uses noise cond"
 
 
-        hs = []
         emb = self.time_embed(self.timestep_embedding(timesteps))
 
         if cond_timesteps is not None:
@@ -1555,8 +1554,17 @@ class UNetModel(nn.Module):
         if capt_attn_mask is None:
             capt_attn_mask = th.as_tensor(0.0, device=self.device)
 
-        if not hasattr(self, '_main_forward_cuda_graphed'):
-            pass
+        # if not hasattr(self, '_main_forward_cuda_graphed'):
+        #     print('graphing main')
+        #
+        #     graph_callable_args = (
+        #         x.detach().requires_grad_(True),
+        #         emb.detach().requires_grad_(True),
+        #         txt.detach().requires_grad_(txt.requires_grad),
+        #         attn_mask,
+        #         capt.detach().requires_grad_(capt.requires_grad),
+        #         capt_attn_mask
+        #     )
 
         return self._main_forward(x, emb, txt, attn_mask, capt, capt_attn_mask)
 
@@ -1571,6 +1579,7 @@ class UNetModel(nn.Module):
             capt_attn_mask = None
 
         h = x
+        hs = []
 
         if self.monochrome_adapter:
             h = self.mono_to_rgb(h)

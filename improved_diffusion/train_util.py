@@ -586,8 +586,8 @@ class TrainLoop:
                     grad_requirer = th.as_tensor(0.0, dtype=th.float16, device=self.model.device).requires_grad_(True)
                     graph_callable_args = (micro_cond['capt'], grad_requirer)
 
-                    # _make_graphed_callables = torch.cuda.make_graphed_callables
-                    _make_graphed_callables = make_graphed_callables
+                    _make_graphed_callables = torch.cuda.make_graphed_callables
+                    # _make_graphed_callables = make_graphed_callables
 
                     self.model.embed_capt_cuda_graph = _make_graphed_callables(self.model.embed_capt, graph_callable_args)
 

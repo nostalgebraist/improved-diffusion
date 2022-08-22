@@ -320,11 +320,9 @@ class GaussianDiffusion:
         # are we doing clf free guide?
         guidance_scale = model_kwargs.get("guidance_scale", 0)
         unconditional_key = "unconditional_model_kwargs"
-        if "txt_guidance_drop_ixs" in model_kwargs:
-            raise ValueError("txt_guidance_drop_ixs not supported anymore, to enable cuda graphs")
-        # t_py = set(t.cpu().tolist())
-        # if "txt_guidance_drop_ixs" in model_kwargs and (t_py.intersection(model_kwargs["txt_guidance_drop_ixs"]) != set()):
-        #     unconditional_key = "unconditional_drop_model_kwargs"
+        t_py = set(t.cpu().tolist())
+        if "txt_guidance_drop_ixs" in model_kwargs and (t_py.intersection(model_kwargs["txt_guidance_drop_ixs"]) != set()):
+            unconditional_key = "unconditional_drop_model_kwargs"
         unconditional_model_kwargs = model_kwargs.get(unconditional_key)
         guidance_after_step = float(model_kwargs.get("guidance_after_step", 100000.))
         is_eps = self.model_mean_type == ModelMeanType.EPSILON
@@ -339,28 +337,11 @@ class GaussianDiffusion:
             "unconditional_drop_model_kwargs", "txt_guidance_pdrop", "txt_guidance_drop_ixs"
         }
         model_kwargs_cond = {k: v for k, v in model_kwargs.items() if k not in drop_args}
-
-        model_args_cond = []
-        # TODO: compat
-        for k in ['txt', 'attn_mask', 'capt', 'cond_timesteps', 'low_res']:
-            if k in model_kwargs_cond:
-                model_args_cond.append(model_kwargs_cond[k])
-            else:
-                break
-
-        model_output = model(x, self._scale_timesteps(t), *model_args_cond)
+        model_output = model(x, self._scale_timesteps(t), **model_kwargs_cond)
 
         unconditional_model_output = None
         if is_guided:
-            model_args_uncon = []
-            # TODO: compat
-            for k in ['txt', 'attn_mask', 'capt', 'cond_timesteps', 'low_res']:
-                if k in unconditional_model_kwargs:
-                    model_args_uncon.append(unconditional_model_kwargs[k])
-                else:
-                    break
-
-            unconditional_model_output = model(x, self._scale_timesteps(t), *model_args_uncon)
+            unconditional_model_output = model(x, self._scale_timesteps(t), **unconditional_model_kwargs)
 
             # broadcast
             effective_guidance_scale = effective_guidance_scale.reshape([-1] + [1 for _ in model_output.shape[1:]])
@@ -1146,7 +1127,7 @@ class GaussianDiffusion:
         output = th.where((t == 0), decoder_nll, kl)
         return {"output": output, "pred_xstart": out["pred_xstart"]}
 
-    def training_losses(self, model, x_start, t, model_kwargs=None, noise=None, return_tuple=False):
+    def training_losses(self, model, x_start, t, model_kwargs=None, noise=None):
         """
         Compute training losses for a single timestep.
 
@@ -1179,14 +1160,7 @@ class GaussianDiffusion:
             if self.loss_type == LossType.RESCALED_KL:
                 terms["loss"] *= self.num_timesteps
         elif self.loss_type.is_mse():
-            model_args = []
-            # TODO: compat
-            for k in ['txt', 'attn_mask', 'capt', 'cond_timesteps', 'low_res']:
-                if k in model_kwargs:
-                    model_args.append(model_kwargs[k])
-                else:
-                    break
-            model_output = model(x_t, self._scale_timesteps(t), *model_args)
+            model_output = model(x_t, self._scale_timesteps(t), **model_kwargs)
 
             if self.model_var_type in [
                 ModelVarType.LEARNED,
@@ -1259,8 +1233,6 @@ class GaussianDiffusion:
         else:
             raise NotImplementedError(self.loss_type)
 
-        if return_tuple:
-            return terms["loss"], terms["mse"], terms["vb"]
         return terms
 
     def _prior_bpd(self, x_start):

@@ -682,6 +682,13 @@ class TrainLoop:
 
             th.cuda.current_stream().wait_stream(self.cuda_graph_current_stream())
 
+            n_null = 0
+            n_all = 0
+            for p in self.model.parameters():
+                n_all += 1
+                n_null += int(p.grad is None)
+            print(f"forward_backward | in cuda_graph_state {self.cuda_graph_state()} | {n_null}/{n_all} null")
+
             losses = self.cuda_graph_statics['losses']
 
             if self.cuda_graph_state() != 'needs_capture':
@@ -757,6 +764,14 @@ class TrainLoop:
 
         with th.cuda.stream(self.cuda_graph_current_stream()):
             self.grad_scaler.unscale_(self.opt)
+
+            n_null = 0
+            n_all = 0
+            for p in self.model.parameters():
+                n_all += 1
+                n_null += int(p.grad is None)
+            print(f"optimize_amp | in cuda_graph_state {self.cuda_graph_state()} | {n_null}/{n_all} null")
+
             self._log_grad_norm()
             self._anneal_lr()
             self.grad_scaler.step(self.opt)

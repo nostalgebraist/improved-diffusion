@@ -1568,12 +1568,12 @@ class UNetModel(nn.Module):
                 capt_attn_mask,
             )
 
-            extra_inputs = tuple(
+            extra_inputs = tuple([
                 *tuple(self.input_blocks.parameters()),
                 *tuple(self.middle_block.parameters()),
                 *tuple(self.output_blocks.parameters()),
                 *tuple(self.out.parameters()),
-            )
+            ])
 
             self._main_forward_cuda_graphed = make_graphed_callables(self._main_forward, graph_callable_args, extra_inputs=extra_inputs)
 

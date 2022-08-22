@@ -637,8 +637,8 @@ class TrainLoop:
                 n_all += 1
                 n_null += int(p.grad is None)
 
-            print(f"forward_backward | losses {repr(losses['loss'])}")
-            print(f"forward_backward | {n_null}/{n_all} null")
+            dprint(f"forward_backward | losses {repr(losses['loss'])}")
+            dprint(f"forward_backward | {n_null}/{n_all} null")
 
     def _update_ema(self, params, rate, arith_from_step=0, arith_extra_shift=0, verbose=True):
         def _vprint(*args, **kwargs):
@@ -657,7 +657,7 @@ class TrainLoop:
         else:
             update_ema(params, self.master_params, rate=rate)
 
-    def optimize_amp(self):
+    def optimize_amp(self, debug=False):
         self.grad_scaler.unscale_(self.opt)
 
         n_null = 0
@@ -665,7 +665,8 @@ class TrainLoop:
         for p in self.model.parameters():
             n_all += 1
             n_null += int(p.grad is None)
-        print(f"optimize_amp {n_null}/{n_all} null")
+        if debug:
+            print(f"optimize_amp {n_null}/{n_all} null")
 
         self._log_grad_norm()
         self._anneal_lr()

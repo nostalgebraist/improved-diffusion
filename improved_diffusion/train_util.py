@@ -596,7 +596,15 @@ class TrainLoop:
                     graph_callable_args = [micro, t] + [sanitized_micro_cond[k] for k in self.ordkeys]
                     graph_callable_args = tuple(graph_callable_args)
 
+                    te = self.model.text_encoder
+                    for m in te.token_emb, te.line_emb, te.pos_emb, te.time_embed:
+                        m.requires_grad_(False)
+
                     self.cuda_graph_callable = th.cuda.make_graphed_callables(self.model, graph_callable_args)
+
+                    te = self.model.text_encoder
+                    for m in te.token_emb, te.line_emb, te.pos_emb, te.time_embed:
+                        m.requires_grad_(True)
 
                 compute_losses = functools.partial(
                     self.diffusion.training_losses,

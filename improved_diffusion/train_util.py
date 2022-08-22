@@ -386,8 +386,7 @@ class TrainLoop:
             self.ddp_model = self.model
 
         self.use_cuda_graph = use_cuda_graph
-        self.cuda_graph_captured = False
-        self.cuda_graph_callable = None
+        self.cuda_graph_setup_done = False
 
     def _load_and_sync_parameters(self):
         resume_checkpoint = find_resume_checkpoint() or self.resume_checkpoint
@@ -584,7 +583,7 @@ class TrainLoop:
             dprint({k: type(v) for k, v in micro_cond.items()})
 
             with th.cuda.amp.autocast(enabled=self.use_amp, dtype=th.bfloat16 if self.use_bf16 else th.float16):
-                if self.cuda_graph_callable is None:
+                if not self.cuda_graph_setup_done:
                     self.ordkeys = [k for k in ['txt', 'attn_mask', 'capt', 'cond_timesteps', 'low_res'] if k in micro_cond]
 
                     sanitized_micro_cond = {}
@@ -607,9 +606,11 @@ class TrainLoop:
                     for m in te.token_emb, te.line_emb, te.pos_emb, te.time_embed:
                         m.requires_grad_(True)
 
+                self.cuda_graph_setup_done = True
+
                 compute_losses = functools.partial(
                     self.diffusion.training_losses,
-                    self.cuda_graph_callable,
+                    self.model,
                     micro,
                     t,
                     model_kwargs=micro_cond,
@@ -620,12 +621,6 @@ class TrainLoop:
                 else:
                     with self.ddp_model.no_sync():
                         losses = compute_losses()
-
-                graph_callable_args = [micro, t] + [micro_cond[k] for k in self.ordkeys]
-                graph_callable_args = tuple(graph_callable_args)
-
-                # _loss, _mse, _vb = self.cuda_graph_callable(graph_callable_args)
-                # losses = {'loss': _loss, 'mse': _mse, 'vb': _vb}
 
                 if isinstance(self.schedule_sampler, LossAwareSampler):
                     self.schedule_sampler.update_with_local_losses(

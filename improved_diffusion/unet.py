@@ -1541,6 +1541,7 @@ class UNetModel(nn.Module):
         return x, emb, txt, attn_mask, capt, capt_attn_mask
 
     def forward(self, x, timesteps, txt=None, attn_mask=None, capt=None, cond_timesteps=None, ):
+        print(f"self.input_blocks[1].in_layers[2].weight, {repr(self.input_blocks[1].in_layers[2].weight)}")
         x, emb, txt, attn_mask, capt, capt_attn_mask = self._pre_forward(
             x, timesteps, txt, attn_mask, capt, cond_timesteps
         )
@@ -1573,6 +1574,7 @@ class UNetModel(nn.Module):
                 *tuple(self.middle_block.parameters()),
                 *tuple(self.output_blocks.parameters()),
                 *tuple(self.out.parameters()),
+                *tuple(self.tgt_pos_embs.parameters()),
             ])
 
             self._main_forward_cuda_graphed = make_graphed_callables(self._main_forward, graph_callable_args, extra_inputs=extra_inputs)

@@ -586,7 +586,14 @@ class TrainLoop:
                 if self.cuda_graph_callable is None:
                     self.ordkeys = [k for k in ['txt', 'attn_mask', 'capt', 'cond_timesteps', 'low_res'] if k in micro_cond]
 
-                    graph_callable_args = [micro, t] + [micro_cond[k] for k in self.ordkeys]
+                    sanitized_micro_cond = {}
+                    for k in micro_cond:
+                        if k == 'txt':
+                            sanitized_micro_cond[k] = micro_cond[k].detach().requires_grad_(True)
+                        else:
+                            sanitized_micro_cond[k] = micro_cond[k]
+
+                    graph_callable_args = [micro, t] + [sanitized_micro_cond[k] for k in self.ordkeys]
                     graph_callable_args = tuple(graph_callable_args)
 
                     self.cuda_graph_callable = th.cuda.make_graphed_callables(self.model, graph_callable_args)

@@ -34,6 +34,8 @@ from .nn import (
 
 from .text_nn import TextEncoder, CrossAttention, WeaveAttention
 
+from .cuda_graphs import make_graphed_callables
+
 import clip
 from transformer_utils.partial_forward import *
 

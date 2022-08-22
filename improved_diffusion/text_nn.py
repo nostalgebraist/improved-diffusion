@@ -150,7 +150,6 @@ class TextEncoder(nn.Module):
         return x, attn_mask
 
     def forward(self, x, attn_mask):
-        print('TextEncoder forward called')
         out = self.model_forward(x, attn_mask=attn_mask)
         if not self.return_sequences:
             out = out[:, 0, :]

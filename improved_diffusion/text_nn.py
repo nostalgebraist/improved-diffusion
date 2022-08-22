@@ -134,7 +134,7 @@ class TextEncoder(nn.Module):
         my_attn_mask = torch.tile(attn_mask.unsqueeze(1).unsqueeze(1), (self.n_heads, x.shape[1], 1))
         if not self.cuda_graph_setup_done:
             print('cuda graphing text_encoder')
-            graph_callable_args = (x, my_attn_mask)
+            graph_callable_args = (x.detach().requires_grad_(True), my_attn_mask)
             self.model = torch.cuda.make_graphed_callables(self.model, graph_callable_args)
         return self.model.forward(x, attn_mask=my_attn_mask)
 

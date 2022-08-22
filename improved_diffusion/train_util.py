@@ -583,6 +583,10 @@ class TrainLoop:
 
                     def compute_losses(micro_, t_, *args):
                         model_kwargs = {k: v for k, v in zip(self.ordkeys, args)}
+                        print(f"micro_: {repr(micro_)}")
+                        print(f"t_: {repr(t_)}")
+                        for k, v in model_kwargs.items():
+                            print(f"{k}: {repr(v)}")
                         return self.diffusion.training_losses(
                             self.model,
                             micro_,

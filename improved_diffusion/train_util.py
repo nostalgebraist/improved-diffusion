@@ -749,6 +749,8 @@ class TrainLoop:
                              verbose=verbose)
 
     def optimize_amp(self):
+        self.cuda_graph_current_stream().wait_stream(th.cuda.current_stream())
+
         with th.cuda.stream(self.cuda_graph_current_stream()):
             self.grad_scaler.unscale_(self.opt)
             self._log_grad_norm()
@@ -765,6 +767,8 @@ class TrainLoop:
             ):
                 self._update_ema(params, rate=rate, arith_from_step=arith_from_step, arith_extra_shift=arith_extra_shift,
                                  verbose=verbose)
+
+        th.cuda.current_stream().wait_stream(self.cuda_graph_current_stream())
 
     def _log_grad_norm(self):
         sqsum = 0.0

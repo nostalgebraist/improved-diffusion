@@ -700,7 +700,7 @@ class TrainLoop:
             for p in self.model.parameters():
                 n_all += 1
                 n_null += int(p.grad is None)
-                        print(f"losses: {}")
+
             print(f"forward_backward | in cuda_graph_state {self.cuda_graph_state()} | losses {repr(losses['loss'])}")
             print(f"forward_backward | in cuda_graph_state {self.cuda_graph_state()} | {n_null}/{n_all} null")
 

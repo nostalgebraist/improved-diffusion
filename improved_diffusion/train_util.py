@@ -582,7 +582,7 @@ class TrainLoop:
                     graph_callable_args = tuple(graph_callable_args)
 
                     def compute_losses(micro_, t_, *args):
-                        model_kwargs = {k: v for k, v in zip(args, self.ordkeys)}
+                        model_kwargs = {k: v for k, v in zip(self.ordkeys, args)}
                         return self.diffusion.training_losses(
                             self.model,
                             micro_,

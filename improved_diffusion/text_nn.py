@@ -10,6 +10,7 @@ from x_transformers.x_transformers import AbsolutePositionalEmbedding, Attention
 import improved_diffusion.monkeypatch
 
 from .nn import normalization, normalization_1group, timestep_embedding, silu, AdaGN, checkpoint, AxialPositionalEmbeddingShape
+from .cuda_graphs import make_graphed_callables
 
 
 class PatchedEncoder(Encoder):
@@ -135,7 +136,11 @@ class TextEncoder(nn.Module):
         if not self.cuda_graph_setup_done:
             print('cuda graphing text_encoder')
             graph_callable_args = (x.detach().requires_grad_(True), my_attn_mask)
-            self.model = torch.cuda.make_graphed_callables(self.model, graph_callable_args)
+
+            # _make_graphed_callables = torch.cuda.make_graphed_callables
+            _make_graphed_callables = make_graphed_callables
+
+            self.model = _make_graphed_callables(self.model, graph_callable_args)
             self.cuda_graph_setup_done = True
         return self.model.forward(x, my_attn_mask)
 

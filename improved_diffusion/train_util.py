@@ -589,7 +589,7 @@ class TrainLoop:
                     sanitized_micro_cond = {}
                     for k in micro_cond:
                         if k == 'txt':
-                            sanitized_micro_cond[k] = micro_cond[k].detach().requires_grad_(True)
+                            sanitized_micro_cond[k] = micro_cond[k].detach()#.requires_grad_(True)
                         else:
                             sanitized_micro_cond[k] = micro_cond[k]
 

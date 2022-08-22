@@ -1129,7 +1129,7 @@ class GaussianDiffusion:
         output = th.where((t == 0), decoder_nll, kl)
         return {"output": output, "pred_xstart": out["pred_xstart"]}
 
-    def training_losses(self, model, x_start, t, model_kwargs=None, noise=None):
+    def training_losses(self, model, x_start, t, model_kwargs=None, noise=None, return_tuple=False):
         """
         Compute training losses for a single timestep.
 
@@ -1235,6 +1235,8 @@ class GaussianDiffusion:
         else:
             raise NotImplementedError(self.loss_type)
 
+        if return_tuple:
+            return terms["loss"], terms["mse"], terms["vb"]
         return terms
 
     def _prior_bpd(self, x_start):

@@ -591,7 +591,8 @@ class TrainLoop:
                             self.model,
                             micro_,
                             t_,
-                            model_kwargs=model_kwargs
+                            model_kwargs=model_kwargs,
+                            return_tuple = True
                         )
 
                     self.cuda_graph_callable = th.cuda.make_graphed_callables(compute_losses, graph_callable_args)
@@ -599,7 +600,8 @@ class TrainLoop:
                 graph_callable_args = [micro, t] + [micro_cond[k] for k in self.ordkeys]
                 graph_callable_args = tuple(graph_callable_args)
 
-                losses = self.cuda_graph_callable(graph_callable_args)
+                _loss, _mse, _vb = self.cuda_graph_callable(graph_callable_args)
+                losses = {'loss': _loss, 'mse': _mse, 'vb': _vb}
 
                 if isinstance(self.schedule_sampler, LossAwareSampler):
                     self.schedule_sampler.update_with_local_losses(

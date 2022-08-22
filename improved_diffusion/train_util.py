@@ -621,12 +621,6 @@ class TrainLoop:
                     with self.ddp_model.no_sync():
                         losses = compute_losses()
 
-                graph_callable_args = [micro, t] + [micro_cond[k] for k in self.ordkeys]
-                graph_callable_args = tuple(graph_callable_args)
-
-                # _loss, _mse, _vb = self.cuda_graph_callable(graph_callable_args)
-                # losses = {'loss': _loss, 'mse': _mse, 'vb': _vb}
-
                 if isinstance(self.schedule_sampler, LossAwareSampler):
                     self.schedule_sampler.update_with_local_losses(
                         t, losses["loss"].detach()

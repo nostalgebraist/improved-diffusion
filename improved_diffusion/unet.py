@@ -1440,7 +1440,9 @@ class UNetModel(nn.Module):
     def embed_capt_cached(self, capt_toks):
         return self.embed_capt(capt_toks)
 
-    def embed_capt(self, capt_toks):
+    def embed_capt(self, capt_toks, grad_requirer=None):
+        if hasattr(self, 'embed_capt_cuda_graph'):
+            return self.embed_capt_cuda_graph(capt_toks, grad_requirer)
         capt_attn_mask = capt_toks != 0
         capt = clip_encode_text_nopool(
             self.clipmod.token_embedding, self.clipmod.positional_embedding, self.clipmod.transformer,
@@ -1450,6 +1452,8 @@ class UNetModel(nn.Module):
             out_format='ndl' if self.glide_style_capt_attn else 'nld',
             dtype = self.inner_dtype,
             )
+        if grad_requirer is not None:
+            capt = capt + grad_requirer
         return capt, capt_attn_mask
 
     def forward(self, x, timesteps, txt=None, attn_mask=None, capt=None, cond_timesteps=None, ):

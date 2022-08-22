@@ -1505,9 +1505,9 @@ class UNetModel(nn.Module):
         if txt is not None and self.using_capt and capt is not None:
             # graph both at once
             print('graphing txt and capt')
-            
+
             x, attn_mask = self.text_encoder.compute_embeddings_and_mask(txt, timesteps)
-            my_attn_mask = torch.tile(attn_mask.unsqueeze(1).unsqueeze(1), (self.text_encoder.n_heads, x.shape[1], 1))
+            my_attn_mask = th.tile(attn_mask.unsqueeze(1).unsqueeze(1), (self.text_encoder.n_heads, x.shape[1], 1))
             graph_callable_args_txt = (x.detach().requires_grad_(True), my_attn_mask)
 
             grad_requirer = th.as_tensor(0.0, dtype=th.float16, device=self.device).requires_grad_(True)

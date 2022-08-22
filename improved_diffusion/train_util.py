@@ -581,7 +581,7 @@ class TrainLoop:
 
             with th.cuda.amp.autocast(enabled=self.use_amp, dtype=th.bfloat16 if self.use_bf16 else th.float16):
                 if not self.cuda_graph_setup_done:
-                    grad_requirer = th.Tensor(0, dtype=th.float16, device=model.device).requires_grad_(True)
+                    grad_requirer = th.Tensor(0, dtype=th.float16, device=self.model.device).requires_grad_(True)
                     graph_callable_args = (micro_cond['capt'], grad_requirer)
 
                     self.model.embed_capt_cuda_graph = th.cuda.make_graphed_callables(self.model.embed_capt, graph_callable_args)

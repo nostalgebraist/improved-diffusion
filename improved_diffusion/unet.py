@@ -1517,7 +1517,7 @@ class UNetModel(nn.Module):
                 _make_graphed_callables = th.cuda.make_graphed_callables
                 # _make_graphed_callables = make_graphed_callables
 
-                self.embed_capt_cuda_graph = _make_graphed_callables(self.model.embed_capt, graph_callable_args)
+                self.embed_capt_cuda_graph = _make_graphed_callables(self.embed_capt, graph_callable_args)
 
                 self.cuda_graph_setup_done = True
 

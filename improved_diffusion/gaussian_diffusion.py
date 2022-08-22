@@ -342,7 +342,7 @@ class GaussianDiffusion:
 
         model_args_cond = []
         # TODO: compat
-        for k in ['txt', 'capt', 'cond_timesteps', 'y']:
+        for k in ['txt', 'capt', 'cond_timesteps', 'low_res']:
             if k in model_kwargs_cond:
                 model_args_cond.append(model_kwargs_cond[k])
             else:
@@ -354,7 +354,7 @@ class GaussianDiffusion:
         if is_guided:
             model_args_uncon = []
             # TODO: compat
-            for k in ['txt', 'capt', 'cond_timesteps', 'y']:
+            for k in ['txt', 'capt', 'cond_timesteps', 'low_res']:
                 if k in unconditional_model_kwargs:
                     model_args_uncon.append(unconditional_model_kwargs[k])
                 else:
@@ -1181,7 +1181,7 @@ class GaussianDiffusion:
         elif self.loss_type.is_mse():
             model_args = []
             # TODO: compat
-            for k in ['txt', 'capt', 'cond_timesteps', 'y']:
+            for k in ['txt', 'capt', 'cond_timesteps', 'low_res']:
                 if k in model_kwargs:
                     model_args.append(model_kwargs[k])
                 else:

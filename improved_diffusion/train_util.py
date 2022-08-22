@@ -576,7 +576,7 @@ class TrainLoop:
 
             with th.cuda.amp.autocast(enabled=self.use_amp, dtype=th.bfloat16 if self.use_bf16 else th.float16):
                 if self.cuda_graph_callable is None:
-                    self.ordkeys = [k for k in ['txt', 'capt', 'cond_timesteps', 'y'] if k in micro_cond]
+                    self.ordkeys = [k for k in ['txt', 'capt', 'cond_timesteps', 'low_res'] if k in micro_cond]
 
                     graph_callable_args = [micro, t] + [micro_cond[k] for k in self.ordkeys]
                     graph_callable_args = tuple(graph_callable_args)

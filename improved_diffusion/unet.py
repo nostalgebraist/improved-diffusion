@@ -1452,7 +1452,7 @@ class UNetModel(nn.Module):
             )
         return capt, capt_attn_mask
 
-    def forward(self, x, timesteps, txt=None, capt=None, cond_timesteps=None, y=None, ):
+    def forward(self, x, timesteps, txt=None, capt=None, cond_timesteps=None, ):
         """
         Apply the model to an input batch.
 
@@ -1465,6 +1465,8 @@ class UNetModel(nn.Module):
         # if isinstance(txt, dict):
         #     capt = txt['capt']
         #     txt = txt['txt']
+        y = None  # cuda graphs
+
         assert (y is not None) == (
             self.num_classes is not None
         ), "must specify y if and only if the model is class-conditional"
@@ -1638,11 +1640,11 @@ class SuperResModel(UNetModel):
     def __init__(self, in_channels, *args, **kwargs):
         super().__init__(in_channels + 1 if kwargs.get('colorize') else in_channels * 2, *args, **kwargs)
 
-    def forward(self, x, timesteps, low_res=None, **kwargs):
+    def forward(self, x, timesteps, txt=None, capt=None, cond_timesteps=None, low_res=None,):
         _, _, new_height, new_width = x.shape
         upsampled = F.interpolate(low_res, (new_height, new_width), mode=self.up_interp_mode)
         x = th.cat([x, upsampled], dim=1)
-        return super().forward(x, timesteps, **kwargs)
+        return super().forward(x, timesteps, txt=txt, capt=capt, cond_timesteps=cond_timesteps)
 
     def get_feature_vectors(self, x, timesteps, low_res=None, **kwargs):
         _, new_height, new_width, _ = x.shape

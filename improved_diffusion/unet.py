@@ -1499,7 +1499,8 @@ class UNetModel(nn.Module):
         emb = F.silu(emb)
 
         if txt is not None:
-            txt, attn_mask = self.text_encoder(txt, timesteps=timesteps)
+            attn_mask = txt != 0
+            txt = self.text_encoder(txt, timesteps=timesteps)
             # txt = self.text_encoder(txt, attn_mask)
             txt = txt.type(self.inner_dtype)
 

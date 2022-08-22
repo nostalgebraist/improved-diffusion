@@ -1514,8 +1514,8 @@ class UNetModel(nn.Module):
 
                 graph_callable_args = (capt, grad_requirer)
 
-                _make_graphed_callables = th.cuda.make_graphed_callables
-                # _make_graphed_callables = make_graphed_callables
+                # _make_graphed_callables = th.cuda.make_graphed_callables
+                _make_graphed_callables = make_graphed_callables
 
                 self.embed_capt_cuda_graph = _make_graphed_callables(self.embed_capt, graph_callable_args)
 

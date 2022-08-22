@@ -137,8 +137,8 @@ class TextEncoder(nn.Module):
             print('cuda graphing text_encoder')
             graph_callable_args = (x.detach().requires_grad_(True), my_attn_mask)
 
-            _make_graphed_callables = torch.cuda.make_graphed_callables
-            # _make_graphed_callables = make_graphed_callables
+            # _make_graphed_callables = torch.cuda.make_graphed_callables
+            _make_graphed_callables = make_graphed_callables
 
             self.model = _make_graphed_callables(self.model, graph_callable_args)
             self.cuda_graph_setup_done = True

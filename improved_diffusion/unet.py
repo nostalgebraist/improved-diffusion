@@ -1442,6 +1442,8 @@ class UNetModel(nn.Module):
 
     def embed_capt(self, capt_toks, grad_requirer=None):
         if hasattr(self, 'embed_capt_cuda_graph'):
+            if grad_requirer is None:
+                grad_requirer = th.Tensor(0, dtype=th.float16, device=self.device).requires_grad_(True)
             return self.embed_capt_cuda_graph(capt_toks, grad_requirer)
         capt_attn_mask = capt_toks != 0
         capt = clip_encode_text_nopool(
@@ -1498,8 +1500,8 @@ class UNetModel(nn.Module):
         emb = F.silu(emb)
 
         if txt is not None:
-            # txt, attn_mask = self.text_encoder(txt, timesteps=timesteps)
-            txt = self.text_encoder(txt, attn_mask)
+            txt, attn_mask = self.text_encoder(txt, timesteps=timesteps)
+            # txt = self.text_encoder(txt, attn_mask)
             txt = txt.type(self.inner_dtype)
 
         capt_attn_mask = None

@@ -87,15 +87,15 @@ class TrainLoop:
         noise_cond_max_step=-1,
         use_cuda_graph=False,
     ):
-        if use_cuda_graph:
-            # DEBUG
-            import torch.nn as nn
-            # for n, m in model.text_encoder.named_modules():
-            for n, m in model.text_encoder.model.named_modules():  # TODO: make rel_pos_bias not depend on nn.Embedding
-                if isinstance(m, nn.Embedding):
-                    print(f'found {n}')
-                    for p in m.parameters():
-                        p.requires_grad_(False)
+        # if use_cuda_graph:
+        #     # DEBUG
+        #     import torch.nn as nn
+        #     # for n, m in model.text_encoder.named_modules():
+        #     for n, m in model.text_encoder.model.named_modules():  # TODO: make rel_pos_bias not depend on nn.Embedding
+        #         if isinstance(m, nn.Embedding):
+        #             print(f'found {n}')
+        #             for p in m.parameters():
+        #                 p.requires_grad_(False)
         self.model = model
         self.diffusion = diffusion
         self.data = data
@@ -563,10 +563,7 @@ class TrainLoop:
                 # micro_cond['txt'] = th.as_tensor(tokenize(self.tokenizer, micro_cond['txt']), device=dist_util.dev())
 
                 txt = th.as_tensor(tokenize(self.tokenizer, micro_cond['txt']), device=dist_util.dev())
-                with th.cuda.amp.autocast(enabled=self.use_amp, dtype=th.bfloat16 if self.use_bf16 else th.float16):
-                    txt, attn_mask = self.model.text_encoder.compute_embeddings_and_mask(txt, t)
                 micro_cond['txt'] = txt
-                micro_cond['attn_mask'] = attn_mask
             if 'capt' in micro_cond:
                 capt = clip.tokenize(micro_cond['capt'], truncate=True).to(dist_util.dev())
                 micro_cond['capt'] = capt
@@ -584,29 +581,12 @@ class TrainLoop:
 
             with th.cuda.amp.autocast(enabled=self.use_amp, dtype=th.bfloat16 if self.use_bf16 else th.float16):
                 if not self.cuda_graph_setup_done:
-                    self.ordkeys = [k for k in ['txt', 'attn_mask', 'capt', 'cond_timesteps', 'low_res'] if k in micro_cond]
+                    grad_requirer = th.Tensor(0, dtype=th.float16, device=model.device).requires_grad_(True)
+                    graph_callable_args = (micro_cond['capt'], grad_requirer)
 
-                    sanitized_micro_cond = {}
-                    for k in micro_cond:
-                        if k == 'txt' or k == 'attn_mask':
-                            sanitized_micro_cond[k] = micro_cond[k].detach().requires_grad_(micro_cond[k].requires_grad)
-                        else:
-                            sanitized_micro_cond[k] = micro_cond[k]
+                    self.model.embed_capt_cuda_graph = th.cuda.make_graphed_callables(self.model.embed_capt, graph_callable_args)
 
-                    graph_callable_args = [micro, t] + [sanitized_micro_cond[k] for k in self.ordkeys]
-                    graph_callable_args = tuple(graph_callable_args)
-
-                    te = self.model.text_encoder
-                    for m in te.token_emb, te.line_emb, te.pos_emb, te.time_embed:
-                        m.requires_grad_(False)
-
-                    self.cuda_graph_callable = th.cuda.make_graphed_callables(self.model, graph_callable_args)
-
-                    te = self.model.text_encoder
-                    for m in te.token_emb, te.line_emb, te.pos_emb, te.time_embed:
-                        m.requires_grad_(True)
-
-                self.cuda_graph_setup_done = True
+                    self.cuda_graph_setup_done = True
 
                 compute_losses = functools.partial(
                     self.diffusion.training_losses,

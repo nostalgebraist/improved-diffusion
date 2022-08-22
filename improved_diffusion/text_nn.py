@@ -149,7 +149,8 @@ class TextEncoder(nn.Module):
 
         return x, attn_mask
 
-    def forward(self, x, attn_mask):
+    def forward(self, x, timesteps):
+        x, attn_mask = self.model.text_encoder.compute_embeddings_and_mask(x, timesteps)
         out = self.model_forward(x, attn_mask=attn_mask)
         if not self.return_sequences:
             out = out[:, 0, :]

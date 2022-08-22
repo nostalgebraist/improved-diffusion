@@ -1445,7 +1445,6 @@ class UNetModel(nn.Module):
             if grad_requirer is None:
                 grad_requirer = th.as_tensor(0.0, dtype=th.float16, device=self.device).requires_grad_(True)
             return self.embed_capt_cuda_graph(capt_toks, grad_requirer)
-        capt_attn_mask = capt_toks != 0
         capt = clip_encode_text_nopool(
             self.clipmod.token_embedding, self.clipmod.positional_embedding, self.clipmod.transformer,
             capt_toks,
@@ -1456,7 +1455,7 @@ class UNetModel(nn.Module):
             )
         if grad_requirer is not None:
             capt = capt + grad_requirer
-        return capt, capt_attn_mask
+        return capt
 
     def forward(self, x, timesteps, txt=None, attn_mask=None, capt=None, cond_timesteps=None, ):
         """
@@ -1506,7 +1505,8 @@ class UNetModel(nn.Module):
 
         capt_attn_mask = None
         if self.using_capt and capt is not None:
-            capt, capt_attn_mask = self.embed_capt_cached(capt) if self.use_inference_caching else self.embed_capt(capt)
+            capt_attn_mask = capt != 0
+            capt = self.embed_capt_cached(capt) if self.use_inference_caching else self.embed_capt(capt)
             # capt_toks = capt
             # capt_attn_mask = capt_toks != 0
             # capt = clip_encode_text_nopool(

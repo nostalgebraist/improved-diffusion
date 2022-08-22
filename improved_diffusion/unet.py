@@ -1461,19 +1461,7 @@ class UNetModel(nn.Module):
             capt = capt + grad_requirer
         return capt
 
-    def forward(self, x, timesteps, txt=None, attn_mask=None, capt=None, cond_timesteps=None, ):
-        """
-        Apply the model to an input batch.
-
-        :param x: an [N x C x ...] Tensor of inputs.
-        :param timesteps: a 1-D batch of timesteps.
-        :param y: an [N] Tensor of labels, if class-conditional.
-        :return: an [N x C x ...] Tensor of outputs.
-        """
-        # print(f"forward: txt passed = {txt is not None}, model txt = {self.txt}")
-        # if isinstance(txt, dict):
-        #     capt = txt['capt']
-        #     txt = txt['txt']
+    def _pre_forward(self, x, timesteps, txt=None, attn_mask=None, capt=None, cond_timesteps=None, ):
         y = None  # cuda graphs
 
         assert (y is not None) == (
@@ -1547,20 +1535,37 @@ class UNetModel(nn.Module):
                 self.cuda_graph_setup_done = True
 
             capt = self.embed_capt_cached(capt) if self.use_inference_caching else self.embed_capt(capt)
-            # capt_toks = capt
-            # capt_attn_mask = capt_toks != 0
-            # capt = clip_encode_text_nopool(
-            #     self.clipmod.token_embedding, self.clipmod.positional_embedding, self.clipmod.transformer,
-            #     capt_toks,
-            #     ln_final=self.capt_ln_final if self.glide_style_capt_attn else None,
-            #     use_penultimate_layer=self.clip_use_penultimate_layer,
-            #     out_format='ndl' if self.glide_style_capt_attn else 'nld',
-            #     dtype = self.inner_dtype,
-            #     )
-            # capt = capt.type(self.inner_dtype)
             if self.glide_style_capt_emb:
                 eos = capt[th.arange(capt_toks.shape[0]), :, capt_toks.argmax(dim=-1)]
                 emb = emb + self.capt_embed(eos)
+
+        return x, emb, txt, attn_mask, capt, capt_attn_mask
+
+    def forward(self, x, timesteps, txt=None, attn_mask=None, capt=None, cond_timesteps=None, ):
+        x, emb, txt, attn_mask, capt, capt_attn_mask = self._pre_forward(
+            x, timesteps, txt, attn_mask, capt, cond_timesteps
+        )
+
+        if txt is None:
+            txt = th.as_tensor(0.0, device=self.device)
+        if attn_mask is None:
+            attn_mask = th.as_tensor(0.0, device=self.device)
+        if capt is None:
+            capt = th.as_tensor(0.0, device=self.device)
+        if capt_attn_mask is None:
+            capt_attn_mask = th.as_tensor(0.0, device=self.device)
+
+        return self._main_forward(self, x, emb, txt, attn_mask, capt, capt_attn_mask)
+
+    def _main_forward(self, x, emb, txt, attn_mask, capt, capt_attn_mask):
+        if len(txt.shape) == 1:
+            txt = None
+        if len(attn_mask.shape) == 1:
+            attn_mask = None
+        if len(capt.shape) == 1:
+            capt = None
+        if len(capt_attn_mask.shape) == 1:
+            capt_attn_mask = None
 
         h = x
 

@@ -124,7 +124,8 @@ class TextEncoder(nn.Module):
         )
 
     def _model_forward(self, x, attn_mask):
-        return self.model.forward(x, attn_mask=attn_mask)
+        my_attn_mask = torch.tile(attn_mask.unsqueeze(1).unsqueeze(1), (self.n_heads, tokens.shape[1], 1))
+        return self.model.forward(x, attn_mask=my_attn_mask)
 
     def compute_embeddings_and_mask(self, tokens, timesteps):
         x = tokens
@@ -145,9 +146,8 @@ class TextEncoder(nn.Module):
         # TODO: workaround for HF tokenizers setting PAD and CLS to id 0
         # cf. pad_id arg of enable_padding()
         attn_mask = tokens != 0
-        my_attn_mask = torch.tile(attn_mask.unsqueeze(1).unsqueeze(1), (self.n_heads, tokens.shape[1], 1))
 
-        return x, my_attn_mask
+        return x, attn_mask
 
     def forward(self, x, attn_mask):
         out = self.model_forward(x, attn_mask=attn_mask)

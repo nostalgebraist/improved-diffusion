@@ -1541,7 +1541,7 @@ class UNetModel(nn.Module):
         return x, emb, txt, attn_mask, capt, capt_attn_mask
 
     def forward(self, x, timesteps, txt=None, attn_mask=None, capt=None, cond_timesteps=None, ):
-        print(f"self.input_blocks[1].in_layers[2].weight, {repr(self.input_blocks[1].in_layers[2].weight)}")
+        print(f"self.input_blocks[1].in_layers[2].weight, {repr(self.input_blocks[1][0].in_layers[2].weight)}")
         x, emb, txt, attn_mask, capt, capt_attn_mask = self._pre_forward(
             x, timesteps, txt, attn_mask, capt, cond_timesteps
         )

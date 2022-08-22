@@ -136,7 +136,7 @@ class TextEncoder(nn.Module):
             print('cuda graphing text_encoder')
             graph_callable_args = (x.detach().requires_grad_(True), my_attn_mask)
             self.model = torch.cuda.make_graphed_callables(self.model, graph_callable_args)
-        return self.model.forward(x, attn_mask=my_attn_mask)
+        return self.model.forward(x, my_attn_mask)
 
     def compute_embeddings_and_mask(self, tokens, timesteps):
         x = tokens

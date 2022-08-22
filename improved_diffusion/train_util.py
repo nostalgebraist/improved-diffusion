@@ -89,7 +89,7 @@ class TrainLoop:
     ):
         if use_cuda_graph:
             # DEBUG
-            for p in self.model.text_encoder.parameters():
+            for p in model.text_encoder.parameters():
                 p.requires_grad_(False)
         self.model = model
         self.diffusion = diffusion

@@ -1574,6 +1574,7 @@ class UNetModel(nn.Module):
                 *tuple(self.output_blocks.parameters()),
                 *tuple(self.out.parameters()),
             ]
+            extra_inputs = tuple(extra_inputs)
 
             self._main_forward_cuda_graphed = make_graphed_callables(self._main_forward, graph_callable_args, extra_inputs=extra_inputs)
 

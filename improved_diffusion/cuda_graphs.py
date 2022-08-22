@@ -31,9 +31,9 @@ def make_graphed_callables(callables, sample_args, mempool=None, extra_inputs=No
     # passes to forward (ie, its sample_args) AND the module's parameter attributes.
     extra_inputs = extra_inputs or []
     per_callable_len_user_args = [len(args) for args in sample_args]
-    per_callable_module_params = [tuple(c.parameters()) if isinstance(c, torch.nn.Module) else ()
+    per_callable_module_params = [(tuple(c.parameters()) if isinstance(c, torch.nn.Module) else ()) + extra_inputs
                                   for c in callables]
-    per_callable_static_input_surfaces = [sample_args[i] + per_callable_module_params[i] + extra_inputs
+    per_callable_static_input_surfaces = [sample_args[i] + per_callable_module_params[i]
                                           for i in range(len(callables))]
 
     fwd_graphs = [torch.cuda.CUDAGraph() for _ in range(len(callables))]

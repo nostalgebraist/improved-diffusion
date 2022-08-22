@@ -381,11 +381,8 @@ class TrainLoop:
             self.ddp_model = self.model
 
         self.use_cuda_graph = use_cuda_graph
-        self.cuda_graph = th.cuda.CUDAGraph() if self.use_cuda_graph else None
-        self.cuda_graph_warmup_stream = th.cuda.Stream() if self.use_cuda_graph else th.cuda.current_stream()
-        self.cuda_graph_warmup_steps_remaining = None
         self.cuda_graph_captured = False
-        self.cuda_graph_statics = {}
+        self.cuda_graph_callable = None
 
     def _load_and_sync_parameters(self):
         resume_checkpoint = find_resume_checkpoint() or self.resume_checkpoint
@@ -520,29 +517,6 @@ class TrainLoop:
         if (self.step - 1) % self.save_interval != 0:
             self.save()
 
-    def cuda_graph_current_stream(self):
-        if self.cuda_graph_state() == 'warmup':
-            return self.cuda_graph_warmup_stream
-        return th.cuda.current_stream()
-
-    def cuda_graph_state(self, debug=False):
-        state = self._cuda_graph_state()
-        if debug:
-            print(f"cuda_graph_state: {state} | self.cuda_graph_warmup_steps_remaining {self.cuda_graph_warmup_steps_remaining}")
-        return state
-
-    def _cuda_graph_state(self):
-        if not self.use_cuda_graph:
-            return 'disabled'
-
-        if self.cuda_graph_captured:
-            return 'captured'
-
-        if self.cuda_graph_warmup_steps_remaining > 0:
-            return 'warmup'
-
-        return 'needs_capture'
-
     def run_step(self, batch, cond, verbose=False, single_fwd_only=False):
         self.forward_backward(batch, cond, verbose=verbose, single_fwd_only=single_fwd_only)
 
@@ -565,9 +539,6 @@ class TrainLoop:
             self.opt.zero_grad(set_to_none=True)
         else:
             zero_grad(self.model_params)
-
-        if self.cuda_graph_warmup_steps_remaining == None:
-            self.cuda_graph_warmup_steps_remaining = 3 + batch.shape[0] // self.microbatch
 
         for i in range(0, batch.shape[0], self.microbatch):
             dprint(f"micro {i}")
@@ -603,97 +574,56 @@ class TrainLoop:
 
             dprint({k: type(v) for k, v in micro_cond.items()})
 
-            self.cuda_graph_current_stream().wait_stream(th.cuda.current_stream())
+            with th.cuda.amp.autocast(enabled=self.use_amp, dtype=th.bfloat16 if self.use_bf16 else th.float16):
+                if self.cuda_graph_callable is None:
+                    self.ordkeys = list(micro_cond.keys())
 
-            with th.cuda.stream(self.cuda_graph_current_stream()):
-                if self.cuda_graph_state() in ['warmup']:
-                    if 'micro' not in self.cuda_graph_statics:
-                        self.cuda_graph_statics['micro'] = th.zeros_like(micro)
-                    if 't' not in self.cuda_graph_statics:
-                        self.cuda_graph_statics['t'] = th.zeros_like(t)
-                    if 'kwargs' not in self.cuda_graph_statics:
-                        self.cuda_graph_statics['kwargs'] = {}
-                    for k, v in micro_cond.items():
-                        if k not in self.cuda_graph_statics['kwargs']:
-                            self.cuda_graph_statics['kwargs'][k] = th.zeros_like(v)
+                    graph_callable_args = [micro, t] + [micro_cond[k] for k in self.ordkeys]
+                    graph_callable_args = tuple(graph_callable_args)
 
-                if self.use_cuda_graph:
-                    self.cuda_graph_statics['micro'].copy_(micro)
-                    self.cuda_graph_statics['t'].copy_(t)
-                    for k in micro_cond:
-                        self.cuda_graph_statics['kwargs'][k].copy_(micro_cond[k])
+                    def compute_losses(micro_, t_, *args):
+                        model_kwargs = {k: v for k, v in zip(args, self.ordkeys)}
+                        return self.diffusion.training_losses(
+                            self.model,
+                            micro_,
+                            t_,
+                            model_kwargs=model_kwargs
+                        )
 
-                dprint(self.cuda_graph_state())
-                if self.cuda_graph_state() == 'captured':
-                    self.cuda_graph.replay()
-                    losses = self.cuda_graph_statics['losses']
+                    self.cuda_graph_callable = th.cuda.make_graphed_callables(compute_losses, graph_callable_args)
+
+                graph_callable_args = [micro, t] + [micro_cond[k] for k in self.ordkeys]
+                graph_callable_args = tuple(graph_callable_args)
+
+                losses = self.cuda_graph_callable(graph_callable_args)
+
+                if isinstance(self.schedule_sampler, LossAwareSampler):
+                    self.schedule_sampler.update_with_local_losses(
+                        t, losses["loss"].detach()
+                    )
+                    if i == 0:
+                        warm = self.schedule_sampler._warmed_up(verbose=verbose)
+                        if warm and verbose:
+                            _weights = self.schedule_sampler.weights()
+                            w_avg = np.average(np.arange(len(_weights)), weights=_weights)
+                            w_avg_ref = np.average(np.arange(len(_weights)), weights=np.ones_like(_weights))
+                            print(f"w_avg: {w_avg:.1f} (vs {w_avg_ref:.1f})")
+
+                loss = (losses["loss"] * weights).mean()
+                if single_fwd_only:
+                    break
+                grad_acc_scale = micro.shape[0] / self.batch_size
+                if self.use_fp16:
+                    loss_scale = 2 ** self.lg_loss_scale
+                    (loss * loss_scale * grad_acc_scale).backward()
+                elif self.use_amp:
+                    self.grad_scaler.scale(loss * grad_acc_scale).backward()
                 else:
-                    graph_cman = \
-                    th.cuda.graph(self.cuda_graph) if self.cuda_graph_state() == 'needs_capture' else th.cuda.stream(th.cuda.current_stream())
+                    (loss * grad_acc_scale).backward()
 
-                    print(("self.cuda_graph_warmup_stream", self.cuda_graph_warmup_stream))
-                    print(("self.cuda_graph_current_stream()", self.cuda_graph_current_stream()))
-                    print(("graph_cman", graph_cman))
-
-                    with graph_cman:
-                        with th.cuda.amp.autocast(enabled=self.use_amp, dtype=th.bfloat16 if self.use_bf16 else th.float16):
-                            compute_losses = functools.partial(
-                                self.diffusion.training_losses,
-                                self.ddp_model,
-                                self.cuda_graph_statics['micro'],
-                                self.cuda_graph_statics['t'],
-                                model_kwargs=self.cuda_graph_statics['kwargs'],
-                                # micro,
-                                # t,
-                                # model_kwargs=micro_cond,
-                            )
-
-                            if last_batch or not self.use_ddp:
-                                losses = compute_losses()
-                            else:
-                                with self.ddp_model.no_sync():
-                                    losses = compute_losses()
-
-                        self.cuda_graph_statics['losses'] = losses
-
-                        if isinstance(self.schedule_sampler, LossAwareSampler):
-                            self.schedule_sampler.update_with_local_losses(
-                                t, losses["loss"].detach()
-                            )
-                            if i == 0:
-                                warm = self.schedule_sampler._warmed_up(verbose=verbose)
-                                if warm and verbose:
-                                    _weights = self.schedule_sampler.weights()
-                                    w_avg = np.average(np.arange(len(_weights)), weights=_weights)
-                                    w_avg_ref = np.average(np.arange(len(_weights)), weights=np.ones_like(_weights))
-                                    print(f"w_avg: {w_avg:.1f} (vs {w_avg_ref:.1f})")
-
-                        loss = (losses["loss"] * weights).mean()
-                        if single_fwd_only:
-                            break
-                        grad_acc_scale = micro.shape[0] / self.batch_size
-                        if self.use_fp16:
-                            loss_scale = 2 ** self.lg_loss_scale
-                            (loss * loss_scale * grad_acc_scale).backward()
-                        elif self.use_amp:
-                            self.grad_scaler.scale(loss * grad_acc_scale).backward()
-                        else:
-                            (loss * grad_acc_scale).backward()
-
-            th.cuda.current_stream().wait_stream(self.cuda_graph_current_stream())
-
-            losses = self.cuda_graph_statics['losses']
-
-            if self.cuda_graph_state() != 'needs_capture':
-                log_loss_dict(
-                    self.diffusion, t, {k: v * weights for k, v in losses.items()}
-                )
-
-            if self.cuda_graph_state() == 'needs_capture':
-                self.cuda_graph_captured = True
-
-            if self.cuda_graph_warmup_steps_remaining > 0:
-                self.cuda_graph_warmup_steps_remaining -= 1
+            log_loss_dict(
+                self.diffusion, t, {k: v * weights for k, v in losses.items()}
+            )
 
             n_null = 0
             n_all = 0
@@ -701,8 +631,8 @@ class TrainLoop:
                 n_all += 1
                 n_null += int(p.grad is None)
 
-            print(f"forward_backward | in cuda_graph_state {self.cuda_graph_state()} | losses {repr(losses['loss'])}")
-            print(f"forward_backward | in cuda_graph_state {self.cuda_graph_state()} | {n_null}/{n_all} null")
+            print(f"forward_backward | losses {repr(losses['loss'])}")
+            print(f"forward_backward | {n_null}/{n_all} null")
 
     def _update_ema(self, params, rate, arith_from_step=0, arith_extra_shift=0, verbose=True):
         def _vprint(*args, **kwargs):
@@ -720,6 +650,31 @@ class TrainLoop:
                 update_arithmetic_average(params, self.master_params, n=n)
         else:
             update_ema(params, self.master_params, rate=rate)
+
+    def optimize_amp(self):
+        self.grad_scaler.unscale_(self.opt)
+
+        n_null = 0
+        n_all = 0
+        for p in self.model.parameters():
+            n_all += 1
+            n_null += int(p.grad is None)
+        print(f"optimize_amp {n_null}/{n_all} null")
+
+        self._log_grad_norm()
+        self._anneal_lr()
+        self.grad_scaler.step(self.opt)
+        self.grad_scaler.update()
+        verboses = [False] * (len(self.ema_rate) - 1) + [True]
+        for rate, params, arith_from_step, arith_extra_shift, verbose in zip(
+            self.ema_rate,
+            self.ema_params,
+            self.arithmetic_avg_from_step,
+            self.arithmetic_avg_extra_shift,
+            verboses
+        ):
+            self._update_ema(params, rate=rate, arith_from_step=arith_from_step, arith_extra_shift=arith_extra_shift,
+                             verbose=verbose)
 
     def optimize_fp16(self):
         if any(not th.isfinite(p.grad).all() for ps in self.model_params for p in ps if p.grad is not None):
@@ -760,36 +715,6 @@ class TrainLoop:
         ):
             self._update_ema(params, rate=rate, arith_from_step=arith_from_step, arith_extra_shift=arith_extra_shift,
                              verbose=verbose)
-
-    def optimize_amp(self):
-        self.cuda_graph_current_stream().wait_stream(th.cuda.current_stream())
-
-        with th.cuda.stream(self.cuda_graph_current_stream()):
-            self.grad_scaler.unscale_(self.opt)
-
-            n_null = 0
-            n_all = 0
-            for p in self.model.parameters():
-                n_all += 1
-                n_null += int(p.grad is None)
-            print(f"optimize_amp | in cuda_graph_state {self.cuda_graph_state()} | {n_null}/{n_all} null")
-
-            self._log_grad_norm()
-            self._anneal_lr()
-            self.grad_scaler.step(self.opt)
-            self.grad_scaler.update()
-            verboses = [False] * (len(self.ema_rate) - 1) + [True]
-            for rate, params, arith_from_step, arith_extra_shift, verbose in zip(
-                self.ema_rate,
-                self.ema_params,
-                self.arithmetic_avg_from_step,
-                self.arithmetic_avg_extra_shift,
-                verboses
-            ):
-                self._update_ema(params, rate=rate, arith_from_step=arith_from_step, arith_extra_shift=arith_extra_shift,
-                                 verbose=verbose)
-
-        th.cuda.current_stream().wait_stream(self.cuda_graph_current_stream())
 
     def _log_grad_norm(self):
         sqsum = 0.0

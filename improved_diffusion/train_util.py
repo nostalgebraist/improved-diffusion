@@ -90,7 +90,8 @@ class TrainLoop:
         if use_cuda_graph:
             # DEBUG
             import torch.nn as nn
-            for n, m in model.text_encoder.named_modules():
+            # for n, m in model.text_encoder.named_modules():
+            for n, m in model.text_encoder.model.named_modules():  # TODO: make rel_pos_bias not depend on nn.Embedding
                 if isinstance(m, nn.Embedding):
                     print(f'found {n}')
                     for p in m.parameters():

@@ -1554,7 +1554,7 @@ class UNetModel(nn.Module):
         if capt_attn_mask is None:
             capt_attn_mask = th.as_tensor(0.0, device=self.device)
 
-        use_main_graph = False
+        use_main_graph = True
 
         if use_main_graph and not hasattr(self, '_main_forward_cuda_graphed'):
             print('graphing main')

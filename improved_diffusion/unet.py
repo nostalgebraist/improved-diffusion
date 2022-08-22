@@ -1454,6 +1454,8 @@ class UNetModel(nn.Module):
 
     def forward(self, x, timesteps, txt=None, attn_mask=None, capt=None, cond_timesteps=None, ):
         print('unet forward called')
+        print(f'unet forward txt {repr(txt)}')
+        print(f'unet forward attn_mask {repr(attn_mask)}')
         """
         Apply the model to an input batch.
 

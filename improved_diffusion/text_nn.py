@@ -117,6 +117,8 @@ class TextEncoder(nn.Module):
             nn.Linear(inner_dim, inner_dim),
         )
 
+        self.cuda_graph_setup_done = False
+
     def model_forward(self, x, attn_mask):
         return checkpoint(
             self._model_forward, (x, attn_mask, ), self.parameters(), self.use_checkpoint,
@@ -125,6 +127,10 @@ class TextEncoder(nn.Module):
 
     def _model_forward(self, x, attn_mask):
         my_attn_mask = torch.tile(attn_mask.unsqueeze(1).unsqueeze(1), (self.n_heads, x.shape[1], 1))
+        if not self.cuda_graph_setup_done:
+            print('cuda graphing text_encoder')
+            graph_callable_args = (x, my_attn_mask)
+            self.model = th.cuda.make_graphed_callables(self.model, graph_callable_args)
         return self.model.forward(x, attn_mask=my_attn_mask)
 
     def compute_embeddings_and_mask(self, tokens, timesteps):

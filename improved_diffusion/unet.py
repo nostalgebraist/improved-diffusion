@@ -1554,19 +1554,26 @@ class UNetModel(nn.Module):
         if capt_attn_mask is None:
             capt_attn_mask = th.as_tensor(0.0, device=self.device)
 
-        # if not hasattr(self, '_main_forward_cuda_graphed'):
-        #     print('graphing main')
-        #
-        #     graph_callable_args = (
-        #         x.detach().requires_grad_(True),
-        #         emb.detach().requires_grad_(True),
-        #         txt.detach().requires_grad_(txt.requires_grad),
-        #         attn_mask,
-        #         capt.detach().requires_grad_(capt.requires_grad),
-        #         capt_attn_mask
-        #     )
+        use_main_graph = False
 
-        return self._main_forward(x, emb, txt, attn_mask, capt, capt_attn_mask)
+        if use_main_graph and not hasattr(self, '_main_forward_cuda_graphed'):
+            print('graphing main')
+
+            graph_callable_args = (
+                x.detach().requires_grad_(True),
+                emb.detach().requires_grad_(True),
+                txt.detach().requires_grad_(txt.requires_grad),
+                attn_mask,
+                capt.detach().requires_grad_(capt.requires_grad),
+                capt_attn_mask
+            )
+
+            self._main_forward_cuda_graphed = th.cuda.make_graphed_callables(self._main_forward, graph_callable_args)
+
+        if use_main_graph:
+            return self._main_forward_cuda_graphed(x, emb, txt, attn_mask, capt, capt_attn_mask)
+        else:
+            return self._main_forward(x, emb, txt, attn_mask, capt, capt_attn_mask)
 
     def _main_forward(self, x, emb, txt, attn_mask, capt, capt_attn_mask):
         if len(txt.shape) == 1:

@@ -682,13 +682,6 @@ class TrainLoop:
 
             th.cuda.current_stream().wait_stream(self.cuda_graph_current_stream())
 
-            n_null = 0
-            n_all = 0
-            for p in self.model.parameters():
-                n_all += 1
-                n_null += int(p.grad is None)
-            print(f"forward_backward | in cuda_graph_state {self.cuda_graph_state()} | {n_null}/{n_all} null")
-
             losses = self.cuda_graph_statics['losses']
 
             if self.cuda_graph_state() != 'needs_capture':
@@ -701,6 +694,13 @@ class TrainLoop:
 
             if self.cuda_graph_warmup_steps_remaining > 0:
                 self.cuda_graph_warmup_steps_remaining -= 1
+
+            n_null = 0
+            n_all = 0
+            for p in self.model.parameters():
+                n_all += 1
+                n_null += int(p.grad is None)
+            print(f"forward_backward | in cuda_graph_state {self.cuda_graph_state()} | {n_null}/{n_all} null")
 
     def _update_ema(self, params, rate, arith_from_step=0, arith_extra_shift=0, verbose=True):
         def _vprint(*args, **kwargs):

@@ -12,6 +12,11 @@ import improved_diffusion.monkeypatch
 from .nn import normalization, normalization_1group, timestep_embedding, silu, AdaGN, checkpoint, AxialPositionalEmbeddingShape
 
 
+class PatchedEncoder(Encoder):
+    def forward(self, x, attn_mask=None, **kwargs):
+        return super().forward(x, attn_mask=attn_mask, **kwargs)
+
+
 def make_grad_mult_hook(mult, debug=False):
     def grad_mult_hook(grad):
         if debug:
@@ -94,7 +99,7 @@ class TextEncoder(nn.Module):
             self.pos_emb = AbsolutePositionalEmbedding(inner_dim, max_seq_len)
             if self.use_line_emb:
                 self.line_emb = LineEmbedding(dim=inner_dim, line_sep_id=tokenizer.get_vocab()['\n'])
-            self.model = Encoder(
+            self.model = PatchedEncoder(
                 dim = inner_dim,
                 depth = depth,
                 heads = self.n_heads,

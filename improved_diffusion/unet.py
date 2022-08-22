@@ -1566,13 +1566,16 @@ class UNetModel(nn.Module):
                 attn_mask,
                 capt.detach().requires_grad_(capt.requires_grad),
                 capt_attn_mask,
+            )
+
+            extra_inputs = [
                 *tuple(self.input_blocks.parameters()),
                 *tuple(self.middle_block.parameters()),
                 *tuple(self.output_blocks.parameters()),
                 *tuple(self.out.parameters()),
-            )
+            ]
 
-            self._main_forward_cuda_graphed = th.cuda.make_graphed_callables(self._main_forward, graph_callable_args)
+            self._main_forward_cuda_graphed = make_graphed_callables(self._main_forward, graph_callable_args, extra_inputs=extra_inputs)
 
         if use_main_graph:
             return self._main_forward_cuda_graphed(x, emb, txt, attn_mask, capt, capt_attn_mask)

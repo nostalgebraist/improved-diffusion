@@ -7,7 +7,7 @@ from torch.cuda.graphs import graph_pool_handle
 MEMPOOL = graph_pool_handle()
 
 
-def make_graphed_callables(callables, sample_args, mempool=MEMPOOL):
+def make_graphed_callables(callables, sample_args, mempool=None, extra_inputs=None):
     just_one_callable = False
 
     if not isinstance(callables, tuple):
@@ -29,10 +29,11 @@ def make_graphed_callables(callables, sample_args, mempool=MEMPOOL):
 
     # If a callable is an nn.Module, its graph's full input surface is the args the user explicitly
     # passes to forward (ie, its sample_args) AND the module's parameter attributes.
+    extra_inputs = extra_inputs or []
     per_callable_len_user_args = [len(args) for args in sample_args]
     per_callable_module_params = [tuple(c.parameters()) if isinstance(c, torch.nn.Module) else ()
                                   for c in callables]
-    per_callable_static_input_surfaces = [sample_args[i] + per_callable_module_params[i]
+    per_callable_static_input_surfaces = [sample_args[i] + per_callable_module_params[i] + extra_inputs
                                           for i in range(len(callables))]
 
     fwd_graphs = [torch.cuda.CUDAGraph() for _ in range(len(callables))]

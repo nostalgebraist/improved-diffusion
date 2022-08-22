@@ -524,7 +524,8 @@ def timestep_embedding(timesteps, dim, max_period=10000):
     return embedding
 
 
-def expanded_timestep_embedding(timesteps, dim, base_dim, max_period=10000):
+@lru_cache(1)
+def make_expanded_freqs(dim, base_dim, max_period, device):
     base_half = base_dim // 2
 
     base_logfreqs = -math.log(max_period) * th.arange(start=0, end=base_half, dtype=th.float32) / base_half
@@ -539,8 +540,14 @@ def expanded_timestep_embedding(timesteps, dim, base_dim, max_period=10000):
 
     xtra_logfreqs = (right + left)/2
 
-    base_freqs = th.exp(base_logfreqs).to(device=timesteps.device)
-    xtra_freqs = th.exp(xtra_logfreqs).to(device=timesteps.device)
+    base_freqs = th.exp(base_logfreqs).to(device=device)
+    xtra_freqs = th.exp(xtra_logfreqs).to(device=device)
+
+    return base_freqs, xtra_freqs
+
+
+def expanded_timestep_embedding(timesteps, dim, base_dim, max_period=10000):
+    base_freqs, xtra_freqs = make_expanded_freqs(dim, base_dim, max_period, timesteps.device)
 
     freqs = th.cat([base_freqs, xtra_freqs])
 

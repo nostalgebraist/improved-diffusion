@@ -152,8 +152,8 @@ class TextEncoder(nn.Module):
     def forward(self, x, attn_mask):
         out = self.model_forward(x, attn_mask=attn_mask)
         if not self.return_sequences:
-            out = out[:, 0, :], attn_mask
-        return out, attn_mask
+            out = out[:, 0, :]
+        return out
 
 
 class BetterMultiheadAttention(torch.nn.MultiheadAttention):

@@ -1555,7 +1555,10 @@ class UNetModel(nn.Module):
         if capt_attn_mask is None:
             capt_attn_mask = th.as_tensor(0.0, device=self.device)
 
-        return self._main_forward(self, x, emb, txt, attn_mask, capt, capt_attn_mask)
+        if not hasattr(self, '_main_forward_cuda_graphed'):
+            pass
+
+        return self._main_forward(x, emb, txt, attn_mask, capt, capt_attn_mask)
 
     def _main_forward(self, x, emb, txt, attn_mask, capt, capt_attn_mask):
         if len(txt.shape) == 1:

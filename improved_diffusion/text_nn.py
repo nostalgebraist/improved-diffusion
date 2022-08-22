@@ -12,6 +12,8 @@ import improved_diffusion.monkeypatch
 from .nn import normalization, normalization_1group, timestep_embedding, silu, AdaGN, checkpoint, AxialPositionalEmbeddingShape
 from .cuda_graphs import make_graphed_callables
 
+th = torch
+
 
 class PatchedEncoder(Encoder):
     def forward(self, x, attn_mask=None, **kwargs):

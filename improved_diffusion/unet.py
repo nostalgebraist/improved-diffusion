@@ -890,6 +890,8 @@ class UNetModel(nn.Module):
         if use_attn:
             no_attn_substitute_resblock = False
 
+        self.cuda_graph_setup_done = False
+
         self.in_channels = in_channels
         self.model_channels = model_channels
         self.out_channels = out_channels
@@ -1507,6 +1509,18 @@ class UNetModel(nn.Module):
         capt_attn_mask = None
         if self.using_capt and capt is not None:
             capt_attn_mask = capt != 0
+            if not self.cuda_graph_setup_done:
+                grad_requirer = th.as_tensor(0.0, dtype=th.float16, device=self.device).requires_grad_(True)
+
+                graph_callable_args = (capt, grad_requirer)
+
+                _make_graphed_callables = th.cuda.make_graphed_callables
+                # _make_graphed_callables = make_graphed_callables
+
+                self.embed_capt_cuda_graph = _make_graphed_callables(self.model.embed_capt, graph_callable_args)
+
+                self.cuda_graph_setup_done = True
+
             capt = self.embed_capt_cached(capt) if self.use_inference_caching else self.embed_capt(capt)
             # capt_toks = capt
             # capt_attn_mask = capt_toks != 0

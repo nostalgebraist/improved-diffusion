@@ -87,6 +87,10 @@ class TrainLoop:
         noise_cond_max_step=-1,
         use_cuda_graph=False,
     ):
+        if use_cuda_graph:
+            # DEBUG
+            for p in self.model.text_encoder.parameters():
+                p.requires_grad_(False)
         self.model = model
         self.diffusion = diffusion
         self.data = data

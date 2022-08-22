@@ -576,31 +576,47 @@ class TrainLoop:
 
             with th.cuda.amp.autocast(enabled=self.use_amp, dtype=th.bfloat16 if self.use_bf16 else th.float16):
                 if self.cuda_graph_callable is None:
-                    self.ordkeys = list(micro_cond.keys())
+                    self.ordkeys = [k for k in ['txt', 'capt', 'cond_timesteps', 'y'] if k in micro_cond]
 
                     graph_callable_args = [micro, t] + [micro_cond[k] for k in self.ordkeys]
                     graph_callable_args = tuple(graph_callable_args)
 
-                    def compute_losses(micro_, t_, *args):
-                        model_kwargs = {k: v for k, v in zip(self.ordkeys, args)}
-                        # print(f"micro_: {repr(micro_)}")
-                        # print(f"t_: {repr(t_)}")
-                        # for k, v in model_kwargs.items():
-                        #     print(f"{k}: {repr(v)}")
-                        return self.diffusion.training_losses(
-                            self.model,
-                            micro_,
-                            t_,
-                            model_kwargs=model_kwargs,
-                            return_tuple = True
-                        )
+                    self.cuda_graph_callable = th.cuda.make_graphed_callables(self.model, graph_callable_args)
 
-                    self.cuda_graph_callable = th.cuda.make_graphed_callables(compute_losses, graph_callable_args)
+                compute_losses = functools.partial(
+                    self.diffusion.training_losses,
+                    self.cuda_graph_callable,
+                    micro,
+                    t,
+                    model_kwargs=micro_cond,
+                )
+
+                if last_batch or not self.use_ddp:
+                    losses = compute_losses()
+                else:
+                    with self.ddp_model.no_sync():
+                        losses = compute_losses()
+
+                    # def compute_losses(micro_, t_, *args):
+                    #     model_kwargs = {k: v for k, v in zip(self.ordkeys, args)}
+                    #     # print(f"micro_: {repr(micro_)}")
+                    #     # print(f"t_: {repr(t_)}")
+                    #     # for k, v in model_kwargs.items():
+                    #     #     print(f"{k}: {repr(v)}")
+                    #     return self.diffusion.training_losses(
+                    #         self.model,
+                    #         micro_,
+                    #         t_,
+                    #         model_kwargs=model_kwargs,
+                    #         return_tuple = True
+                    #     )
+
+                    # self.cuda_graph_callable = th.cuda.make_graphed_callables(compute_losses, graph_callable_args)
 
                 graph_callable_args = [micro, t] + [micro_cond[k] for k in self.ordkeys]
                 graph_callable_args = tuple(graph_callable_args)
 
-                _loss, _mse, _vb = self.cuda_graph_callable(graph_callable_args)
+                # _loss, _mse, _vb = self.cuda_graph_callable(graph_callable_args)
                 losses = {'loss': _loss, 'mse': _mse, 'vb': _vb}
 
                 if isinstance(self.schedule_sampler, LossAwareSampler):

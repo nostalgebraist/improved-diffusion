@@ -1452,7 +1452,7 @@ class UNetModel(nn.Module):
             )
         return capt, capt_attn_mask
 
-    def forward(self, x, timesteps, y=None, txt=None, capt=None, cond_timesteps=None):
+    def forward(self, x, timesteps, txt=None, capt=None, cond_timesteps=None, y=None, ):
         """
         Apply the model to an input batch.
 

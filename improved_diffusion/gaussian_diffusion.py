@@ -339,11 +339,28 @@ class GaussianDiffusion:
             "unconditional_drop_model_kwargs", "txt_guidance_pdrop", "txt_guidance_drop_ixs"
         }
         model_kwargs_cond = {k: v for k, v in model_kwargs.items() if k not in drop_args}
-        model_output = model(x, self._scale_timesteps(t), **model_kwargs_cond)
+
+        model_args_cond = []
+        # TODO: compat
+        for k in ['txt', 'capt', 'cond_timesteps', 'y']:
+            if k in model_kwargs_cond:
+                model_args_cond.append(model_kwargs_cond[k])
+            else:
+                break
+
+        model_output = model(x, self._scale_timesteps(t), *model_args_cond)
 
         unconditional_model_output = None
         if is_guided:
-            unconditional_model_output = model(x, self._scale_timesteps(t), **unconditional_model_kwargs)
+            model_args_uncon = []
+            # TODO: compat
+            for k in ['txt', 'capt', 'cond_timesteps', 'y']:
+                if k in unconditional_model_kwargs:
+                    model_args_uncon.append(unconditional_model_kwargs[k])
+                else:
+                    break
+
+            unconditional_model_output = model(x, self._scale_timesteps(t), *model_args_uncon)
 
             # broadcast
             effective_guidance_scale = effective_guidance_scale.reshape([-1] + [1 for _ in model_output.shape[1:]])
@@ -1162,7 +1179,14 @@ class GaussianDiffusion:
             if self.loss_type == LossType.RESCALED_KL:
                 terms["loss"] *= self.num_timesteps
         elif self.loss_type.is_mse():
-            model_output = model(x_t, self._scale_timesteps(t), **model_kwargs)
+            model_args = []
+            # TODO: compat
+            for k in ['txt', 'capt', 'cond_timesteps', 'y']:
+                if k in model_kwargs:
+                    model_args.append(model_kwargs[k])
+                else:
+                    break
+            model_output = model(x_t, self._scale_timesteps(t), *model_args)
 
             if self.model_var_type in [
                 ModelVarType.LEARNED,

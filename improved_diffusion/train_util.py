@@ -921,7 +921,6 @@ def delete_local_old_checkpoints():
 
     fn_segs = ['model*', 'opt*', "ema_*"]
     fn_segs = [os.path.join(logdir, s) for s in fn_segs]
-    fn_segs.append(fn_progress)
 
     fns_joined = " ".join(fn_segs)
     delete_command = f"rm {fns_joined}"

@@ -862,6 +862,7 @@ class UNetModel(nn.Module):
         use_inference_caching=False,
         clipmod=None,
         post_txt_image_attn='none',  # 'none', 'final', 'final_res', or 'all'
+        positional_image_attn='none',  # 'none', 'final', 'final_res', or 'all'
         txt_groupnorm_1group=True,
     ):
         super().__init__()
@@ -1231,6 +1232,40 @@ class UNetModel(nn.Module):
                         num_heads_here = num_heads_upsample
                         if channels_per_head_upsample > 0:
                             num_heads_here = ch // channels_per_head_upsample
+
+                        is_final_res = (ds == min(attention_resolutions))
+                        is_final_resblock = (i == num_res_blocks)
+
+                        using_positional_image_attn = (
+                            (positional_image_attn == 'all')
+                            or (
+                                (positional_image_attn == 'final_res')
+                                and is_final_res
+                            ) or (
+                                (positional_image_attn == 'final')
+                                and is_final_res
+                                and is_final_resblock
+                            )
+                        )
+
+                        attn_kwargs = dict()
+
+                        if using_positional_image_attn:
+                            print(f"using post_txt_image_attn, ds={ds}, i={i}, emb_res={emb_res}, ch={ch} | min(attention_resolutions)={min(attention_resolutions)}, num_res_blocks={num_res_blocks}, positional_image_attn={positional_image_attn}")
+                            emb_res = image_size // ds
+                            attn_kwargs.update(
+                                encoder_channels=None,
+                                use_pos_emb=True,
+                                zero_init_pos_emb=False,
+                                zero_init_proj_out=False,
+                                pos_emb_res=emb_res,
+                                use_rotary_pos_emb=True,
+                            )
+                        else:
+                            attn_kwargs.update(
+                                encoder_channels=self.capt_embd_dim if self.glide_style_capt_attn else None,
+                            )
+
                         layers.append(
                             AttentionBlock(
                                 ch,
@@ -1238,7 +1273,7 @@ class UNetModel(nn.Module):
                                 num_heads=num_heads_here,
                                 use_checkpoint_lowcost=use_checkpoint_lowcost,
                                 base_channels=expand_timestep_base_dim * ch // model_channels,
-                                encoder_channels=self.capt_embd_dim if self.glide_style_capt_attn else None
+                                **attn_kwargs,
                             )
                         )
                     else:

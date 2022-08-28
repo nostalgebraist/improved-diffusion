@@ -75,6 +75,7 @@ class TrainLoop:
         use_profiler=False,
         autosave=True,
         autosave_dir="gs://nost_ar_work/improved-diffusion/",
+        autosave_autodelete=False,
         arithmetic_avg_from_step=-1,
         arithmetic_avg_extra_shift=0,
         gain_ff_setup_step=False,
@@ -130,6 +131,7 @@ class TrainLoop:
         self.use_profiler = use_profiler
         self.autosave = autosave
         self.autosave_dir = autosave_dir
+        self.autosave_autodelete = autosave_autodelete
         self.anneal_log_flag = False
         self.arithmetic_avg_from_step = (
             [arithmetic_avg_from_step for _ in self.ema_rate]
@@ -841,6 +843,9 @@ class TrainLoop:
                 with bf.BlobFile(bf.join(get_blob_logdir(), filename), "wb") as f:
                     th.save(state_dict, f)
 
+        if self.autosave_autodelete:
+            delete_local_old_checkpoints()
+
         save_checkpoint(0, self.master_params)
         for rate, params in zip(self.ema_rate, self.ema_params):
             save_checkpoint(rate, params)
@@ -905,6 +910,22 @@ class TrainLoop:
             return make_master_params(params)
         else:
             return params
+
+
+def delete_local_old_checkpoints():
+    def _run_and_log(command):
+        print(f"running {repr(command)}")
+        return subprocess.check_output(command, shell=True)
+
+    logdir = get_blob_logdir()
+
+    fn_segs = ['model*', 'opt*', "ema_*"]
+    fn_segs = [os.path.join(logdir, s) for s in fn_segs]
+    fn_segs.append(fn_progress)
+
+    fns_joined = " ".join(fn_segs)
+    delete_command = f"rm {fns_joined}"
+    _run_and_log(delete_command)
 
 
 def save_progress_to_gcs(step, ema_rates, autosave_dir):

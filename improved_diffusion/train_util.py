@@ -888,7 +888,7 @@ class TrainLoop:
 def delete_local_old_checkpoints():
     def _run_and_log(command):
         print(f"running {repr(command)}")
-        return subprocess.check_output(command, shell=True)
+        return subprocess.run(command, shell=True)
 
     logdir = get_blob_logdir()
 
@@ -903,7 +903,7 @@ def delete_local_old_checkpoints():
 def save_progress_to_gcs(step, ema_rates, autosave_dir):
     def _run_and_log(command):
         print(f"running {repr(command)}")
-        return subprocess.check_output(command, shell=True)
+        return subprocess.run(command, shell=True)
 
     # construct gcs dir
     logdir = get_blob_logdir()

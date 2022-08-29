@@ -573,6 +573,7 @@ class ImageDataset(Dataset):
             self.image_file_to_px_scales = {}
 
         self.image_file_to_capt = image_file_to_capt
+        self.using_capts = image_file_to_capt is not None
         if self.image_file_to_capt is None:
             self.image_file_to_capt = {}
         self.capt_pdrop = capt_pdrop
@@ -654,31 +655,36 @@ class ImageDataset(Dataset):
         arr = arr[crop_y : crop_y + self.resolution, crop_x : crop_x + self.resolution]
         arr = arr.astype(np.float32) / 127.5 - 1
 
+        drop_txt = (self.txt_pdrop > 0) and (random.random() < self.txt_pdrop)
+        drop_capt = (self.capt_pdrop > 0) and (random.random() < self.capt_pdrop)
+
+        if (self.all_pdrop > 0) and (random.random() < self.all_pdrop):
+            drop_txt = True
+            drop_capt = True
+
         out_dict = {}
         if self.local_classes is not None:
             drop_class = (self.class_pdrop > 0) and (random.random() < self.class_pdrop)
             this_class = self.class_ix_drop if drop_class else self.local_classes[idx]
             out_dict["y"] = np.array(this_class, dtype=np.int64)
+
+        if drop_txt:
+            text = self.txt_drop_string
+        if text is not None and (len(text) == 0) and self.empty_string_to_drop_string:
+            text = self.txt_drop_string
+
         if self.txt:
-            drop_txt = (self.txt_pdrop > 0) and (random.random() < self.txt_pdrop)
-            drop_capt = (self.capt_pdrop > 0) and (random.random() < self.capt_pdrop)
-
-            if (self.all_pdrop > 0) and (random.random() < self.all_pdrop):
-                drop_txt = True
-                drop_capt = True
-
-            if drop_txt:
-                text = self.txt_drop_string
-            if (len(text) == 0) and self.empty_string_to_drop_string:
-                text = self.txt_drop_string
             out_dict['txt'] = text
 
-            capt = self.image_file_to_capt.get(path, self.capt_drop_string)
-            if isinstance(capt, list):
-                capt = random.choice(capt)
-            if drop_capt:
-                capt = self.capt_drop_string
-            out_dict['capt'] = capt
+        capt = self.image_file_to_capt.get(path, self.capt_drop_string)
+        if isinstance(capt, list):
+            capt = random.choice(capt)
+        if drop_capt:
+            capt = self.capt_drop_string
+
+        if self.using_capts:
+            # out_dict['capt'] = capt
+            out_dict['capt'] = clip.tokenize(capt, truncate=True)[0, :]
 
         return np.transpose(arr, [2, 0, 1]), out_dict
 
@@ -691,6 +697,8 @@ def to_visible(img):
 
 
 def save_first_batch(dataloader, path):
+    from clip.clip import _tokenizer
+
     os.makedirs(path, exist_ok=True)
     batch, cond = next(dataloader)
     batch = to_visible(batch)
@@ -704,6 +712,9 @@ def save_first_batch(dataloader, path):
 
     if txts is not None and all(s == '' for s in txts):
         txts = None
+
+    if capts is not None:
+        capts = [_tokenizer.decode(c) for c in capts.cpu().numpy()]
 
     if capts is not None and all(s == '' for s in capts):
         capts = None

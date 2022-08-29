@@ -528,10 +528,10 @@ class TrainLoop:
         else:
             zero_grad(self.model_params)
         for i in range(0, batch.shape[0], self.microbatch):
-            micro = batch[i : i + self.microbatch].to(dist_util.dev())
+            micro = batch[i : i + self.microbatch].to(dist_util.dev(), non_blocking=True)
             micro_cond = {
-                k: v[i : i + self.microbatch].to(dist_util.dev())
-                if k not in {'txt', 'capt'}
+                k: v[i : i + self.microbatch].to(dist_util.dev(), non_blocking=True)
+                if k not in {'txt'} #{'txt', 'capt'}
                 else v[i : i + self.microbatch]
                 for k, v in cond.items()
             }
@@ -541,9 +541,10 @@ class TrainLoop:
                 # micro_cond['txt'] = th.as_tensor(tokenize(self.tokenizer, micro_cond['txt']), device=dist_util.dev())
 
                 txt = th.as_tensor(tokenize(self.tokenizer, micro_cond['txt']), device=dist_util.dev())
-                capt = clip.tokenize(micro_cond['capt'], truncate=True).to(dist_util.dev())
                 micro_cond['txt'] = txt
-                micro_cond['capt'] = capt
+            # if 'capt' in micro_cond:
+            #     capt = clip.tokenize(micro_cond['capt'], truncate=True).to(dist_util.dev(), non_blocking=True)
+            #     micro_cond['capt'] = capt
             last_batch = (i + self.microbatch) >= batch.shape[0]
             t, weights = self.schedule_sampler.sample(micro.shape[0], dist_util.dev())
 

@@ -108,7 +108,7 @@ def model_and_diffusion_defaults():
         freeze_capt_encoder=False,
         clipmod=None,
         post_txt_image_attn='none',
-        positional_image_attn='none',
+        positional_image_attn='',
         positional_image_attn_channels_per_head=-1,
         txt_groupnorm_1group=True,
     )
@@ -206,7 +206,7 @@ def create_model_and_diffusion(
     use_inference_caching=False,
     clipmod=None,
     post_txt_image_attn='none',
-    positional_image_attn='none',
+    positional_image_attn='',
     positional_image_attn_channels_per_head=-1,
     txt_groupnorm_1group=True,
 ):
@@ -402,7 +402,7 @@ def create_model(
     use_inference_caching=False,
     clipmod=None,
     post_txt_image_attn='none',
-    positional_image_attn='none',
+    positional_image_attn='',
     positional_image_attn_channels_per_head=-1,
     txt_groupnorm_1group=True,
 ):
@@ -437,6 +437,10 @@ def create_model(
     txt_ds = []
     for res in txt_resolutions.split(","):
         txt_ds.append(image_size // int(res))
+
+    positional_attention_ds = []
+    for res in positional_image_attn.split(","):
+        positional_attention_ds.append(image_size // int(res))
 
     if monochrome and (not monochrome_adapter):
         in_channels = 1
@@ -527,7 +531,7 @@ def create_model(
         use_inference_caching=use_inference_caching,
         clipmod=clipmod,
         post_txt_image_attn=post_txt_image_attn,
-        positional_image_attn=positional_image_attn,
+        positional_image_attn_resolutions=positional_image_attn_resolutions,
         positional_image_attn_channels_per_head=positional_image_attn_channels_per_head,
         txt_groupnorm_1group=txt_groupnorm_1group,
     )
@@ -638,7 +642,7 @@ def sr_create_model_and_diffusion(
     use_inference_caching=False,
     clipmod=None,
     post_txt_image_attn='none',
-    positional_image_attn='none',
+    positional_image_attn='',
     positional_image_attn_channels_per_head=-1,
     txt_groupnorm_1group=True,
 ):

@@ -862,7 +862,7 @@ class UNetModel(nn.Module):
         use_inference_caching=False,
         clipmod=None,
         post_txt_image_attn='none',  # 'none', 'final', 'final_res', or 'all'
-        positional_image_attn='none',  # 'none', 'final', 'final_res', or 'all'
+        positional_image_attn_resolutions='',
         positional_image_attn_channels_per_head=-1,
         txt_groupnorm_1group=True,
     ):
@@ -1213,7 +1213,7 @@ class UNetModel(nn.Module):
                     )
                 ]
                 ch = int(model_channels * mult)
-                if ds in attention_resolutions:
+                if ds in attention_resolutions or ds in positional_image_attn_resolutions:
                     if no_attn_substitute_resblock:
                         layers.append(
                             ResBlock(
@@ -1230,20 +1230,7 @@ class UNetModel(nn.Module):
                             )
                         )
                     elif use_attn:
-                        is_final_res = (ds == min(attention_resolutions))
-                        is_final_resblock = (i == num_res_blocks)
-
-                        using_positional_image_attn = (
-                            (positional_image_attn == 'all')
-                            or (
-                                (positional_image_attn == 'final_res')
-                                and is_final_res
-                            ) or (
-                                (positional_image_attn == 'final')
-                                and is_final_res
-                                and is_final_resblock
-                            )
-                        )
+                        using_positional_image_attn = ds in positional_image_attn_resolutions
 
                         attn_kwargs = dict()
 
@@ -1253,7 +1240,7 @@ class UNetModel(nn.Module):
                                 num_heads_here = ch // positional_image_attn_channels_per_head
 
                             emb_res = image_size // ds
-                            print(f"using post_txt_image_attn, ds={ds}, i={i}, emb_res={emb_res}, ch={ch} | min(attention_resolutions)={min(attention_resolutions)}, num_res_blocks={num_res_blocks}, positional_image_attn={positional_image_attn}")
+                            print(f"using post_txt_image_attn, ds={ds}, i={i}, emb_res={emb_res}, ch={ch} | positional_image_attn_resolutions={positional_image_attn_resolutions}, num_res_blocks={num_res_blocks}")
                             attn_kwargs.update(
                                 encoder_channels=None,
                                 use_pos_emb=True,

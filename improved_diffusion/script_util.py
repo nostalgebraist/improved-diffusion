@@ -531,7 +531,7 @@ def create_model(
         use_inference_caching=use_inference_caching,
         clipmod=clipmod,
         post_txt_image_attn=post_txt_image_attn,
-        positional_image_attn=positional_image_attn,
+        positional_image_attn_resolutions=positional_attention_ds,
         positional_image_attn_channels_per_head=positional_image_attn_channels_per_head,
         txt_groupnorm_1group=txt_groupnorm_1group,
     )

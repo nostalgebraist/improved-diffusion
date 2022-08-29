@@ -16,6 +16,8 @@ from tqdm.auto import trange
 
 import imagesize
 
+import clip
+
 
 def make_char_level_tokenizer(legacy_padding_behavior=True):
     tokenizer = tokenizers.Tokenizer(tokenizers.models.BPE(unk_token="<unk>"))

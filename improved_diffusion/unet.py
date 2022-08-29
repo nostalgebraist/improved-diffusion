@@ -1251,8 +1251,8 @@ class UNetModel(nn.Module):
                         attn_kwargs = dict()
 
                         if using_positional_image_attn:
-                            print(f"using post_txt_image_attn, ds={ds}, i={i}, emb_res={emb_res}, ch={ch} | min(attention_resolutions)={min(attention_resolutions)}, num_res_blocks={num_res_blocks}, positional_image_attn={positional_image_attn}")
                             emb_res = image_size // ds
+                            print(f"using post_txt_image_attn, ds={ds}, i={i}, emb_res={emb_res}, ch={ch} | min(attention_resolutions)={min(attention_resolutions)}, num_res_blocks={num_res_blocks}, positional_image_attn={positional_image_attn}")
                             attn_kwargs.update(
                                 encoder_channels=None,
                                 use_pos_emb=True,

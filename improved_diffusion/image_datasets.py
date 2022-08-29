@@ -323,6 +323,13 @@ class DropSampler(BatchSampler):
             yield batch
 
 
+def seeding_worker_init_fn(worker_id):
+    seed_th = th.utils.data.get_worker_info().seed
+    seed_short = seed_th % (2**32 - 3)
+    random.seed(seed_short + 1)
+    np.random.seed(seed_short + 2)
+
+
 def _dataloader_gen(dataset, batch_size, deterministic, pin_memory, prefetch_factor,
                     clip_probs_by_idxs=None,
                     clip_prob_middle_pkeep=0.5,
@@ -339,7 +346,9 @@ def _dataloader_gen(dataset, batch_size, deterministic, pin_memory, prefetch_fac
 
     loader = DataLoader(
         dataset, num_workers=num_workers, pin_memory=pin_memory,
-        prefetch_factor=prefetch_factor, **kwargs
+        prefetch_factor=prefetch_factor,
+        worker_init_fn=seeding_worker_init_fn,
+        **kwargs
     )
     while True:
         yield from loader

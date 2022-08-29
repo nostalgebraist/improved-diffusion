@@ -322,8 +322,9 @@ class DropSampler(BatchSampler):
 
 def seeding_worker_init_fn(worker_id):
     seed_th = th.utils.data.get_worker_info().seed
-    random.seed(seed_th + 1)
-    np.random.seed(seed_th + 2)
+    seed_short = seed_th % (2**32 - 3)
+    random.seed(seed_short + 1)
+    np.random.seed(seed_short + 2)
 
 
 def _dataloader_gen(dataset, batch_size, deterministic, pin_memory, prefetch_factor,

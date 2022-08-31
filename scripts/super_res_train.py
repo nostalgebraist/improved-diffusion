@@ -27,6 +27,11 @@ def main():
     th.backends.cudnn.benchmark = args.cudnn_benchmark
     print(f"using cudnn_benchmark: {th.backends.cudnn.benchmark}")
 
+    try:
+        th.set_float32_matmul_precision(args.float32_matmul_precision)
+    except Exception as e:
+        print(f"Couldn't set float32_matmul_precision: {repr(e)}")
+
     if args.text_lr < 0:
         args.text_lr = None
 

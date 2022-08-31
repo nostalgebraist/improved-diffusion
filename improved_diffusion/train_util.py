@@ -160,7 +160,7 @@ class TrainLoop:
 
         self.step = 0
         self.resume_step = 0
-        self.global_batch = self.batch_size # * dist.get_world_size()
+        self.global_batch = self.batch_size * dist.get_world_size()
 
         # text_params, self.text_param_names = [], []
         text_params, text_param_names = defaultdict(list), defaultdict(list)
@@ -382,7 +382,7 @@ class TrainLoop:
 
         if resume_checkpoint:
             self.resume_step = parse_resume_step_from_filename(resume_checkpoint)
-            if True: #dist.get_rank() == 0:
+            if dist.get_rank() == 0:
                 logger.log(f"loading model from checkpoint: {resume_checkpoint}...")
                 sd = dist_util.load_state_dict(
                     resume_checkpoint, map_location=dist_util.dev()
@@ -410,7 +410,7 @@ class TrainLoop:
                 #     for n, p in self.model.named_parameters():
                 #         print(f"{th.linalg.norm(p).item():.3f} | {n in newsd} | {n}")
 
-        # dist_util.sync_params(self.model.parameters())
+        dist_util.sync_params(self.model.parameters())
 
     def _load_ema_parameters(self, rate):
         ema_params = copy.deepcopy(self.master_params)
@@ -418,14 +418,14 @@ class TrainLoop:
         main_checkpoint = find_resume_checkpoint() or self.resume_checkpoint
         ema_checkpoint = find_ema_checkpoint(main_checkpoint, self.resume_step, rate)
         if ema_checkpoint:
-            if True: #dist.get_rank() == 0:
+            if dist.get_rank() == 0:
                 logger.log(f"loading EMA from checkpoint: {ema_checkpoint}...")
                 state_dict = dist_util.load_state_dict(
                     ema_checkpoint, map_location=dist_util.dev()
                 )
                 ema_params = self._state_dict_to_master_params(state_dict)
 
-        # dist_util.sync_params(ema_params)
+        dist_util.sync_params(ema_params)
         return ema_params
 
     def _load_optimizer_state(self):
@@ -806,7 +806,7 @@ class TrainLoop:
             state_dict = self._master_params_to_state_dict(params)
             if self.freeze_capt_encoder:
                 state_dict = {k: v for k, v in state_dict.items() if not k.startswith('clipmod')}
-            if True: # dist.get_rank() == 0:
+            if dist.get_rank() == 0:
                 logger.log(f"saving model {rate}...")
                 if not rate:
                     filename = f"model{(self.step+self.resume_step):06d}.pt"
@@ -822,9 +822,9 @@ class TrainLoop:
         for rate, params in zip(self.ema_rate, self.ema_params):
             save_checkpoint(rate, params)
 
-        logger.log("saving opt...")
 
-        if True: # dist.get_rank() == 0:
+        if dist.get_rank() == 0:
+            logger.log("saving opt...")
             with bf.BlobFile(
                 bf.join(get_blob_logdir(), f"opt{(self.step+self.resume_step):06d}.pt"),
                 "wb",
@@ -833,10 +833,10 @@ class TrainLoop:
 
         logger.log("done saving locally")
 
-        if self.autosave:
+        if self.autosave and dist.get_rank() == 0:
             save_progress_to_gcs(step=self.step+self.resume_step, ema_rates=self.ema_rate, autosave_dir=self.autosave_dir)
 
-        # dist.barrier()
+        dist.barrier()
 
     def _master_params_to_state_dict(self, master_params):
         if self.use_fp16:

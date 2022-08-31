@@ -277,6 +277,7 @@ def create_argparser():
         exclusions_data_path="",
         use_streams=True,
         use_profiler=False,
+        float32_matmul_precision="medium",
     )
     defaults.update(sr_model_and_diffusion_defaults())
     parser = argparse.ArgumentParser()

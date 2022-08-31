@@ -146,8 +146,6 @@ class TextEncoder(nn.Module):
                 emb = emb.unsqueeze(1).tile((1, x.shape[1], 1))
                 x = x + emb
 
-            # TODO: workaround for HF tokenizers setting PAD and CLS to id 0
-            # cf. pad_id arg of enable_padding()
             attn_mask = tokens != 0
             my_attn_mask = torch.tile(attn_mask.unsqueeze(1).unsqueeze(1), (self.n_heads, tokens.shape[1], 1))
 

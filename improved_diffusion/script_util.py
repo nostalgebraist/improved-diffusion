@@ -458,7 +458,8 @@ def create_model(
 
     positional_attention_ds = []
     for res in positional_image_attn.split(","):
-        positional_attention_ds.append(image_size // int(res))
+        if res != '':
+            positional_attention_ds.append(image_size // int(res))
 
     if monochrome and (not monochrome_adapter):
         in_channels = 1

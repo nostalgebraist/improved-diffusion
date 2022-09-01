@@ -593,7 +593,7 @@ class AttentionBlock(GlideStyleBlock):
         self.capt_stream = capt_stream
 
     def forward(self, x, encoder_out=None, capt_attn_mask=None):
-        return checkpoint(self._forward, (x, encoder_out, capt_attn_mask), self.parameters(), self.use_checkpoint)
+        return checkpoint(self._forward, (x, encoder_out, capt_attn_mask), self.parameters(), self.use_checkpoint, final_nograd=1)
 
     def compute_pos_emb(self, x):
         b, c, *spatial = x.shape

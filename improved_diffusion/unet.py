@@ -902,6 +902,8 @@ class UNetModel(nn.Module):
         max_attn_xattn_layers_per_res=3,
         middle_mult=-1,
         no_middle=False,
+        positional_image_attn_resolutions='',
+        positional_image_attn_channels_per_head=-1,
         txt_groupnorm_1group=True,
     ):
         super().__init__()
@@ -1289,7 +1291,7 @@ class UNetModel(nn.Module):
                     )
                 ]
                 ch = int(model_channels * mult)
-                if ds in attention_resolutions and (i <= (max_attn_xattn_layers_per_res-1)):
+                if (ds in attention_resolutions or ds in positional_image_attn_resolutions) and (i <= (max_attn_xattn_layers_per_res-1)):
                     if no_attn_substitute_resblock:
                         layers.append(
                             ResBlock(
@@ -1310,18 +1312,44 @@ class UNetModel(nn.Module):
                             )
                         )
                     elif use_attn:
-                        num_heads_here = num_heads_upsample
-                        if channels_per_head_upsample > 0:
-                            num_heads_here = ch // channels_per_head_upsample
+                        using_positional_image_attn = ds in positional_image_attn_resolutions
+
+                        attn_kwargs = dict()
+
+                        if using_positional_image_attn:
+                            num_heads_here = num_heads
+                            if positional_image_attn_channels_per_head > 0:
+                                num_heads_here = ch // positional_image_attn_channels_per_head
+
+                            emb_res = image_size // ds
+                            print(f"using post_txt_image_attn, ds={ds}, i={i}, emb_res={emb_res}, ch={ch} | positional_image_attn_resolutions={positional_image_attn_resolutions}, num_res_blocks={num_res_blocks}")
+                            attn_kwargs.update(
+                                encoder_channels=None,
+                                use_pos_emb=True,
+                                zero_init_pos_emb=False,
+                                zero_init_proj_out=False,
+                                pos_emb_res=emb_res,
+                                use_rotary_pos_emb=True,
+                                num_heads=num_heads_here,
+                            )
+                        else:
+                            num_heads_here = num_heads_upsample
+                            if channels_per_head_upsample > 0:
+                                num_heads_here = ch // channels_per_head_upsample
+
+                            attn_kwargs.update(
+                                encoder_channels=self.capt_embd_dim if self.glide_style_capt_attn else None,
+                                num_heads=num_heads_here,
+                                capt_stream=cuda_streams.capt,
+                            )
+
                         layers.append(
                             AttentionBlock(
                                 ch,
                                 use_checkpoint=use_checkpoint or use_checkpoint_up or ((image_size // ds) <= use_checkpoint_below_res),
-                                num_heads=num_heads_here,
                                 use_checkpoint_lowcost=use_checkpoint_lowcost,
                                 base_channels=expand_timestep_base_dim * ch // model_channels,
-                                encoder_channels=self.capt_embd_dim if self.glide_style_capt_attn else None,
-                                capt_stream=cuda_streams.capt,
+                                **attn_kwargs,
                             )
                         )
                     else:

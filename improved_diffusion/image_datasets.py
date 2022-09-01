@@ -688,18 +688,18 @@ class ImageDataset(Dataset):
         arr = arr[crop_y : crop_y + self.resolution, crop_x : crop_x + self.resolution]
         arr = arr.astype(np.float32) / 127.5 - 1
 
-        out_dict = {}
-        if self.local_classes is not None:
-            drop_class = (self.class_pdrop > 0) and (random.random() < self.class_pdrop)
-            this_class = self.class_ix_drop if drop_class else self.local_classes[idx]
-            out_dict["y"] = np.array(this_class, dtype=np.int64)
-
         drop_txt = (self.txt_pdrop > 0) and (random.random() < self.txt_pdrop)
         drop_capt = (self.capt_pdrop > 0) and (random.random() < self.capt_pdrop)
 
         if (self.all_pdrop > 0) and (random.random() < self.all_pdrop):
             drop_txt = True
             drop_capt = True
+
+        out_dict = {}
+        if self.local_classes is not None:
+            drop_class = (self.class_pdrop > 0) and (random.random() < self.class_pdrop)
+            this_class = self.class_ix_drop if drop_class else self.local_classes[idx]
+            out_dict["y"] = np.array(this_class, dtype=np.int64)
 
         if drop_txt:
             text = self.txt_drop_string
@@ -748,7 +748,7 @@ def save_first_batch(dataloader, path):
         txts = None
 
     if capts is not None:
-        capts = [_tokenizer.decode(c) for c in capts.cpu().numpy()]
+        capts = [_tokenizer.decode(c[1:c.argmax()]) for c in capts.cpu().numpy()]
 
     if capts is not None and all(s == '' for s in capts):
         capts = None

@@ -1647,7 +1647,7 @@ class UNetModel(nn.Module):
                 if self.using_capt:
                     txt_stream_trigger = \
                     self.first_attn_block_ix is not None and i == (self.first_attn_block_ix + (len(self.input_blocks) - self.first_attn_block_ix) //2)
-                else:
+                elif self.first_attn_block_ix is not None:
                     txt_stream_trigger = i == (self.first_attn_block_ix - 1)
 
                 if txt_stream_trigger:

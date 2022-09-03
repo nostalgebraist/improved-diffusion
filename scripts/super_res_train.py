@@ -136,6 +136,7 @@ def main():
         class_ix_drop=args.class_ix_drop,
         class_pdrop=args.class_pdrop,
         exclusions_data_path=args.exclusions_data_path,
+        max_workers_dir_scan=args.max_workers_dir_scan,
         tokenizer=tokenizer,
     )
 
@@ -280,6 +281,7 @@ def create_argparser():
         exclusions_data_path="",
         use_streams=True,
         float32_matmul_precision="medium",
+        max_workers_dir_scan=32,
     )
     defaults.update(sr_model_and_diffusion_defaults())
     parser = argparse.ArgumentParser()

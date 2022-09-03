@@ -143,6 +143,7 @@ def main():
         clip_prob_middle_pkeep=args.clip_prob_middle_pkeep,
         exclusions_data_path=args.exclusions_data_path,
         num_workers=args.perf_num_workers,
+        max_workers_dir_scan=args.max_workers_dir_scan,
         tokenizer=tokenizer,
     )
 
@@ -284,6 +285,7 @@ def create_argparser():
         float32_matmul_precision="medium",
         exclusions_data_path="",
         use_streams=True,
+        max_workers_dir_scan=32,
     )
     defaults.update(model_and_diffusion_defaults())
     parser = argparse.ArgumentParser()

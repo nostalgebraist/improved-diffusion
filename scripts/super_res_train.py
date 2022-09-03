@@ -27,6 +27,11 @@ def main():
     th.backends.cudnn.benchmark = args.cudnn_benchmark
     print(f"using cudnn_benchmark: {th.backends.cudnn.benchmark}")
 
+    try:
+        th.set_float32_matmul_precision(args.float32_matmul_precision)
+    except Exception as e:
+        print(f"Couldn't set float32_matmul_precision: {repr(e)}")
+
     if args.text_lr < 0:
         args.text_lr = None
 
@@ -267,6 +272,7 @@ def create_argparser():
         noise_cond_steps=1000,
         noise_cond_max_step=-1,
         cudnn_benchmark=False,
+        float32_matmul_precision="medium",
         exclusions_data_path="",
     )
     defaults.update(sr_model_and_diffusion_defaults())

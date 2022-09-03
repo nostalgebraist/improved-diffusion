@@ -82,6 +82,7 @@ def load_data(
     exclusions_data_path=None,
     tokenizer=None,
     debug=False,
+    max_workers_dir_scan=32,
 ):
     """
     For a dataset, create a generator over (images, kwargs) pairs.
@@ -145,7 +146,7 @@ def load_data(
             exclusions_data = json.load(f)
         excluded_paths = set(exclusions_data['excluded'])
 
-    all_files, image_file_to_text_file, file_sizes, image_file_to_safebox, image_file_to_px_scales, image_file_to_capt = _list_image_files_recursively(data_dir, txt=txt, min_filesize=min_filesize, min_imagesize=min_imagesize, safeboxes=safeboxes, px_scales=px_scales, capts=capts, require_capts=require_capts, excluded_paths=excluded_paths)
+    all_files, image_file_to_text_file, file_sizes, image_file_to_safebox, image_file_to_px_scales, image_file_to_capt = _list_image_files_recursively(data_dir, txt=txt, min_filesize=min_filesize, min_imagesize=min_imagesize, safeboxes=safeboxes, px_scales=px_scales, capts=capts, require_capts=require_capts, excluded_paths=excluded_paths, max_workers=max_workers)
     print(f"found {len(all_files)} images, {len(image_file_to_text_file)} texts, {len(image_file_to_capt)} capts")
     all_files = all_files[offset:]
 
@@ -459,7 +460,7 @@ def load_superres_data(data_dir, batch_size, large_size, small_size, class_cond=
         yield large_batch, model_kwargs
 
 
-def _list_image_files_recursively(data_dir, txt=False, min_filesize=0, min_imagesize=0, safeboxes=None, px_scales=None, capts=None, require_capts=False, excluded_paths=None):
+def _list_image_files_recursively(data_dir, txt=False, min_filesize=0, min_imagesize=0, safeboxes=None, px_scales=None, capts=None, require_capts=False, excluded_paths=None, max_workers=32):
     results = []
     image_file_to_text_file = {}
     file_sizes = {}
@@ -532,7 +533,11 @@ def _list_image_files_recursively(data_dir, txt=False, min_filesize=0, min_image
             subdirectories.append(full_path)
 
         # for entry in sorted(bf.listdir(data_dir)):
-    thread_map(scan_entry, sorted(bf.listdir(data_dir)), max_workers=32)
+    if max_workers > 1:
+        thread_map(scan_entry, sorted(bf.listdir(data_dir)), max_workers=32)
+    else:
+        for entry in tqdm(sorted(bf.listdir(data_dir)), mininterval=0.5):
+            scan_entry(entry)
 
     n_excluded_filesize = n_excluded_filesize['n']
     n_excluded_imagesize = n_excluded_imagesize['n']
@@ -541,7 +546,7 @@ def _list_image_files_recursively(data_dir, txt=False, min_filesize=0, min_image
 
     for full_path in subdirectories:
         next_results, next_map, next_file_sizes, next_image_file_to_safebox, next_image_file_to_px_scales, next_image_file_to_capt = _list_image_files_recursively(
-            full_path, txt=txt, min_filesize=min_filesize, min_imagesize=min_imagesize, safeboxes=safeboxes, px_scales=px_scales, capts=capts, require_capts=require_capts, excluded_paths=excluded_paths
+            full_path, txt=txt, min_filesize=min_filesize, min_imagesize=min_imagesize, safeboxes=safeboxes, px_scales=px_scales, capts=capts, require_capts=require_capts, excluded_paths=excluded_paths, max_workers=max_workers,
         )
         results.extend(next_results)
         image_file_to_text_file.update(next_map)

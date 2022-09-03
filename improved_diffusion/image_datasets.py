@@ -12,7 +12,7 @@ from .dist_util import FakeMPI
 MPI = FakeMPI()
 
 import tokenizers
-from tqdm.auto import trange
+from tqdm.auto import trange, tqdm
 from tqdm.contrib.concurrent import thread_map
 
 import imagesize

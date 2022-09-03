@@ -386,6 +386,7 @@ def load_superres_data(data_dir, batch_size, large_size, small_size, class_cond=
                        tokenizer=None,
                        antialias=False,
                        bicubic_down=False,
+                       max_workers_dir_scan=32,
                        ):
     print(f'load_superres_data: deterministic={deterministic}')
     data = load_data(
@@ -428,6 +429,7 @@ def load_superres_data(data_dir, batch_size, large_size, small_size, class_cond=
         class_pdrop=class_pdrop,
         exclusions_data_path=exclusions_data_path,
         tokenizer=tokenizer,
+        max_workers_dir_scan=max_workers_dir_scan,
     )
 
     blurrer = T.RandomApply(transforms=[T.GaussianBlur(blur_width, sigma=(blur_sigma_min, blur_sigma_max))], p=blur_prob)

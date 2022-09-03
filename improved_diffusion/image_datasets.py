@@ -12,7 +12,7 @@ from .dist_util import FakeMPI
 MPI = FakeMPI()
 
 import tokenizers
-from tqdm.auto import trange, tqdm
+from tqdm.auto import trange
 from tqdm.contrib.concurrent import thread_map
 
 import imagesize
@@ -538,7 +538,7 @@ def _list_image_files_recursively(data_dir, txt=False, min_filesize=0, min_image
     if max_workers > 1:
         thread_map(scan_entry, sorted(bf.listdir(data_dir)), max_workers=32)
     else:
-        for entry in tqdm(sorted(bf.listdir(data_dir)), mininterval=0.5):
+        for entry in sorted(bf.listdir(data_dir)):
             scan_entry(entry)
 
     n_excluded_filesize = n_excluded_filesize['n']

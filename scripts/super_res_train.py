@@ -136,6 +136,7 @@ def main():
         class_ix_drop=args.class_ix_drop,
         class_pdrop=args.class_pdrop,
         exclusions_data_path=args.exclusions_data_path,
+        image_size_path=args.image_size_path,
         max_workers_dir_scan=args.max_workers_dir_scan,
         tokenizer=tokenizer,
     )
@@ -281,6 +282,7 @@ def create_argparser():
         noise_cond_max_step=-1,
         cudnn_benchmark=False,
         exclusions_data_path="",
+        image_size_path="",
         use_streams=True,
         float32_matmul_precision="medium",
         max_workers_dir_scan=32,

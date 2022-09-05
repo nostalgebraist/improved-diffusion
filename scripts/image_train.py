@@ -142,6 +142,7 @@ def main():
         clip_prob_path=args.clip_prob_path,
         clip_prob_middle_pkeep=args.clip_prob_middle_pkeep,
         exclusions_data_path=args.exclusions_data_path,
+        image_size_path=args.image_size_path,
         num_workers=args.perf_num_workers,
         max_workers_dir_scan=args.max_workers_dir_scan,
         tokenizer=tokenizer,
@@ -286,6 +287,7 @@ def create_argparser():
         cudnn_benchmark=False,
         float32_matmul_precision="medium",
         exclusions_data_path="",
+        image_size_path="",
         use_streams=True,
         max_workers_dir_scan=32,
     )

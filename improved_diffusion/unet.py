@@ -1573,8 +1573,6 @@ class UNetModel(nn.Module):
         capt_attn_mask = None
 
         with th.cuda.stream(cuda_streams.main()):
-            if (not self.using_capt) and capt is not None:
-
             hs = []
             emb = self.time_embed(self.timestep_embedding(timesteps))
 

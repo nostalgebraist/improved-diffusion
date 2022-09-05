@@ -605,7 +605,10 @@ class CheckpointFunction(th.autograd.Function):
         dtypes = ['None' if x is None else x.dtype for x in ctx.input_tensors]
         print(f"bwd ctx.final_nograd: {ctx.final_nograd} | dtypes {dtypes}")
         if ctx.final_nograd:
-            ctx.input_tensors = [x.detach().requires_grad_(True) for x in ctx.input_tensors[:-ctx.final_nograd]] + ctx.input_tensors[-ctx.final_nograd:]
+            ctx.input_tensors = [
+                x if x is None else x.detach().requires_grad_(True) 
+                for x in ctx.input_tensors[:-ctx.final_nograd]
+            ] + ctx.input_tensors[-ctx.final_nograd:]
             grad_input_tensors = ctx.input_tensors[:-ctx.final_nograd]
         else:
             isnone = [t is None for t in ctx.input_tensors] + [False for _ in ctx.input_params]

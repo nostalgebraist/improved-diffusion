@@ -930,11 +930,13 @@ def save_progress_to_gcs(step, ema_rates, autosave_dir, autosave_upload_model_fi
     fn_progress = os.path.join(logdir, f"progress{step}.csv")
     _run_and_log(f"cp {fn_progress_base} {fn_progress}")
 
+    gcs_up_command = f"gsutil -m cp {fn_progress} {experiment_autosave_dir}"
+    _run_and_log(gcs_up_command)
+
     if autosave_upload_model_files:
         fn_segs = [f'model{prefixd}.pt', f'opt{prefixd}.pt']
         fn_segs += [f'ema_{rate}_{prefixd}.pt' for rate in ema_rates]
         fn_segs = [os.path.join(logdir, s) for s in fn_segs]
-        fn_segs.append(fn_progress)
 
         fns_joined = " ".join(fn_segs)
         gcs_up_command = f"gsutil -m cp {fns_joined} {experiment_autosave_dir}"

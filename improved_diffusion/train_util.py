@@ -72,6 +72,7 @@ class TrainLoop:
         use_bf16=False,
         use_profiler=False,
         autosave=True,
+        autosave_upload_model_files=False,
         autosave_dir="gs://nost_ar_work/improved-diffusion/",
         autosave_autodelete=False,
         arithmetic_avg_from_step=-1,
@@ -126,6 +127,7 @@ class TrainLoop:
         self.use_bf16 = use_bf16
         self.use_profiler = use_profiler
         self.autosave = autosave
+        self.autosave_upload_model_files = autosave_upload_model_files
         self.autosave_dir = autosave_dir
         self.autosave_autodelete = autosave_autodelete
         self.anneal_log_flag = False
@@ -155,7 +157,9 @@ class TrainLoop:
                 noise_cond_max_step = noise_cond_steps
             self.noise_cond_schedule_sampler = EarlyOnlySampler(self.noise_cond_diffusion, noise_cond_max_step)
 
-        print(f"TrainLoop self.master_device: {self.master_device}, use_amp={use_amp}, autosave={self.autosave}")
+        print(
+            f"TrainLoop self.master_device: {self.master_device}, use_amp={use_amp}, autosave={self.autosave}, autosave_upload_model_files={self.autosave_upload_model_files}"
+        )
         print(f"TrainLoop self.arithmetic_avg_from_step: {self.arithmetic_avg_from_step}, self.arithmetic_avg_extra_shift={self.arithmetic_avg_extra_shift}")
 
         self.step = 0
@@ -835,7 +839,12 @@ class TrainLoop:
         logger.log("done saving locally")
 
         if self.autosave:
-            save_progress_to_gcs(step=self.step+self.resume_step, ema_rates=self.ema_rate, autosave_dir=self.autosave_dir)
+            save_progress_to_gcs(
+                step=self.step+self.resume_step,
+                ema_rates=self.ema_rate,
+                autosave_dir=self.autosave_dir,
+                autosave_upload_model_files=self.autosave_upload_model_files,
+            )
 
         # dist.barrier()
 
@@ -900,7 +909,7 @@ def delete_local_old_checkpoints():
     _run_and_log(delete_command)
 
 
-def save_progress_to_gcs(step, ema_rates, autosave_dir):
+def save_progress_to_gcs(step, ema_rates, autosave_dir, autosave_upload_model_files):
     def _run_and_log(command):
         print(f"running {repr(command)}")
         return subprocess.run(command, shell=True)
@@ -921,14 +930,15 @@ def save_progress_to_gcs(step, ema_rates, autosave_dir):
     fn_progress = os.path.join(logdir, f"progress{step}.csv")
     _run_and_log(f"cp {fn_progress_base} {fn_progress}")
 
-    fn_segs = [f'model{prefixd}.pt', f'opt{prefixd}.pt']
-    fn_segs += [f'ema_{rate}_{prefixd}.pt' for rate in ema_rates]
-    fn_segs = [os.path.join(logdir, s) for s in fn_segs]
-    fn_segs.append(fn_progress)
+    if autosave_upload_model_files:
+        fn_segs = [f'model{prefixd}.pt', f'opt{prefixd}.pt']
+        fn_segs += [f'ema_{rate}_{prefixd}.pt' for rate in ema_rates]
+        fn_segs = [os.path.join(logdir, s) for s in fn_segs]
+        fn_segs.append(fn_progress)
 
-    fns_joined = " ".join(fn_segs)
-    gcs_up_command = f"gsutil -m cp {fns_joined} {experiment_autosave_dir}"
-    _run_and_log(gcs_up_command)
+        fns_joined = " ".join(fn_segs)
+        gcs_up_command = f"gsutil -m cp {fns_joined} {experiment_autosave_dir}"
+        _run_and_log(gcs_up_command)
 
 
 def parse_resume_step_from_filename(filename):

@@ -603,10 +603,11 @@ class CheckpointFunction(th.autograd.Function):
     @th.cuda.amp.custom_bwd
     def backward(ctx, *output_grads):
         dtypes = ['None' if x is None else x.dtype for x in ctx.input_tensors]
-        print(f"bwd ctx.final_nograd: {ctx.final_nograd} | dtypes {dtypes}")
+        shapes = ['None' if x is None else x.shape for x in ctx.input_tensors]
+        print(f"bwd ctx.final_nograd: {ctx.final_nograd} | dtypes {dtypes} | shapes {shapes}")
         if ctx.final_nograd:
             ctx.input_tensors = [
-                x if x is None else x.detach().requires_grad_(True) 
+                x if x is None else x.detach().requires_grad_(True)
                 for x in ctx.input_tensors[:-ctx.final_nograd]
             ] + ctx.input_tensors[-ctx.final_nograd:]
             grad_input_tensors = ctx.input_tensors[:-ctx.final_nograd]

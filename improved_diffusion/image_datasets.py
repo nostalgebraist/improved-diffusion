@@ -519,10 +519,12 @@ def _list_image_files_recursively(data_dir, txt=False, min_filesize=0, min_image
             image_file_to_capt[full_path] = capts.get(safebox_key)
 
             if min_imagesize > 0:
-                wh = image_sizes.get(full_path, imagesize.get(full_path))
-                image_sizes[full_path] = wh
-                pxs = px_scales.get(safebox_key, (1, 1))
-                edge = min(wh[0]/max(1, pxs[0]), wh[1]/max(pxs[1], 1))
+                edge = image_sizes.get(full_path)
+                if edge is None:
+                    wh = imagesize.get(full_path)
+                    pxs = px_scales.get(safebox_key, (1, 1))
+                    edge = min(wh[0]/max(1, pxs[0]), wh[1]/max(pxs[1], 1))
+                image_sizes[full_path] = edge
                 if edge < min_imagesize:
                     n_excluded_imagesize['n'] += 1
                     return

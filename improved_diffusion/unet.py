@@ -593,7 +593,10 @@ class AttentionBlock(GlideStyleBlock):
         self.capt_stream = capt_stream
 
     def forward(self, x, encoder_out=None, capt_attn_mask=None):
-        return checkpoint(self._forward, (x, encoder_out, capt_attn_mask), self.parameters(), self.use_checkpoint, final_nograd=1)
+        return checkpoint(
+            self._forward, (x, encoder_out, capt_attn_mask), self.parameters(), self.use_checkpoint,
+            final_nograd=2 if encoder_out is None else 1,
+        )
 
     def compute_pos_emb(self, x):
         b, c, *spatial = x.shape
@@ -1570,6 +1573,8 @@ class UNetModel(nn.Module):
         capt_attn_mask = None
 
         with th.cuda.stream(cuda_streams.main()):
+            if (not self.using_capt) and capt is not None:
+
             hs = []
             emb = self.time_embed(self.timestep_embedding(timesteps))
 

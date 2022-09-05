@@ -607,7 +607,7 @@ class CheckpointFunction(th.autograd.Function):
         print(f"bwd ctx.final_nograd: {ctx.final_nograd} | dtypes {dtypes} | shapes {shapes}")
         if ctx.final_nograd:
             ctx.input_tensors = [
-                x if x is None else x.detach().requires_grad_(True)
+                x.detach().requires_grad_(True)
                 for x in ctx.input_tensors[:-ctx.final_nograd]
             ] + ctx.input_tensors[-ctx.final_nograd:]
             grad_input_tensors = ctx.input_tensors[:-ctx.final_nograd]
@@ -619,7 +619,7 @@ class CheckpointFunction(th.autograd.Function):
             # Fixes a bug where the first op in run_function modifies the
             # Tensor storage in place, which is not allowed for detach()'d
             # Tensors.
-            shallow_copies = [x.view_as(x) for x in ctx.input_tensors]
+            shallow_copies = [x if x is None else x.view_as(x) for x in ctx.input_tensors]
             output_tensors = ctx.run_function(*shallow_copies)
         input_grads = th.autograd.grad(
             output_tensors,

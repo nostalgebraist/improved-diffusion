@@ -123,8 +123,10 @@ def load_data(
             image_sizes = json.load(f)
 
     capts = None
+    using_capts = False
     if capt_path and os.path.exists(capt_path):
         print('using capt_path')
+        using_capts = True
         with open(capt_path, 'r') as f:
             capts = json.load(f)
 
@@ -261,6 +263,10 @@ def load_data(
         pre_resize_transform_for_empty_string = T.Compose(pre_resize_transform_for_empty_string)
     else:
         pre_resize_transform_for_empty_string = None
+
+    if not using_capt:
+        # prevent ImageDataset from passing tokenized capts to trainloop/model
+        image_file_to_capt = None
 
     dataset = ImageDataset(
         image_size,

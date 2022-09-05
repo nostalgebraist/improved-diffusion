@@ -264,7 +264,7 @@ def load_data(
     else:
         pre_resize_transform_for_empty_string = None
 
-    if not using_capt:
+    if not using_capts:
         # prevent ImageDataset from passing tokenized capts to trainloop/model
         image_file_to_capt = None
 

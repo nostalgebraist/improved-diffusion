@@ -85,6 +85,7 @@ def load_data(
     debug=False,
     max_workers_dir_scan=32,
     clip_encode=True,
+    capt_drop_string='unknown',
 ):
     """
     For a dataset, create a generator over (images, kwargs) pairs.
@@ -293,6 +294,7 @@ def load_data(
         class_pdrop=class_pdrop,
         tokenizer=tokenizer,
         clip_encode=clip_encode,
+        capt_drop_string=capt_drop_string,
     )
     if return_dataset:
         return dataset

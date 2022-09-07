@@ -609,6 +609,7 @@ class ImageDataset(Dataset):
                  class_ix_drop=999,
                  class_pdrop=0.1,
                  tokenizer=None,
+                 clip_encode=True,
                  ):
         super().__init__()
         self.resolution = resolution
@@ -644,6 +645,8 @@ class ImageDataset(Dataset):
         self.class_pdrop = class_pdrop
 
         self.tokenizer = tokenizer
+
+        self.clip_encode = clip_encode
 
         if (self.image_file_to_safebox is not None) and (self.pre_resize_transform is None):
             raise ValueError
@@ -748,7 +751,7 @@ class ImageDataset(Dataset):
 
         if self.using_capts:
             # out_dict['capt'] = capt
-            if clip_encode:
+            if self.clip_encode:
                 out_dict['capt'] = clip.tokenize(capt, truncate=True)[0, :]
             else:
                 out_dict['capt'] = capt

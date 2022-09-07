@@ -84,6 +84,7 @@ def load_data(
     tokenizer=None,
     debug=False,
     max_workers_dir_scan=32,
+    clip_encode=True,
 ):
     """
     For a dataset, create a generator over (images, kwargs) pairs.
@@ -291,6 +292,7 @@ def load_data(
         class_ix_drop=class_ix_drop,
         class_pdrop=class_pdrop,
         tokenizer=tokenizer,
+        clip_encode=clip_encode,
     )
     if return_dataset:
         return dataset
@@ -746,7 +748,10 @@ class ImageDataset(Dataset):
 
         if self.using_capts:
             # out_dict['capt'] = capt
-            out_dict['capt'] = clip.tokenize(capt, truncate=True)[0, :]
+            if clip_encode:
+                out_dict['capt'] = clip.tokenize(capt, truncate=True)[0, :]
+            else:
+                out_dict['capt'] = capt
 
         return np.transpose(arr, [2, 0, 1]), out_dict
 

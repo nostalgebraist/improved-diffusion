@@ -576,7 +576,7 @@ def _list_image_files_recursively(data_dir, txt=False, min_filesize=0, min_image
     for full_path in subdirectories:
         next_results, next_map, next_file_sizes, next_image_file_to_safebox, next_image_file_to_px_scales, next_image_file_to_capt, next_image_sizes = _list_image_files_recursively(
             full_path, txt=txt, min_filesize=min_filesize, min_imagesize=min_imagesize, safeboxes=safeboxes, px_scales=px_scales, capts=capts, require_capts=require_capts, excluded_paths=excluded_paths, image_sizes=image_sizes, max_workers=max_workers,
-            max_imgs=max_imgs - len(results)
+            max_imgs=max_imgs if max_imgs is None else max_imgs - len(results)
         )
         results.extend(next_results)
         image_file_to_text_file.update(next_map)
@@ -585,7 +585,7 @@ def _list_image_files_recursively(data_dir, txt=False, min_filesize=0, min_image
         image_file_to_px_scales.update(next_image_file_to_px_scales)
         image_file_to_capt.update(next_image_file_to_capt)
         image_sizes.update(image_sizes)
-        if len(results) >= max_imgs:
+        if max_imgs and len(results) >= max_imgs:
             break
     print(f"_list_image_files_recursively: data_dir={data_dir}, n_excluded_filesize={n_excluded_filesize}, n_excluded_imagesize={n_excluded_imagesize},\n\tn_excluded_path={n_excluded_path}, n_capts={n_capts}")
     image_file_to_safebox = {k: v for k, v in image_file_to_safebox.items() if v is not None}

@@ -692,6 +692,14 @@ class TrainLoop:
             grad_nans = sum([not th.isfinite(p).all() for p in self.model.parameters() if p.requires_grad])
             param_nans = sum([not th.isfinite(p).all() for p in self.model.parameters() if p.requires_grad])
             print(f"after: {param_nans} of {n} param nans, {grad_nans} of {n} grad nans")
+
+            if param_nans > 0:
+                for p, state in self.opt.state.items():
+                    for k in state:
+                        if isinstance(state[k], th.Tensor) and not th.isfinite(state[k]).all():
+                            print((k, state[k].shape, f"{th.isfinite(state[k]).sum().item()} finite"))
+
+                raise ValueError
         self.grad_scaler.update()
         verboses = [False] * (len(self.ema_rate) - 1) + [True]
         for rate, params, arith_from_step, arith_extra_shift, verbose in zip(

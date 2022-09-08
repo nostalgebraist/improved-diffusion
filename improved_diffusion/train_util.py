@@ -696,8 +696,10 @@ class TrainLoop:
             if param_nans > 0:
                 for p, state in self.opt.state.items():
                     for k in state:
-                        if isinstance(state[k], th.Tensor) and not th.isfinite(state[k]).all():
+                        if isinstance(state[k], th.Tensor):
                             print((k, state[k].shape, f"{th.isfinite(state[k]).sum().item()} finite"))
+                        else:
+                            print((k, state[k]))
 
                 raise ValueError
         self.grad_scaler.update()

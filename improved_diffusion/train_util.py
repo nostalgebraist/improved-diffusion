@@ -613,7 +613,8 @@ class TrainLoop:
             grad_acc_scale = micro.shape[0] / self.batch_size
             if self.use_fp16:
                 loss_scale = 2 ** self.lg_loss_scale
-                (loss * loss_scale * grad_acc_scale).backward()
+                create_graph = self.use_esgd and self.opt.should_create_graph()
+                (loss * loss_scale * grad_acc_scale).backward(create_graph=create_graph)
             elif self.use_amp:
                 self.grad_scaler.scale(loss * grad_acc_scale).backward()
             else:

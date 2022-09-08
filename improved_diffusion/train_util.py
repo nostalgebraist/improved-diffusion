@@ -326,7 +326,7 @@ class TrainLoop:
         self.use_esgd = use_esgd
 
         if self.use_esgd:
-            from esgd import ESGD
+            from esgd.esgd import ESGD
             self.opt = ESGD(
                 param_groups,
                 lr=self.lr,

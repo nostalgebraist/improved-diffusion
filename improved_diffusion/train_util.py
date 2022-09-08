@@ -688,8 +688,7 @@ class TrainLoop:
             grad_nans = sum([not th.isfinite(p).all() for p in self.model.parameters() if p.requires_grad])
             param_nans = sum([not th.isfinite(p).all() for p in self.model.parameters() if p.requires_grad])
             print(f"before: {param_nans} of {n} param nans, {grad_nans} of {n} grad nans")
-        with th.cuda.amp.autocast():
-            self.grad_scaler.step(self.opt)
+        self.grad_scaler.step(self.opt, grad_scaler=self.grad_scaler)
         if self.use_esgd:
             grad_nans = sum([not th.isfinite(p).all() for p in self.model.parameters() if p.requires_grad])
             param_nans = sum([not th.isfinite(p).all() for p in self.model.parameters() if p.requires_grad])

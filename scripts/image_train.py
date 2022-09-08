@@ -191,6 +191,8 @@ def main():
         perf_no_ddl=args.perf_no_ddl,
         capt_lr=args.capt_lr,
         freeze_capt_encoder=args.freeze_capt_encoder,
+        use_esgd=args.use_esgd,
+        esgd_nu=args.esgd_nu,
     ).run_loop()
 
 
@@ -280,6 +282,8 @@ def create_argparser():
         cudnn_benchmark=False,
         float32_matmul_precision="medium",
         exclusions_data_path="",
+        use_esgd=False,
+        esgd_nu=0.7,
     )
     defaults.update(model_and_diffusion_defaults())
     parser = argparse.ArgumentParser()

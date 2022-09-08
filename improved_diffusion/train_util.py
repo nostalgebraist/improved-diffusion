@@ -87,6 +87,8 @@ class TrainLoop:
         noise_cond_schedule='cosine',
         noise_cond_steps=1000,
         noise_cond_max_step=-1,
+        use_esgd=False,
+        esgd_nu=0.7,
     ):
         self.model = model
         self.diffusion = diffusion
@@ -320,12 +322,25 @@ class TrainLoop:
                 self.group_lrs,
             )
         ]
-        self.opt = AdamW(
-            param_groups,
-            lr=self.lr,
-            weight_decay=self.weight_decay,
-            betas=(beta1, beta2)
-        )
+
+        self.use_esgd = use_esgd
+
+        if self.use_esgd:
+            from esgd import ESGD
+            self.opt = ESGD(
+                param_groups,
+                lr=self.lr,
+                weight_decay=self.weight_decay,
+                betas=(beta1, beta2),
+                nu=esgd_nu,
+            )
+        else:
+            self.opt = AdamW(
+                param_groups,
+                lr=self.lr,
+                weight_decay=self.weight_decay,
+                betas=(beta1, beta2)
+            )
         print('groups')
         for pg in param_groups:
             print(f'\t {len(pg["params"])} params, lr {pg["lr"]}, wd {pg["weight_decay"]}')
@@ -433,6 +448,9 @@ class TrainLoop:
         return ema_params
 
     def _load_optimizer_state(self):
+        if self.use_esgd:
+            print('not loading esgd opt (make sure this is intended!)')
+            return
         main_checkpoint = find_resume_checkpoint() or self.resume_checkpoint
         opt_checkpoint = bf.join(
             bf.dirname(main_checkpoint), f"opt{self.resume_step:06}.pt"

@@ -679,8 +679,10 @@ class TrainLoop:
                              verbose=verbose)
 
     def optimize_amp(self):
-        self.grad_scaler.unscale_(self.opt)
-        self._log_grad_norm()
+        if not self.use_esgd:
+            self.grad_scaler.unscale_(self.opt)
+            self._log_grad_norm()
+
         self._anneal_lr()
         if self.use_esgd:
             n = sum([1 for p in self.model.parameters() if p.requires_grad])

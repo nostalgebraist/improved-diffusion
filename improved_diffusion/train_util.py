@@ -682,7 +682,17 @@ class TrainLoop:
         self.grad_scaler.unscale_(self.opt)
         self._log_grad_norm()
         self._anneal_lr()
+        if self.use_esgd:
+            n = sum([1 for p in self.model.parameters()])
+            grad_nans = sum([not th.isfinite(p).all() for p in self.model.parameters()])
+            param_nans = sum([not th.isfinite(p).all() for p in self.model.parameters()])
+            print(f"before: {param_nans} of {n} param nans, {grad_nans} of n grad nans")
         self.grad_scaler.step(self.opt)
+        if self.use_esgd:
+            n = sum([1 for p in self.model.parameters()])
+            grad_nans = sum([not th.isfinite(p).all() for p in self.model.parameters()])
+            param_nans = sum([not th.isfinite(p).all() for p in self.model.parameters()])
+            print(f"after: {param_nans} of {n} param nans, {grad_nans} of n grad nans")
         self.grad_scaler.update()
         verboses = [False] * (len(self.ema_rate) - 1) + [True]
         for rate, params, arith_from_step, arith_extra_shift, verbose in zip(

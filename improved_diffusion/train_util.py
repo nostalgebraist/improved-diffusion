@@ -611,15 +611,15 @@ class TrainLoop:
             if single_fwd_only:
                 break
             grad_acc_scale = micro.shape[0] / self.batch_size
+            create_graph = self.use_esgd and self.opt.should_create_graph()
+            print(f"create_graph: {create_graph}")
             if self.use_fp16:
                 loss_scale = 2 ** self.lg_loss_scale
-                create_graph = self.use_esgd and self.opt.should_create_graph()
-                print(f"create_graph: {create_graph}")
                 (loss * loss_scale * grad_acc_scale).backward(create_graph=create_graph)
             elif self.use_amp:
-                self.grad_scaler.scale(loss * grad_acc_scale).backward()
+                self.grad_scaler.scale(loss * grad_acc_scale).backward(create_graph=create_graph)
             else:
-                (loss * grad_acc_scale).backward()
+                (loss * grad_acc_scale).backward(create_graph=create_graph)
 
     def _update_ema(self, params, rate, arith_from_step=0, arith_extra_shift=0, verbose=True):
         def _vprint(*args, **kwargs):

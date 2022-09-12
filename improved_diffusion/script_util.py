@@ -854,11 +854,20 @@ def create_gaussian_diffusion(
         loss_type = gd.LossType.MSE
     if not timestep_respacing:
         timestep_respacing = [steps]
-    def diffusion_factory(timestep_respacing_=timestep_respacing):
+    def diffusion_factory(timestep_respacing_=timestep_respacing, double_mesh_first_n=0):
         cls, kwargs = gd.GaussianDiffusion, {}
         if timestep_respacing_ != [steps]:
             cls = SpacedDiffusion
             kwargs['use_timesteps'] = space_timesteps(steps, timestep_respacing_)
+            if double_mesh_first_n > 0:
+                orig_use_timesteps = sorted(kwargs['use_timesteps'], reverse=True)
+                use_timesteps = set()
+                for i, (t1, t2) in enumerate(zip(orig_use_timesteps[:-1], orig_use_timesteps[1:])):
+                    use_timesteps.add(t1)
+                    if i < double_mesh_first_n:
+                        use_timesteps.add(int(round((t1 + t2) / 2)))
+                    use_timesteps.add(t2)
+                kwargs['use_timesteps'] = use_timesteps
         return cls(
             betas=betas,
             model_mean_type=(

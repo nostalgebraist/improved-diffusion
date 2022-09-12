@@ -90,8 +90,8 @@ class SamplingModel(nn.Module):
 
         self.set_timestep_respacing(timestep_respacing)
 
-    def set_timestep_respacing(self, timestep_respacing):
-        self.diffusion = self.diffusion_factory(timestep_respacing)
+    def set_timestep_respacing(self, timestep_respacing, double_mesh_first_n=0):
+        self.diffusion = self.diffusion_factory(timestep_respacing, double_mesh_first_n=double_mesh_first_n)
 
     @staticmethod
     def from_config(checkpoint_path, config_path, timestep_respacing="", class_map=None, clipmod=None, **overrides):

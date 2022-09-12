@@ -922,16 +922,14 @@ class GaussianDiffusion:
             img = th.randn(*shape, device=device)
 
         trange = ts_index_range(shape[0], self.num_timesteps, device=device)
-        indices = list(range(2, self.num_timesteps, 2))[::-1]
-        nsteps = len(indices)
-        rk_indices = indices[:3]
-        indices = indices[3:]
+
+        rk_indices = [self.num_timesteps - j for j in [1, 3, 5]]
+        plms_indices = list(range(1, self.num_timesteps-6, 1))[::-1]
 
         step_counter = 0
 
         old_eps = []
         for i in rk_indices:
-            # t = th.tensor([i] * shape[0], device=device)
             t = trange[i]
             with th.no_grad():
                 ddim_fallback = (step_counter < ddim_first_n) or (ddim_last_n is not None and (nsteps - step_counter) < ddim_last_n)
@@ -947,12 +945,10 @@ class GaussianDiffusion:
                 )
                 old_eps.append(out['eps'])
                 step_counter += 1
-                # print(('rk', i, [t[0, 0, 0, 0] for t in old_eps]))
 
-                # yield out
+                yield out
                 img = out["sample"]
-        for i in indices:
-            # t = th.tensor([i] * shape[0], device=device)
+        for i in plms_indices:
             t = trange[i]
             with th.no_grad():
                 ddim_fallback = (step_counter < ddim_first_n) or (ddim_last_n is not None and (nsteps - step_counter) < ddim_last_n)
@@ -960,7 +956,7 @@ class GaussianDiffusion:
                     model,
                     img,
                     t,
-                    t2=t-2,
+                    t2=(t-1).clamp(min=0),
                     old_eps=old_eps,
                     clip_denoised=clip_denoised,
                     denoised_fn=denoised_fn,
@@ -972,11 +968,21 @@ class GaussianDiffusion:
                 old_eps.pop(0)
                 old_eps.append(out['eps'])
                 step_counter += 1
-                # print(('plms', i, [t[0, 0, 0, 0] for t in old_eps]))
 
                 yield out
                 img = out["sample"]
-        # return img
+
+        # final step
+        with th.no_grad():
+            out = self.p_mean_variance(
+                model,
+                img,
+                trange[0],
+                clip_denoised=clip_denoised,
+                denoised_fn=denoised_fn,
+                model_kwargs=model_kwargs,
+            )
+            yield {"sample": out["mean"], "pred_xstart": out["pred_xstart"]}
 
     def plms_sample_loop(
             self,

@@ -276,6 +276,7 @@ def create_argparser():
         cudnn_benchmark=False,
         float32_matmul_precision="medium",
         exclusions_data_path="",
+        float32_matmul_precision="medium",
     )
     defaults.update(sr_model_and_diffusion_defaults())
     parser = argparse.ArgumentParser()

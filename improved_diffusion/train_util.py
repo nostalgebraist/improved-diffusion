@@ -85,9 +85,6 @@ class TrainLoop:
         resize_mult=1.,
         perf_no_ddl=False,
         freeze_capt_encoder=False,
-        noise_cond=False,
-        noise_cond_schedule='cosine',
-        noise_cond_steps=1000,
         noise_cond_max_step=-1,
         channels_per_head=64,
     ):
@@ -151,10 +148,10 @@ class TrainLoop:
         self.resize_mult = resize_mult
         self.freeze_capt_encoder = freeze_capt_encoder
 
-        self.noise_cond = noise_cond
+        self.noise_cond = self.model.noise_cond
         self.noise_cond_diffusion = None
         if self.noise_cond:
-            betas = get_named_beta_schedule(noise_cond_schedule, noise_cond_steps)
+            betas = get_named_beta_schedule(self.model.noise_cond_schedule, self.model.noise_cond_steps)
             self.noise_cond_diffusion = SimpleForwardDiffusion(betas)
             # todo: other schedules
             if noise_cond_max_step < 0:

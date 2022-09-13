@@ -858,6 +858,8 @@ class UNetModel(nn.Module):
         no_attn=False,
         no_attn_substitute_resblock=False,
         noise_cond=False,
+        noise_cond_schedule='cosine',
+        noise_cond_steps=1000,
         freeze_capt_encoder=False,
         use_inference_caching=False,
         clipmod=None,
@@ -915,6 +917,8 @@ class UNetModel(nn.Module):
         self.use_inference_caching = use_inference_caching
 
         self.noise_cond = noise_cond
+        self.noise_cond_schedule = noise_cond_schedule
+        self.noise_cond_steps = noise_cond_steps
 
         # if use_checkpoint_below_res < 0:
         #     use_checkpoint_below_res = self.image_size * 2

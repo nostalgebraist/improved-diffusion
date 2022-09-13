@@ -392,6 +392,8 @@ def create_model(
     no_attn=False,
     no_attn_substitute_resblock=False,
     noise_cond=False,
+    noise_cond_schedule='cosine',
+    noise_cond_steps=1000,
     freeze_capt_encoder=False,
     use_inference_caching=False,
     clipmod=None,
@@ -515,6 +517,8 @@ def create_model(
         no_attn=no_attn,
         no_attn_substitute_resblock=no_attn_substitute_resblock,
         noise_cond=noise_cond,
+        noise_cond_schedule=noise_cond_schedule,
+        noise_cond_steps=noise_cond_steps,
         freeze_capt_encoder=freeze_capt_encoder,
         use_inference_caching=use_inference_caching,
         clipmod=clipmod,
@@ -530,6 +534,8 @@ def sr_model_and_diffusion_defaults():
     res["colorize"] = False
     res["up_interp_mode"] = "bilinear"
     res["noise_cond"] = False
+    res["noise_cond_schedule"] = "cosine"
+    res["noise_cond_steps"] = 1000
     arg_names = inspect.getfullargspec(sr_create_model_and_diffusion)[0]
     for k in res.copy().keys():
         if k not in arg_names:
@@ -624,6 +630,8 @@ def sr_create_model_and_diffusion(
     no_attn=False,
     no_attn_substitute_resblock=False,
     noise_cond=False,
+    noise_cond_schedule='cosine',
+    noise_cond_steps=1000,
     freeze_capt_encoder=False,
     use_inference_caching=False,
     clipmod=None,
@@ -702,6 +710,8 @@ def sr_create_model_and_diffusion(
         no_attn=no_attn,
         no_attn_substitute_resblock=no_attn_substitute_resblock,
         noise_cond=noise_cond,
+        noise_cond_schedule=noise_cond_schedule,
+        noise_cond_steps=noise_cond_steps,
         freeze_capt_encoder=freeze_capt_encoder,
         use_inference_caching=use_inference_caching,
         clipmod=clipmod,

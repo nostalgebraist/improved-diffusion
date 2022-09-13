@@ -90,8 +90,15 @@ class SamplingModel(nn.Module):
 
         self.set_timestep_respacing(timestep_respacing)
 
+        self.setup_noise_conditioning()
+
     def set_timestep_respacing(self, timestep_respacing, double_mesh_first_n=0):
         self.diffusion = self.diffusion_factory(timestep_respacing, double_mesh_first_n=double_mesh_first_n)
+
+    def setup_noise_conditioning(self):
+        if self.model.noise_cond:
+            betas = get_named_beta_schedule(self.model.noise_cond_schedule, self.model.noise_cond_steps)
+            self.noise_cond_diffusion = SimpleForwardDiffusion(betas)
 
     @staticmethod
     def from_config(checkpoint_path, config_path, timestep_respacing="", class_map=None, clipmod=None, **overrides):
@@ -308,9 +315,7 @@ class SamplingModel(nn.Module):
             # )
 
             if self.model.noise_cond and noise_cond_ts > 0:
-                betas = get_named_beta_schedule(self.model.noise_cond_schedule, self.model.noise_cond_steps)
-                noise_cond_diffusion = SimpleForwardDiffusion(betas)
-                all_low_res = noise_cond_diffusion.q_sample(all_low_res, model_kwargs["cond_timesteps"])
+                all_low_res = self.noise_cond_diffusion.q_sample(all_low_res, model_kwargs["cond_timesteps"])
 
                 # set seed again because we care about controlling the main diffusion's randomness
                 if seed is not None:

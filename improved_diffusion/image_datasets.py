@@ -72,6 +72,7 @@ def load_data(
     capt_path="",
     capt_pdrop=0.1,
     require_capts=False,
+    require_txt=False,
     all_pdrop=0.1,
     class_map_path=None,
     class_ix_unk=0,
@@ -158,7 +159,7 @@ def load_data(
             exclusions_data = json.load(f)
         excluded_paths = set(exclusions_data['excluded'])
 
-    all_files, image_file_to_text_file, file_sizes, image_file_to_safebox, image_file_to_px_scales, image_file_to_capt, image_sizes = _list_image_files_recursively(data_dir, txt=txt, min_filesize=min_filesize, min_imagesize=min_imagesize, safeboxes=safeboxes, px_scales=px_scales, capts=capts, require_capts=require_capts, excluded_paths=excluded_paths, image_sizes=image_sizes, max_workers=max_workers_dir_scan, max_imgs=max_imgs)
+    all_files, image_file_to_text_file, file_sizes, image_file_to_safebox, image_file_to_px_scales, image_file_to_capt, image_sizes = _list_image_files_recursively(data_dir, txt=txt, min_filesize=min_filesize, min_imagesize=min_imagesize, safeboxes=safeboxes, px_scales=px_scales, capts=capts, require_capts=require_capts, excluded_paths=excluded_paths, image_sizes=image_sizes, max_workers=max_workers_dir_scan, max_imgs=max_imgs, require_txt=require_txt)
     print(f"found {len(all_files)} images, {len(image_file_to_text_file)} texts, {len(image_file_to_capt)} capts")
     all_files = all_files[offset:]
 
@@ -482,7 +483,7 @@ def load_superres_data(data_dir, batch_size, large_size, small_size, class_cond=
         yield large_batch, model_kwargs
 
 
-def _list_image_files_recursively(data_dir, txt=False, min_filesize=0, min_imagesize=0, safeboxes=None, px_scales=None, image_sizes=None, capts=None, require_capts=False, excluded_paths=None, max_workers=32, max_imgs=None):
+def _list_image_files_recursively(data_dir, txt=False, min_filesize=0, min_imagesize=0, safeboxes=None, px_scales=None, image_sizes=None, capts=None, require_capts=False, excluded_paths=None, max_workers=32, max_imgs=None, require_txt=False):
     results = []
     image_file_to_text_file = {}
     file_sizes = {}
@@ -539,22 +540,27 @@ def _list_image_files_recursively(data_dir, txt=False, min_filesize=0, min_image
                 if edge < min_imagesize:
                     n_excluded_imagesize['n'] += 1
                     return
-            results.append(full_path)
             if txt:
                 prefix, _, ext = full_path.rpartition(".")
                 path_txt = prefix + ".txt"
                 # print(f'made path_txt={repr(path_txt)} from {repr(entry)}')
 
                 if bf.exists(path_txt):
-                    image_file_to_text_file[full_path] = path_txt
                     filesize = os.path.getsize(path_txt)
                     file_sizes[path_txt] = filesize
+
+                    if require_txt and filesize == 0:
+                        return
+
+                    image_file_to_text_file[full_path] = path_txt
 
                     image_file_to_safebox[full_path] = safeboxes.get(safebox_key)
                     image_file_to_px_scales[full_path] = px_scales.get(safebox_key)
                 else:
                     pass
                     # raise ValueError(path_txt)
+
+            results.append(full_path)
 
         elif bf.isdir(full_path):
             subdirectories.append(full_path)
@@ -576,7 +582,8 @@ def _list_image_files_recursively(data_dir, txt=False, min_filesize=0, min_image
     for full_path in subdirectories:
         next_results, next_map, next_file_sizes, next_image_file_to_safebox, next_image_file_to_px_scales, next_image_file_to_capt, next_image_sizes = _list_image_files_recursively(
             full_path, txt=txt, min_filesize=min_filesize, min_imagesize=min_imagesize, safeboxes=safeboxes, px_scales=px_scales, capts=capts, require_capts=require_capts, excluded_paths=excluded_paths, image_sizes=image_sizes, max_workers=max_workers,
-            max_imgs=max_imgs if max_imgs is None else max_imgs - len(results)
+            max_imgs=max_imgs if max_imgs is None else max_imgs - len(results),
+            require_txt=require_txt,
         )
         results.extend(next_results)
         image_file_to_text_file.update(next_map)

@@ -625,6 +625,7 @@ class ImageDataset(Dataset):
                  class_pdrop=0.1,
                  tokenizer=None,
                  clip_encode=True,
+                 lowres_degradation_fn=None,
                  ):
         super().__init__()
         self.resolution = resolution
@@ -662,6 +663,8 @@ class ImageDataset(Dataset):
         self.tokenizer = tokenizer
 
         self.clip_encode = clip_encode
+
+        self.lowres_degradation_fn = lowres_degradation_fn
 
         if (self.image_file_to_safebox is not None) and (self.pre_resize_transform is None):
             raise ValueError
@@ -727,6 +730,8 @@ class ImageDataset(Dataset):
             tuple(round(x * scale) for x in pil_image.size), resample=Image.BICUBIC
         )
 
+        out_dict = {}
+
         mode = "L" if self.monochrome else "RGB"
         arr = np.array(pil_image.convert(mode))
         if self.monochrome:
@@ -734,9 +739,15 @@ class ImageDataset(Dataset):
         crop_y = (arr.shape[0] - self.resolution) // 2
         crop_x = (arr.shape[1] - self.resolution) // 2
         arr = arr[crop_y : crop_y + self.resolution, crop_x : crop_x + self.resolution]
+
+        if self.lowres_degradation_fn is not None:
+            low_res = self.lowres_degradation_fn(arr)
+            low_res = low_res.astype(np.float32) / 127.5 - 1
+            low_res = np.transpose(low_res, [2, 0, 1])
+            out_dict['low_res'] = low_res
+
         arr = arr.astype(np.float32) / 127.5 - 1
 
-        out_dict = {}
         if self.local_classes is not None:
             drop_class = (self.class_pdrop > 0) and (random.random() < self.class_pdrop)
             this_class = self.class_ix_drop if drop_class else self.local_classes[idx]

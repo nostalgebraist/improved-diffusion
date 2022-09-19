@@ -88,6 +88,7 @@ def load_data(
     clip_encode=True,
     capt_drop_string='unknown',
     max_imgs=None,
+    lowres_degradation_fn=None,
 ):
     """
     For a dataset, create a generator over (images, kwargs) pairs.
@@ -297,6 +298,7 @@ def load_data(
         tokenizer=tokenizer,
         clip_encode=clip_encode,
         capt_drop_string=capt_drop_string,
+        lowres_degradation_fn=lowres_degradation_fn,
     )
     if return_dataset:
         return dataset

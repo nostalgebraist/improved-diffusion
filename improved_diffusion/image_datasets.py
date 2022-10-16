@@ -51,6 +51,17 @@ def tokenize(tokenizer, txt):
 def clip_pkeep(probs, middle_pkeep=0.5):
     return probs[2] + middle_pkeep * probs[1]
 
+class SafeboxCrop:
+    def __init__(self, crop_prob, size, min_area, max_area, interpolation, debug=False):
+        self.crop_prob = crop_prob
+        self.tform = RandomResizedProtectedCropLazy(
+            size=size, min_area=min_area, max_area=max_area, interpolation=interpolation, debug=debug
+        )
+
+    def __call__(self, img, safebox, pre_applied_rescale_factor):
+        if random.random() < self.crop_prob:
+            return tform(img, safebox, pre_applied_rescale_factor=pre_applied_rescale_factor)
+        return img
 
 def load_data(
     *, data_dir, batch_size, image_size, class_cond=False, deterministic=False,
@@ -211,12 +222,15 @@ def load_data(
         if safeboxes is not None and (not crop_without_resize):
             print('using safebox crop')
             imode, tsize = (T.functional.InterpolationMode.BICUBIC, (image_size,))
-            def safebox_crop(img, safebox, pre_applied_rescale_factor):
-                tform = RandomResizedProtectedCropLazy(size=tsize, min_area=crop_min_scale, max_area=crop_max_scale, interpolation=imode, debug=debug)
-                if random.random() < crop_prob:
-                    return tform(img, safebox, pre_applied_rescale_factor=pre_applied_rescale_factor)
-                return img
-            pre_resize_transform = safebox_crop
+            pre_resize_transform = SafeboxCrop(
+                crop_prob=crop_prob, size=tsize, min_area=crop_min_scale, max_area=crop_max_scale, interpolation=imode, debug=debug
+            )
+            # def safebox_crop(img, safebox, pre_applied_rescale_factor):
+            #     tform = RandomResizedProtectedCropLazy(size=tsize, min_area=crop_min_scale, max_area=crop_max_scale, interpolation=imode, debug=debug)
+            #     if random.random() < crop_prob:
+            #         return tform(img, safebox, pre_applied_rescale_factor=pre_applied_rescale_factor)
+            #     return img
+            # pre_resize_transform = safebox_crop
             if (not use_special_crop_for_empty_string) or (crop_prob_es <= 0):
                 use_special_crop_for_empty_string = True
                 crop_prob_es = crop_prob

@@ -7,12 +7,15 @@ def roll_minmax(low, high):
     return roll*(high-low) + low
 
 class RandomResizedProtectedCropLazy(torch.nn.Module):
-    def __init__(self, size, min_area, max_area=1, interpolation=TF.InterpolationMode.BILINEAR, debug=False):
+    def __init__(
+        self, size, min_area, max_area=1, interpolation=TF.InterpolationMode.BILINEAR, do_resize=True, debug=False
+    ):
         super().__init__()
         self.size = size
         self.min_area = min_area
         self.max_area = max_area
         self.interpolation = interpolation
+        self.do_resize = do_resize
         self.debug = debug
 
     def get_params(self, img, safebox, pre_applied_rescale_factor=None, return_n=True, debug=True):
@@ -145,6 +148,8 @@ class RandomResizedProtectedCropLazy(torch.nn.Module):
         cropbox = self.get_params(img, safebox, pre_applied_rescale_factor, return_n=False, debug=self.debug)
         i, j = cropbox[1], cropbox[0]
         h, w = cropbox[2] - j, cropbox[3] - i
-        # display(img.crop(cropbox).resize((self.size, self.size)))
-        # return TF.resized_crop(img, i, j, h, w, self.size, self.interpolation)
-        return TF.resize(TF.crop(img, i, j, h, w), self.size, self.interpolation, antialias=True)
+
+        cropped = TF.crop(img, i, j, h, w)
+        if self.do_resize:
+            cropped = TF.resize(cropped, self.size, self.interpolation, antialias=True)
+        return cropped

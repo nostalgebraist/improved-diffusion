@@ -89,6 +89,7 @@ def load_data(
     capt_drop_string='unknown',
     max_imgs=None,
     lowres_degradation_fn=None,
+    always_resize_with_pil=False,
 ):
     """
     For a dataset, create a generator over (images, kwargs) pairs.
@@ -211,7 +212,7 @@ def load_data(
             print('using safebox crop')
             imode, tsize = (T.functional.InterpolationMode.BICUBIC, (image_size,))
             def safebox_crop(img, safebox, pre_applied_rescale_factor):
-                tform = RandomResizedProtectedCropLazy(size=tsize, min_area=crop_min_scale, max_area=crop_max_scale, interpolation=imode, debug=debug)
+                tform = RandomResizedProtectedCropLazy(size=tsize, min_area=crop_min_scale, max_area=crop_max_scale, interpolation=imode, debug=debug, do_resize=not always_resize_with_pil)
                 if random.random() < crop_prob:
                     return tform(img, safebox, pre_applied_rescale_factor=pre_applied_rescale_factor)
                 return img
@@ -409,6 +410,7 @@ def load_superres_data(data_dir, batch_size, large_size, small_size, class_cond=
                        antialias=False,
                        bicubic_down=False,
                        max_workers_dir_scan=32,
+                       always_resize_with_pil=False,
                        ):
     print(f'load_superres_data: deterministic={deterministic}')
     data = load_data(
@@ -453,6 +455,7 @@ def load_superres_data(data_dir, batch_size, large_size, small_size, class_cond=
         image_size_path=image_size_path,
         tokenizer=tokenizer,
         max_workers_dir_scan=max_workers_dir_scan,
+        always_resize_with_pil=always_resize_with_pil,
     )
 
     blurrer = T.RandomApply(transforms=[T.GaussianBlur(blur_width, sigma=(blur_sigma_min, blur_sigma_max))], p=blur_prob)

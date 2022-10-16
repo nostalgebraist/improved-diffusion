@@ -145,7 +145,7 @@ def main():
         image_size_path=args.image_size_path,
         num_workers=args.perf_num_workers,
         max_workers_dir_scan=args.max_workers_dir_scan,
-        always_resize_with_pil=args.always_resize_with_pil,
+        always_resize_with_bicubic=args.always_resize_with_bicubic,
         tokenizer=tokenizer,
     )
 
@@ -289,7 +289,7 @@ def create_argparser():
         float32_matmul_precision="medium",
         exclusions_data_path="",
         image_size_path="",
-        always_resize_with_pil=False,
+        always_resize_with_bicubic=False,
         use_streams=True,
         max_workers_dir_scan=32,
     )

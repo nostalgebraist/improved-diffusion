@@ -89,7 +89,7 @@ def load_data(
     capt_drop_string='unknown',
     max_imgs=None,
     lowres_degradation_fn=None,
-    always_resize_with_pil=False,
+    always_resize_with_bicubic=False,
 ):
     """
     For a dataset, create a generator over (images, kwargs) pairs.
@@ -212,7 +212,7 @@ def load_data(
             print('using safebox crop')
             imode, tsize = (T.functional.InterpolationMode.BICUBIC, (image_size,))
             def safebox_crop(img, safebox, pre_applied_rescale_factor):
-                tform = RandomResizedProtectedCropLazy(size=tsize, min_area=crop_min_scale, max_area=crop_max_scale, interpolation=imode, debug=debug, do_resize=not always_resize_with_pil)
+                tform = RandomResizedProtectedCropLazy(size=tsize, min_area=crop_min_scale, max_area=crop_max_scale, interpolation=imode, debug=debug)
                 if random.random() < crop_prob:
                     return tform(img, safebox, pre_applied_rescale_factor=pre_applied_rescale_factor)
                 return img
@@ -300,6 +300,7 @@ def load_data(
         clip_encode=clip_encode,
         capt_drop_string=capt_drop_string,
         lowres_degradation_fn=lowres_degradation_fn,
+        always_resize_with_bicubic=always_resize_with_bicubic,
     )
     if return_dataset:
         return dataset
@@ -410,7 +411,7 @@ def load_superres_data(data_dir, batch_size, large_size, small_size, class_cond=
                        antialias=False,
                        bicubic_down=False,
                        max_workers_dir_scan=32,
-                       always_resize_with_pil=False,
+                       always_resize_with_bicubic=False,
                        ):
     print(f'load_superres_data: deterministic={deterministic}')
     data = load_data(
@@ -455,7 +456,7 @@ def load_superres_data(data_dir, batch_size, large_size, small_size, class_cond=
         image_size_path=image_size_path,
         tokenizer=tokenizer,
         max_workers_dir_scan=max_workers_dir_scan,
-        always_resize_with_pil=always_resize_with_pil,
+        always_resize_with_bicubic=always_resize_with_bicubic,
     )
 
     blurrer = T.RandomApply(transforms=[T.GaussianBlur(blur_width, sigma=(blur_sigma_min, blur_sigma_max))], p=blur_prob)
@@ -631,6 +632,7 @@ class ImageDataset(Dataset):
                  tokenizer=None,
                  clip_encode=True,
                  lowres_degradation_fn=None,
+                 always_resize_with_bicubic=False,
                  ):
         super().__init__()
         self.resolution = resolution
@@ -670,6 +672,8 @@ class ImageDataset(Dataset):
         self.clip_encode = clip_encode
 
         self.lowres_degradation_fn = lowres_degradation_fn
+
+        self.always_resize_with_bicubic = always_resize_with_bicubic
 
         if (self.image_file_to_safebox is not None) and (self.pre_resize_transform is None):
             raise ValueError
@@ -722,13 +726,14 @@ class ImageDataset(Dataset):
             elif self.pre_resize_transform is not None:
                 pil_image = self.pre_resize_transform(pil_image)
 
-        # We are not on a new enough PIL to support the `reducing_gap`
-        # argument, which uses BOX downsampling at powers of two first.
-        # Thus, we do it by hand to improve downsample quality.
-        while min(*pil_image.size) >= 2 * self.resolution:
-            pil_image = pil_image.resize(
-                tuple(x // 2 for x in pil_image.size), resample=Image.BOX
-            )
+        if not self.always_resize_with_bicubic:
+            # We are not on a new enough PIL to support the `reducing_gap`
+            # argument, which uses BOX downsampling at powers of two first.
+            # Thus, we do it by hand to improve downsample quality.
+            while min(*pil_image.size) >= 2 * self.resolution:
+                pil_image = pil_image.resize(
+                    tuple(x // 2 for x in pil_image.size), resample=Image.BOX
+                )
 
         scale = self.resolution / min(*pil_image.size)
         pil_image = pil_image.resize(

@@ -523,6 +523,10 @@ class TrainLoop:
 
     def run_step(self, batch, cond, verbose=False, single_fwd_only=False):
         self.forward_backward(batch, cond, verbose=verbose, single_fwd_only=single_fwd_only)
+        if self.step == 0:
+            # sometimes this doesn't seem to happen after cudnn benchmark completes
+            print('clearing cache')
+            th.cuda.empty_cache()
         if single_fwd_only:
             return
         if self.use_amp:

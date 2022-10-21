@@ -434,12 +434,12 @@ class ResBlock(TimestepBlock):
             self.skip_connection = conv_nd(
                 dims, channels, self.out_channels, 3, padding=1
             )
-            nn.init.dirac_(self.skip_connection.weight)
-            nn.init.zeros_(self.skip_connection.bias)
+            # nn.init.dirac_(self.skip_connection.weight)
+            # nn.init.zeros_(self.skip_connection.bias)
         else:
             self.skip_connection = conv_nd(dims, channels, self.out_channels, 1)
-            nn.init.dirac_(self.skip_connection.weight)
-            nn.init.zeros_(self.skip_connection.bias)
+            # nn.init.dirac_(self.skip_connection.weight)
+            # nn.init.zeros_(self.skip_connection.bias)
 
     def forward(self, x, emb):
         """
@@ -456,17 +456,24 @@ class ResBlock(TimestepBlock):
         if self.updown:
             in_rest, in_conv = self.in_layers[:-1], self.in_layers[-1]
             h = in_rest(x)
-            x = self.x_upd(x)
             if self.efficient_unet_tweaks and self.up:
                 h = in_conv(h)
+                skip = self.skip_connection(x)
+
                 h = self.h_upd(h)
+                skip = self.x_upd(skip)
             else:
                 h = self.h_upd(h)
+                x = self.x_upd(x)
+
                 h = in_conv(h)
+                skip = self.skip_connection(x)
         else:
             # print(f'x shape: {x.shape}')
             # print(f'self.in_layers[0].weight shape: {self.in_layers[0].weight.shape}')
             h = self.in_layers(x)
+            skip = self.skip_connection(x)
+
         emb_out = self.emb_layers(emb).type(h.dtype)
         while len(emb_out.shape) < len(h.shape):
             emb_out = emb_out[..., None]
@@ -522,7 +529,6 @@ class ResBlock(TimestepBlock):
             h = h + emb_out
             h = self.out_layers(h)
 
-        skip = self.skip_connection(x)
         if self.efficient_unet_tweaks and self.efficient_unet_sqrt2:
             skip = skip * 0.7071068
         return skip + h

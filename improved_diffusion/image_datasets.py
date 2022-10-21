@@ -65,6 +65,13 @@ class SafeboxCrop:
         return img
 
 
+class Multisizer:
+    def __init__(self, sizes, weights, square_prob):
+        self.sizes = sizes
+        self.weights = weights
+        self.square_prob = square_prob
+
+
 def load_data(
     *, data_dir, batch_size, image_size, class_cond=False, deterministic=False,
     txt=False, monochrome=False, offset=0, min_filesize=0,
@@ -103,6 +110,7 @@ def load_data(
     max_imgs=None,
     lowres_degradation_fn=None,
     always_resize_with_bicubic=False,
+    multisize=False,
 ):
     """
     For a dataset, create a generator over (images, kwargs) pairs.
@@ -216,36 +224,42 @@ def load_data(
             sorted_classes = {x: i for i, x in enumerate(sorted(set(class_names)))}
             classes = [sorted_classes[x] for x in class_names]
 
-    pre_resize_transform = None
-    pre_resize_transform_for_empty_string = []
+    make_cropper = None
+    make_cropper_es = None
 
     if crop_prob > 0:
         print("using crop")
         if safeboxes is not None and (not crop_without_resize):
             print('using safebox crop')
-            imode, tsize = (T.functional.InterpolationMode.BICUBIC, (image_size,))
-            pre_resize_transform = SafeboxCrop(
-                crop_prob=crop_prob, size=tsize, min_area=crop_min_scale, max_area=crop_max_scale, interpolation=imode, debug=debug
-            )
+            def make_cropper(tsize):
+                return SafeboxCrop(
+                    crop_prob=crop_prob, size=tsize, min_area=crop_min_scale, max_area=crop_max_scale, interpolation=T.functional.InterpolationMode.BICUBIC, debug=debug
+                )
             if (not use_special_crop_for_empty_string) or (crop_prob_es <= 0):
                 use_special_crop_for_empty_string = True
                 crop_prob_es = crop_prob
                 crop_min_scale_es = crop_min_scale
                 crop_max_scale_es = crop_max_scale
         else:
-            imode, tsize = (T.functional.InterpolationMode.BICUBIC, (image_size,))
-            if crop_without_resize:
-                cropper = T.RandomCrop(size=tsize)
-            else:
-                cropper = T.RandomResizedCrop(
-                    size=tsize, ratio=(1, 1), scale=(crop_min_scale, crop_max_scale), interpolation=imode
+            def make_cropper(tsize):
+                if crop_without_resize:
+                    cropper = T.RandomCrop(size=tsize)
+                else:
+                    cropper = T.RandomResizedCrop(
+                        size=tsize, ratio=(1, 1), scale=(crop_min_scale, crop_max_scale),
+                        interpolation=T.functional.InterpolationMode.BICUBIC
+                    )
+                return T.RandomApply(
+                    transforms=[
+                        cropper,
+                    ],
+                    p=crop_prob
                 )
-            pre_resize_transform = T.RandomApply(
-                transforms=[
-                    cropper,
-                ],
-                p=crop_prob
-            )
+
+        if multisize:
+            pre_resize_transform = make_cropper
+        else:
+            pre_resize_transform = make_cropper(image_size)
 
     use_es_crop = use_special_crop_for_empty_string and (crop_prob_es > 0)
     use_es_regular_crop = use_es_crop and (not use_random_safebox_for_empty_string)
@@ -253,32 +267,46 @@ def load_data(
     if use_es_crop:
         print('using es crop')
 
-    if use_es_regular_crop:
-        print("using es regular crop")
-        imode, tsize = (T.functional.InterpolationMode.BICUBIC, (image_size,))
-        if crop_without_resize:
-            cropper = T.RandomCrop(size=tsize)
+    def make_cropper_es(tsize):
+        pre_resize_transform_for_empty_string = []
+        if use_es_regular_crop:
+            print("using es regular crop")
+
+            if crop_without_resize:
+                cropper = T.RandomCrop(size=tsize)
+            else:
+                cropper = T.RandomResizedCrop(
+                    size=tsize, ratio=(1, 1), scale=(crop_min_scale_es, crop_max_scale_es),
+                    interpolation=T.functional.InterpolationMode.BICUBIC
+                )
+            pre_resize_transform_for_empty_string.append(
+                T.RandomApply(
+                    transforms=[
+                        cropper,
+                    ],
+                    p=crop_prob_es
+                )
+            )
+
+        if flip_lr_prob_es > 0:
+            print("using flip")
+            pre_resize_transform_for_empty_string.append(T.RandomHorizontalFlip(p=flip_lr_prob_es))
+
+        if len(pre_resize_transform_for_empty_string) > 0:
+            pre_resize_transform_for_empty_string = T.Compose(pre_resize_transform_for_empty_string)
         else:
-            cropper = T.RandomResizedCrop(
-                size=tsize, ratio=(1, 1), scale=(crop_min_scale_es, crop_max_scale_es), interpolation=imode
-            )
-        pre_resize_transform_for_empty_string.append(
-            T.RandomApply(
-                transforms=[
-                    cropper,
-                ],
-                p=crop_prob_es
-            )
-        )
+            pre_resize_transform_for_empty_string = None
 
-    if flip_lr_prob_es > 0:
-        print("using flip")
-        pre_resize_transform_for_empty_string.append(T.RandomHorizontalFlip(p=flip_lr_prob_es))
+        return pre_resize_transform_for_empty_string
 
-    if len(pre_resize_transform_for_empty_string) > 0:
-        pre_resize_transform_for_empty_string = T.Compose(pre_resize_transform_for_empty_string)
+
+    if multisize:
+        pre_resize_transform = make_cropper
+        pre_resize_transform_for_empty_string = make_cropper_es
     else:
-        pre_resize_transform_for_empty_string = None
+        pre_resize_transform = make_cropper(image_size) if make_cropper else None
+        pre_resize_transform_for_empty_string = make_cropper_es(image_size) if make_cropper_es else None
+
 
     if not using_capts:
         # prevent ImageDataset from passing tokenized capts to trainloop/model
@@ -311,6 +339,7 @@ def load_data(
         capt_drop_string=capt_drop_string,
         lowres_degradation_fn=lowres_degradation_fn,
         always_resize_with_bicubic=always_resize_with_bicubic,
+        multisize=multisize,
     )
     if return_dataset:
         return dataset

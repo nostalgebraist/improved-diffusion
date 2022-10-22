@@ -140,7 +140,7 @@ def main():
         max_workers_dir_scan=args.max_workers_dir_scan,
         always_resize_with_bicubic=args.always_resize_with_bicubic,
         tokenizer=tokenizer,
-        multisize_spec=multisize_spec,
+        multisize_spec=args.multisize_spec,
     )
 
     if args.save_first_batch:
@@ -190,6 +190,7 @@ def main():
         capt_lr=args.capt_lr,
         freeze_capt_encoder=args.freeze_capt_encoder,
         channels_per_head=args.channels_per_head,
+        multisize_spec=args.multisize_spec,
     ).run_loop()
 
 

@@ -555,6 +555,8 @@ def load_superres_data(data_dir, batch_size, large_size, small_size, class_cond=
 
     blurrer = T.RandomApply(transforms=[T.GaussianBlur(blur_width, sigma=(blur_sigma_min, blur_sigma_max))], p=blur_prob)
 
+    ratio = large_size // small_size
+
     is_power_of_2 = False
     top = large_size
     while top > small_size:
@@ -575,7 +577,7 @@ def load_superres_data(data_dir, batch_size, large_size, small_size, class_cond=
 
     for large_batch, model_kwargs in data:
         if multisize:
-            small_size = large_batch.shape[2] // 2
+            small_size = large_batch.shape[2] // ratio
         model_kwargs["low_res"] = F.interpolate(large_batch, small_size, mode=mode, antialias=use_antialias)
         if colorize:
             model_kwargs["low_res"] = model_kwargs["low_res"].mean(dim=1, keepdim=True)

@@ -171,7 +171,7 @@ class TrainLoop:
         self.microbatchsizes = None
         if multisize_spec != '':
             multisizer = Multisizer.from_spec(multisize_spec)
-            self.microbatchsizes = {s: int(e) for s, e in zip(multisizer.sizes, multisizer.extras)}
+            self.microbatchsizes = {s: int(e[0]) for s, e in zip(multisizer.sizes, multisizer.extras)}
 
         # text_params, self.text_param_names = [], []
         text_params, text_param_names = defaultdict(list), defaultdict(list)

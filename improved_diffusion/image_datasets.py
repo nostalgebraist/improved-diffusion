@@ -379,7 +379,8 @@ def load_data(
                            prefetch_factor=prefetch_factor,
                            clip_probs_by_idxs=clip_probs_by_idxs,
                            clip_prob_middle_pkeep=clip_prob_middle_pkeep,
-                           num_workers=num_workers)
+                           num_workers=num_workers,
+                           multisizer=multisizer)
 
 
 def seeding_worker_init_fn(worker_id):

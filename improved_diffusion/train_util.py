@@ -169,6 +169,7 @@ class TrainLoop:
         self.global_batch = self.batch_size # * dist.get_world_size()
 
         self.microbatchsizes = None
+        self.shapes_seen = set()
         if multisize_spec != '':
             multisizer = Multisizer.from_spec(multisize_spec)
             self.microbatchsizes = {s: int(e[0]) for s, e in zip(multisizer.sizes, multisizer.extras)}
@@ -529,10 +530,12 @@ class TrainLoop:
 
     def run_step(self, batch, cond, verbose=False, single_fwd_only=False):
         self.forward_backward(batch, cond, verbose=verbose, single_fwd_only=single_fwd_only)
-        if self.step == 0:
+        shape = (batch.shape[0], batch.shape[2])
+        if shape not in self.shapes_seen:
             # sometimes this doesn't seem to happen after cudnn benchmark completes
             print('clearing cache')
             th.cuda.empty_cache()
+        self.shapes_seen.add(shape)
         if single_fwd_only:
             return
         if self.use_amp:

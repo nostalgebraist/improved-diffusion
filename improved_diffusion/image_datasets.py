@@ -796,8 +796,14 @@ class ImageDataset(Dataset):
                 idx, resolution = idx
             else:
                 resolution = self.multisizer.get_size()
-            pre_resize_transform_for_empty_string = self.pre_resize_transform_for_empty_string(resolution)
-            pre_resize_transform = self.pre_resize_transform(resolution)
+
+            pre_resize_transform_for_empty_string = self.pre_resize_transform_for_empty_string
+            if pre_resize_transform_for_empty_string:
+                pre_resize_transform_for_empty_string = pre_resize_transform_for_empty_string(resolution)
+
+            pre_resize_transform = self.pre_resize_transform
+            if pre_resize_transform:
+                pre_resize_transform = pre_resize_transform(resolution)
         else:
             pre_resize_transform_for_empty_string = self.pre_resize_transform_for_empty_string
             pre_resize_transform = self.pre_resize_transform

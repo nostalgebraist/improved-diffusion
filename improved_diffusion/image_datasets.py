@@ -66,10 +66,25 @@ class SafeboxCrop:
 
 
 class Multisizer:
-    def __init__(self, sizes, weights, square_prob):
+    def __init__(self, sizes, weights):
         self.sizes = sizes
-        self.weights = weights
-        self.square_prob = square_prob
+        self.p = np.array(weights)
+        self.p = self.p / self.p.sum()
+
+    def get_size(self):
+        return np.random.choice(self.sizes, p=self.p)
+
+    @property
+    def from_spec(spec: str) -> Multisizer:
+        segs = spec.split(" ")
+
+        sizes, weights = [], []
+        for seg in segs:
+            s, _, w = seg.partition(":")
+            sizes.append(int(s))
+            weights.append(float(w))
+
+        return Multisizer(sizes=sizes, weights=weights)
 
 
 def load_data(
@@ -110,7 +125,7 @@ def load_data(
     max_imgs=None,
     lowres_degradation_fn=None,
     always_resize_with_bicubic=False,
-    multisize=False,
+    multisize_spec='',
 ):
     """
     For a dataset, create a generator over (images, kwargs) pairs.
@@ -130,6 +145,12 @@ def load_data(
     """
     if not data_dir:
         raise ValueError("unspecified data directory")
+
+    multisize = multisize_spec != ''
+    multisizer = None
+
+    if multisize:
+        multisizer = Multisizer.from_spec(multisize_spec)
 
     safeboxes = None
     if safebox_path and os.path.exists(safebox_path):
@@ -307,7 +328,6 @@ def load_data(
         pre_resize_transform = make_cropper(image_size) if make_cropper else None
         pre_resize_transform_for_empty_string = make_cropper_es(image_size) if make_cropper_es else None
 
-
     if not using_capts:
         # prevent ImageDataset from passing tokenized capts to trainloop/model
         image_file_to_capt = None
@@ -339,7 +359,7 @@ def load_data(
         capt_drop_string=capt_drop_string,
         lowres_degradation_fn=lowres_degradation_fn,
         always_resize_with_bicubic=always_resize_with_bicubic,
-        multisize=multisize,
+        multisizer=multisizer,
     )
     if return_dataset:
         return dataset
@@ -360,6 +380,13 @@ def load_data(
                            clip_probs_by_idxs=clip_probs_by_idxs,
                            clip_prob_middle_pkeep=clip_prob_middle_pkeep,
                            num_workers=num_workers)
+
+
+def seeding_worker_init_fn(worker_id):
+    seed_th = th.utils.data.get_worker_info().seed
+    seed_short = seed_th % (2**32 - 3)
+    random.seed(seed_short + 1)
+    np.random.seed(seed_short + 2)
 
 
 class DropSampler(BatchSampler):
@@ -385,17 +412,29 @@ class DropSampler(BatchSampler):
             yield batch
 
 
-def seeding_worker_init_fn(worker_id):
-    seed_th = th.utils.data.get_worker_info().seed
-    seed_short = seed_th % (2**32 - 3)
-    random.seed(seed_short + 1)
-    np.random.seed(seed_short + 2)
+class MultisizeBatchSampler(BatchSampler):
+    def __init__(self, sampler, batch_size: int, drop_last: bool, multisizer: Multisizer):
+        super().__init__(sampler, batch_size, drop_last)
+        self.multisizer = multisizer
+
+    def __iter__(self):
+        batch = []
+        size = self.multisizer.get_size()
+        for idx in self.sampler:
+            batch.append((idx, size))
+            if len(batch) == self.batch_size:
+                yield batch
+                batch = []
+                size = self.multisizer.get_size()
+        if len(batch) > 0 and not self.drop_last:
+            yield batch
 
 
 def _dataloader_gen(dataset, batch_size, deterministic, pin_memory, prefetch_factor,
                     clip_probs_by_idxs=None,
                     clip_prob_middle_pkeep=0.5,
-                    num_workers=1):
+                    num_workers=1,
+                    multisizer=None):
     print(f'_dataloader_gen: deterministic={deterministic}')
     kwargs = dict(batch_size=batch_size, drop_last=True, shuffle=not deterministic, )
     if clip_probs_by_idxs is not None:
@@ -404,6 +443,16 @@ def _dataloader_gen(dataset, batch_size, deterministic, pin_memory, prefetch_fac
         else:
             sampler = SequentialSampler(dataset)
         batch_sampler = DropSampler(sampler=sampler, batch_size=batch_size, drop_last=True, clip_probs_by_idxs=clip_probs_by_idxs, clip_prob_middle_pkeep=clip_prob_middle_pkeep)
+        kwargs = dict(batch_sampler=batch_sampler)
+    elif multisizer is not None:
+        if not deterministic:
+            sampler = RandomSampler(dataset, generator=None)
+        else:
+            sampler = SequentialSampler(dataset)
+        batch_sampler = MultisizeBatchSampler(sampler=sampler,
+                                              batch_size=batch_size,
+                                              drop_last=True,
+                                              multisizer=multisizer)
         kwargs = dict(batch_sampler=batch_sampler)
 
     loader = DataLoader(
@@ -451,6 +500,7 @@ def load_superres_data(data_dir, batch_size, large_size, small_size, class_cond=
                        bicubic_down=False,
                        max_workers_dir_scan=32,
                        always_resize_with_bicubic=False,
+                       multisize_spec='',
                        ):
     print(f'load_superres_data: deterministic={deterministic}')
     data = load_data(
@@ -496,7 +546,10 @@ def load_superres_data(data_dir, batch_size, large_size, small_size, class_cond=
         tokenizer=tokenizer,
         max_workers_dir_scan=max_workers_dir_scan,
         always_resize_with_bicubic=always_resize_with_bicubic,
+        multisize_spec=multisize_spec,
     )
+
+    multisize = multisize_spec != ''
 
     blurrer = T.RandomApply(transforms=[T.GaussianBlur(blur_width, sigma=(blur_sigma_min, blur_sigma_max))], p=blur_prob)
 
@@ -519,6 +572,8 @@ def load_superres_data(data_dir, batch_size, large_size, small_size, class_cond=
         mode = 'bicubic'
 
     for large_batch, model_kwargs in data:
+        if multisize:
+            small_size = large_batch.shape[2] // 2
         model_kwargs["low_res"] = F.interpolate(large_batch, small_size, mode=mode, antialias=use_antialias)
         if colorize:
             model_kwargs["low_res"] = model_kwargs["low_res"].mean(dim=1, keepdim=True)
@@ -672,6 +727,7 @@ class ImageDataset(Dataset):
                  clip_encode=True,
                  lowres_degradation_fn=None,
                  always_resize_with_bicubic=False,
+                 multisizer=None,
                  ):
         super().__init__()
         self.resolution = resolution
@@ -714,6 +770,9 @@ class ImageDataset(Dataset):
 
         self.always_resize_with_bicubic = always_resize_with_bicubic
 
+        self.multisizer = multisizer
+        self.multisize = multisizer is not None
+
         if (self.image_file_to_safebox is not None) and (self.pre_resize_transform is None):
             raise ValueError
 
@@ -727,10 +786,23 @@ class ImageDataset(Dataset):
             self.local_images = [p for p in self.local_images if p in image_file_to_text_file]
             self.local_texts = [image_file_to_text_file[p] for p in self.local_images]
 
+
     def __len__(self):
         return len(self.local_images)
 
     def __getitem__(self, idx):
+        if self.multisize:
+            if isinstance(idx, tuple):
+                idx, resolution = idx
+            else:
+                resolution = self.multisizer.get_size()
+            pre_resize_transform_for_empty_string = self.pre_resize_transform_for_empty_string(resolution)
+            pre_resize_transform = self.pre_resize_transform(resolution)
+        else:
+            pre_resize_transform_for_empty_string = self.pre_resize_transform_for_empty_string
+            pre_resize_transform = self.pre_resize_transform
+            resolution = self.resolution
+
         path = self.local_images[idx]
         with bf.BlobFile(path, "rb") as f:
             pil_image = Image.open(f)
@@ -743,27 +815,27 @@ class ImageDataset(Dataset):
                 text = f.read()
 
         if not self.txt:
-            if self.pre_resize_transform_for_empty_string is not None:
-                pil_image = self.pre_resize_transform_for_empty_string(pil_image)
-            elif self.pre_resize_transform is not None:
-                pil_image = self.pre_resize_transform(pil_image)
+            if pre_resize_transform_for_empty_string is not None:
+                pil_image = pre_resize_transform_for_empty_string(pil_image)
+            elif pre_resize_transform is not None:
+                pil_image = pre_resize_transform(pil_image)
 
         if self.txt and len(text) == 0:
-            if self.pre_resize_transform_for_empty_string is not None:
+            if pre_resize_transform_for_empty_string is not None:
                 # eg lr flip -- this stacks on top of random safebox crop
-                pil_image = self.pre_resize_transform_for_empty_string(pil_image)
+                pil_image = pre_resize_transform_for_empty_string(pil_image)
             if self.use_random_safebox_for_empty_string and (self.image_file_to_safebox is not None):
                 safebox = self.image_file_to_safebox[random.choice(self.safebox_keys)]
                 px_scale = self.image_file_to_px_scales.get(path)
-                pil_image = self.pre_resize_transform(pil_image, safebox, px_scale)
+                pil_image = pre_resize_transform(pil_image, safebox, px_scale)
         elif self.txt:
             if self.image_file_to_safebox is not None:
                 if path in self.image_file_to_safebox:
                     safebox = self.image_file_to_safebox[path]
                     px_scale = self.image_file_to_px_scales.get(path)
-                    pil_image = self.pre_resize_transform(pil_image, safebox, px_scale)
-            elif self.pre_resize_transform is not None:
-                pil_image = self.pre_resize_transform(pil_image)
+                    pil_image = pre_resize_transform(pil_image, safebox, px_scale)
+            elif pre_resize_transform is not None:
+                pil_image = pre_resize_transform(pil_image)
 
         if not self.always_resize_with_bicubic:
             # We are not on a new enough PIL to support the `reducing_gap`
@@ -774,7 +846,7 @@ class ImageDataset(Dataset):
                     tuple(x // 2 for x in pil_image.size), resample=Image.BOX
                 )
 
-        scale = self.resolution / min(*pil_image.size)
+        scale = resolution / min(*pil_image.size)
         pil_image = pil_image.resize(
             tuple(round(x * scale) for x in pil_image.size), resample=Image.BICUBIC
         )

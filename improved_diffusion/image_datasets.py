@@ -74,7 +74,7 @@ class Multisizer:
     def get_size(self):
         return np.random.choice(self.sizes, p=self.p)
 
-    @property
+    @staticmethod
     def from_spec(spec: str) -> 'Multisizer':
         segs = spec.split(" ")
 

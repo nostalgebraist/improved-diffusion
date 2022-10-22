@@ -798,6 +798,7 @@ class ImageDataset(Dataset):
                 print(f"got {idx}, {resolution}")
             else:
                 resolution = self.multisizer.get_size()
+                print(f"got {idx}, rolled {resolution}")
 
             pre_resize_transform_for_empty_string = self.pre_resize_transform_for_empty_string
             if pre_resize_transform_for_empty_string:

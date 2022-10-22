@@ -551,6 +551,7 @@ class TrainLoop:
         microbatch = self.microbatch
         if self.microbatchsizes is not None:
             microbatch = self.microbatchsizes[batch.shape[2]]
+        print(f"TrainLoop bs {batch.shape[0]} res {batch.shape[2]} microbatch {microbatch}")
         for i in range(0, batch.shape[0], microbatch):
             micro = batch[i : i + microbatch].to(dist_util.dev(), non_blocking=True)
             micro_cond = {

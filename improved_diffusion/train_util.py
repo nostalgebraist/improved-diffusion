@@ -25,7 +25,7 @@ from .nn import update_ema, update_arithmetic_average, scale_module
 from .resample import LossAwareSampler, UniformSampler, EarlyOnlySampler
 from .gaussian_diffusion import SimpleForwardDiffusion, get_named_beta_schedule
 
-from .image_datasets import tokenize
+from .image_datasets import tokenize, Multisizer
 
 from improved_diffusion import cuda_streams
 
@@ -87,6 +87,7 @@ class TrainLoop:
         freeze_capt_encoder=False,
         noise_cond_max_step=-1,
         channels_per_head=64,
+        multisize_spec='',
     ):
         self.model = model
         self.diffusion = diffusion
@@ -166,6 +167,11 @@ class TrainLoop:
         self.step = 0
         self.resume_step = 0
         self.global_batch = self.batch_size # * dist.get_world_size()
+
+        self.microbatchsizes = None
+        if multisize_spec != '':
+            multisizer = Multisizer.from_spec(multisize_spec)
+            self.microbatchsizes = {s: int(e) for s, e in zip(multisizer.sizes, multisizer.extras)}
 
         # text_params, self.text_param_names = [], []
         text_params, text_param_names = defaultdict(list), defaultdict(list)
@@ -542,12 +548,15 @@ class TrainLoop:
             self.opt.zero_grad(set_to_none=True)
         else:
             zero_grad(self.model_params)
-        for i in range(0, batch.shape[0], self.microbatch):
-            micro = batch[i : i + self.microbatch].to(dist_util.dev(), non_blocking=True)
+        microbatch = self.microbatch
+        if self.microbatchsizes is not None:
+            microbatch = self.microbatchsizes[batch.shape[2]]
+        for i in range(0, batch.shape[0], microbatch):
+            micro = batch[i : i + microbatch].to(dist_util.dev(), non_blocking=True)
             micro_cond = {
-                k: v[i : i + self.microbatch].to(dist_util.dev(), non_blocking=True)
+                k: v[i : i + microbatch].to(dist_util.dev(), non_blocking=True)
                 if k not in {'txt'} #{'txt', 'capt'}
-                else v[i : i + self.microbatch]
+                else v[i : i + microbatch]
                 for k, v in cond.items()
             }
             if not (self.model.txt) and 'txt' in micro_cond:
@@ -560,7 +569,7 @@ class TrainLoop:
             # if 'capt' in micro_cond:
             #     capt = clip.tokenize(micro_cond['capt'], truncate=True).to(dist_util.dev(), non_blocking=True)
             #     micro_cond['capt'] = capt
-            last_batch = (i + self.microbatch) >= batch.shape[0]
+            last_batch = (i + microbatch) >= batch.shape[0]
             t, weights = self.schedule_sampler.sample(micro.shape[0], dist_util.dev())
 
             if self.noise_cond:

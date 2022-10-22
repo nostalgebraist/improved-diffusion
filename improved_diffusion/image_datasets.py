@@ -75,7 +75,7 @@ class Multisizer:
         return np.random.choice(self.sizes, p=self.p)
 
     @property
-    def from_spec(spec: str) -> Multisizer:
+    def from_spec(spec: str) -> 'Multisizer':
         segs = spec.split(" ")
 
         sizes, weights = [], []

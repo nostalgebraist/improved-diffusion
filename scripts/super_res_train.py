@@ -8,7 +8,7 @@ import torch as th
 import torch.nn.functional as F
 
 from improved_diffusion import dist_util, logger, cuda_streams
-from improved_diffusion.image_datasets import load_superres_data, load_tokenizer, save_first_batch
+from improved_diffusion.image_datasets import load_superres_data, load_tokenizer, save_first_batch, Multisizer
 from improved_diffusion.resample import create_named_schedule_sampler
 from improved_diffusion.script_util import (
     sr_model_and_diffusion_defaults,
@@ -140,6 +140,7 @@ def main():
         max_workers_dir_scan=args.max_workers_dir_scan,
         always_resize_with_bicubic=args.always_resize_with_bicubic,
         tokenizer=tokenizer,
+        multisize_spec=multisize_spec,
     )
 
     if args.save_first_batch:
@@ -285,6 +286,7 @@ def create_argparser():
         use_streams=True,
         float32_matmul_precision="medium",
         max_workers_dir_scan=32,
+        multisize_spec='',
     )
     defaults.update(sr_model_and_diffusion_defaults())
     parser = argparse.ArgumentParser()

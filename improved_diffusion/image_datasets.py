@@ -66,10 +66,12 @@ class SafeboxCrop:
 
 
 class Multisizer:
-    def __init__(self, sizes, weights):
+    def __init__(self, sizes, weights, batchsizes, extras):
         self.sizes = sizes
         self.p = np.array(weights)
         self.p = self.p / self.p.sum()
+        self.batchsizes = batchsizes
+        self.extras = extras
 
     def get_size(self):
         return np.random.choice(self.sizes, p=self.p)
@@ -78,13 +80,17 @@ class Multisizer:
     def from_spec(spec: str) -> 'Multisizer':
         segs = spec.split(" ")
 
-        sizes, weights = [], []
+        sizes, weights, batchsizes, extras = [], [], {}, []
         for seg in segs:
             s, _, w = seg.partition(":")
+            w, _, bs = w.partition(',')
+            bs, *extra = [cs for cs in bs.split(',') if len(cs) > 0]
             sizes.append(int(s))
             weights.append(float(w))
+            batchsizes[int(s)] = int(bs)
+            extras.append(extra)
 
-        return Multisizer(sizes=sizes, weights=weights)
+        return Multisizer(sizes=sizes, weights=weights, batchsizes=batchsizes, extras=extras)
 
 
 def load_data(
@@ -423,7 +429,7 @@ class MultisizeBatchSampler(BatchSampler):
         size = self.multisizer.get_size()
         for idx in self.sampler:
             batch.append((idx, size))
-            if len(batch) == self.batch_size:
+            if len(batch) == self.multisizer.batchsizes[size]:
                 print(f"batch {batch}")
                 yield batch
                 batch = []

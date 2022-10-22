@@ -423,6 +423,7 @@ class MultisizeBatchSampler(BatchSampler):
         for idx in self.sampler:
             batch.append((idx, size))
             if len(batch) == self.batch_size:
+                print(f"batch {batch}")
                 yield batch
                 batch = []
                 size = self.multisizer.get_size()
@@ -794,6 +795,7 @@ class ImageDataset(Dataset):
         if self.multisize:
             if isinstance(idx, tuple):
                 idx, resolution = idx
+                print(f"got {idx}, {resolution}")
             else:
                 resolution = self.multisizer.get_size()
 

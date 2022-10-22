@@ -867,9 +867,9 @@ class ImageDataset(Dataset):
         arr = np.array(pil_image.convert(mode))
         if self.monochrome:
             arr = np.expand_dims(arr, 2)
-        crop_y = (arr.shape[0] - self.resolution) // 2
-        crop_x = (arr.shape[1] - self.resolution) // 2
-        arr = arr[crop_y : crop_y + self.resolution, crop_x : crop_x + self.resolution]
+        crop_y = (arr.shape[0] - resolution) // 2
+        crop_x = (arr.shape[1] - resolution) // 2
+        arr = arr[crop_y : crop_y + resolution, crop_x : crop_x + resolution]
 
         if self.lowres_degradation_fn is not None:
             low_res = self.lowres_degradation_fn(arr)

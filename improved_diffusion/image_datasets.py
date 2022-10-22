@@ -297,7 +297,7 @@ def load_data(
     def make_cropper_es(tsize):
         pre_resize_transform_for_empty_string = []
         if use_es_regular_crop:
-            print("using es regular crop")
+            # print("using es regular crop")
 
             if crop_without_resize:
                 cropper = T.RandomCrop(size=tsize)
@@ -316,7 +316,7 @@ def load_data(
             )
 
         if flip_lr_prob_es > 0:
-            print("using flip")
+            # print("using flip")
             pre_resize_transform_for_empty_string.append(T.RandomHorizontalFlip(p=flip_lr_prob_es))
 
         if len(pre_resize_transform_for_empty_string) > 0:

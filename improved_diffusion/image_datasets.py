@@ -402,14 +402,20 @@ class DropSampler(BatchSampler):
         self.clip_probs_by_idxs = clip_probs_by_idxs
         self.clip_prob_middle_pkeep = clip_prob_middle_pkeep
 
+    def should_keep(self, idx):
+        if idx not in self.clip_probs_by_idxs:
+            return False
+        this_probs = self.clip_probs_by_idxs[idx]
+        pkeep = clip_pkeep(this_probs, middle_pkeep=self.clip_prob_middle_pkeep)
+        if random.random() > pkeep:
+            return False
+        return True
+
     def __iter__(self):
         batch = []
         for idx in self.sampler:
-            if idx in self.clip_probs_by_idxs:
-                this_probs = self.clip_probs_by_idxs[idx]
-                pkeep = clip_pkeep(this_probs, middle_pkeep=self.clip_prob_middle_pkeep)
-                if random.random() > pkeep:
-                    continue
+            if not self.should_keep(idx):
+                continue
 
             batch.append(idx)
             if len(batch) == self.batch_size:
@@ -420,14 +426,23 @@ class DropSampler(BatchSampler):
 
 
 class MultisizeBatchSampler(BatchSampler):
-    def __init__(self, sampler, batch_size: int, drop_last: bool, multisizer: Multisizer):
+    def __init__(self, sampler, batch_size: int, drop_last: bool, multisizer: Multisizer, should_keep_fn=None):
         super().__init__(sampler, batch_size, drop_last)
         self.multisizer = multisizer
+        self.should_keep_fn = should_keep_fn
+
+        def always_keep(idx):
+            return True
+
+        if self.should_keep_fn is None:
+            self.should_keep_fn = always_keep
 
     def __iter__(self):
         batch = []
         size = self.multisizer.get_size()
         for idx in self.sampler:
+            if not self.should_keep_fn(idx):
+                continue
             batch.append((idx, size))
             if len(batch) == self.multisizer.batchsizes[size]:
                 yield batch
@@ -444,23 +459,27 @@ def _dataloader_gen(dataset, batch_size, deterministic, pin_memory, prefetch_fac
                     multisizer=None):
     print(f'_dataloader_gen: deterministic={deterministic}')
     kwargs = dict(batch_size=batch_size, drop_last=True, shuffle=not deterministic, )
+
+    if not deterministic:
+        sampler = RandomSampler(dataset, generator=None)
+    else:
+        sampler = SequentialSampler(dataset)
+
+    drop_sampler = None
+
     if clip_probs_by_idxs is not None:
-        if not deterministic:
-            sampler = RandomSampler(dataset, generator=None)
-        else:
-            sampler = SequentialSampler(dataset)
-        batch_sampler = DropSampler(sampler=sampler, batch_size=batch_size, drop_last=True, clip_probs_by_idxs=clip_probs_by_idxs, clip_prob_middle_pkeep=clip_prob_middle_pkeep)
-        kwargs = dict(batch_sampler=batch_sampler)
-    elif multisizer is not None:
-        if not deterministic:
-            sampler = RandomSampler(dataset, generator=None)
-        else:
-            sampler = SequentialSampler(dataset)
+        drop_sampler = DropSampler(sampler=sampler, batch_size=batch_size, drop_last=True, clip_probs_by_idxs=clip_probs_by_idxs, clip_prob_middle_pkeep=clip_prob_middle_pkeep)
+
+    if multisizer is not None:
         batch_sampler = MultisizeBatchSampler(sampler=sampler,
                                               batch_size=batch_size,
                                               drop_last=True,
-                                              multisizer=multisizer)
+                                              multisizer=multisizer,
+                                              should_keep_fn=getattr(drop_sampler, 'should_keep', None),
+                                              )
         kwargs = dict(batch_sampler=batch_sampler)
+    elif clip_probs_by_idxs is not None:
+        kwargs = dict(batch_sampler=drop_sampler)
 
     loader = DataLoader(
         dataset, num_workers=num_workers, pin_memory=pin_memory,

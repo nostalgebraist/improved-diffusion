@@ -74,7 +74,7 @@ class Multisizer:
         self.extras = extras
 
     def get_size(self):
-        return np.random.choice(self.sizes, p=self.p)
+        return self.sizes[np.random.choice(np.arange(len(self.sizes)), p=self.p)]
 
     @staticmethod
     def from_spec(spec: str) -> 'Multisizer':
@@ -875,7 +875,7 @@ class ImageDataset(Dataset):
             elif pre_resize_transform is not None:
                 pil_image = pre_resize_transform(pil_image)
 
-        rxy = (resolution, resolution) if isinstance(resolution, int) else resolution
+        rxy = (resolution, resolution) if isinstance(resolution, int) else (resolution[1], resolution[0])
 
         if not self.always_resize_with_bicubic:
             # We are not on a new enough PIL to support the `reducing_gap`
@@ -901,9 +901,9 @@ class ImageDataset(Dataset):
         arr = np.array(pil_image.convert(mode))
         if self.monochrome:
             arr = np.expand_dims(arr, 2)
-        crop_y = (arr.shape[0] - rxy[1]) // 2
-        crop_x = (arr.shape[1] - rxy[0]) // 2
-        arr = arr[crop_y : crop_y + rxy[1], crop_x : crop_x + rxy[0]]
+        crop_y = (arr.shape[1] - rxy[1]) // 2
+        crop_x = (arr.shape[0] - rxy[0]) // 2
+        arr = arr[crop_y : crop_y + rxy[0], crop_x : crop_x + rxy[1]]
 
         if self.lowres_degradation_fn is not None:
             low_res = self.lowres_degradation_fn(arr)

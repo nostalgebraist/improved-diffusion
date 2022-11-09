@@ -85,9 +85,13 @@ class Multisizer:
             s, _, w = seg.partition(":")
             w, _, bs = w.partition(',')
             bs, *extra = [cs for cs in bs.split(',') if len(cs) > 0]
-            sizes.append(int(s))
+            if ',' in s:
+                size = tuple(int(x) for x in s.split(','))
+            else:
+                size = int(s)
+            sizes.append(size)
             weights.append(float(w))
-            batchsizes[int(s)] = int(bs)
+            batchsizes[size] = int(bs)
             extras.append(extra)
 
         return Multisizer(sizes=sizes, weights=weights, batchsizes=batchsizes, extras=extras)
@@ -871,19 +875,25 @@ class ImageDataset(Dataset):
             elif pre_resize_transform is not None:
                 pil_image = pre_resize_transform(pil_image)
 
+        rxy = (resolution, resolution) if isinstance(resolution, int) else resolution
+
         if not self.always_resize_with_bicubic:
             # We are not on a new enough PIL to support the `reducing_gap`
             # argument, which uses BOX downsampling at powers of two first.
             # Thus, we do it by hand to improve downsample quality.
-            while min(*pil_image.size) >= 2 * resolution:
+            while min(*pil_image.size) >= 2 * max(rxy):
                 pil_image = pil_image.resize(
                     tuple(x // 2 for x in pil_image.size), resample=Image.BOX
                 )
 
-        scale = resolution / min(*pil_image.size)
+        # scale = resolution / min(*pil_image.size)
+        scale = max(rxy) / max(*pil_image.size)
         pil_image = pil_image.resize(
             tuple(round(x * scale) for x in pil_image.size), resample=Image.BICUBIC
         )
+        if rxy[0] != rxy[1]:
+            # non-square
+            pil_image = T.RandomCrop(size=rxy)(pil_image)
 
         out_dict = {}
 
@@ -891,9 +901,9 @@ class ImageDataset(Dataset):
         arr = np.array(pil_image.convert(mode))
         if self.monochrome:
             arr = np.expand_dims(arr, 2)
-        crop_y = (arr.shape[0] - resolution) // 2
-        crop_x = (arr.shape[1] - resolution) // 2
-        arr = arr[crop_y : crop_y + resolution, crop_x : crop_x + resolution]
+        crop_y = (arr.shape[0] - rxy[1]) // 2
+        crop_x = (arr.shape[1] - rxy[0]) // 2
+        arr = arr[crop_y : crop_y + rxy[1], crop_x : crop_x + rxy[0]]
 
         if self.lowres_degradation_fn is not None:
             low_res = self.lowres_degradation_fn(arr)

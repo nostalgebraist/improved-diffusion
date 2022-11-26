@@ -1,4 +1,4 @@
-import argparse
+self.model.deviceimport argparse
 import os
 import random
 from typing import Union, List, Optional
@@ -94,7 +94,7 @@ class SamplingModel(nn.Module):
         self.diffusion = self.diffusion_factory(timestep_respacing, double_mesh_first_n=double_mesh_first_n)
 
     @staticmethod
-    def from_config(checkpoint_path, config_path, timestep_respacing="", class_map=None, clipmod=None, **overrides):
+    def from_config(checkpoint_path, config_path, timestep_respacing="", class_map=None, clipmod=None, device='cuda:0', **overrides):
         overrides_ = dict(freeze_capt_encoder=True, use_inference_caching=True, clipmod=clipmod)
         overrides_.update(overrides)
 
@@ -106,7 +106,7 @@ class SamplingModel(nn.Module):
             dist_util.load_state_dict(checkpoint_path, map_location="cpu"),
             strict=False
         )
-        model.to(dist_util.dev())
+        model.to(device)
         model.eval()
 
         return SamplingModel(
@@ -235,15 +235,15 @@ class SamplingModel(nn.Module):
 
         if batch_text is not None:
             txt = tokenize(self.tokenizer, batch_text)
-            txt = th.as_tensor(txt).to(dist_util.dev())
+            txt = th.as_tensor(txt).to(self.model.device)
             model_kwargs["txt"] = txt
 
         if batch_capt is not None:
-            capt = clip.tokenize(batch_capt, truncate=True).to(dist_util.dev())
+            capt = clip.tokenize(batch_capt, truncate=True).to(self.model.device)
             model_kwargs["capt"] = capt
 
         if batch_y is not None:
-            batch_y = th.as_tensor(batch_y).to(dist_util.dev())
+            batch_y = th.as_tensor(batch_y).to(self.model.device)
             model_kwargs["y"] = batch_y
 
         if clf_free_guidance and (guidance_scale > 0):
@@ -269,20 +269,20 @@ class SamplingModel(nn.Module):
 
             if batch_text is not None:
                 txt_uncon = batch_size * tokenize(self.tokenizer, [txt_drop_string])
-                txt_uncon = th.as_tensor(txt_uncon).to(dist_util.dev())
+                txt_uncon = th.as_tensor(txt_uncon).to(self.model.device)
                 model_kwargs["unconditional_model_kwargs"]["txt"] = txt_uncon
 
             if batch_y is not None:
                 y_uncon = batch_size * [class_ix_drop]
-                y_uncon = th.as_tensor(y_uncon).to(dist_util.dev())
+                y_uncon = th.as_tensor(y_uncon).to(self.model.device)
                 model_kwargs["unconditional_model_kwargs"]["y"] = y_uncon
 
             if batch_capt is not None:
-                capt_uncon = clip.tokenize(batch_size * [capt_drop_string], truncate=True).to(dist_util.dev())
+                capt_uncon = clip.tokenize(batch_size * [capt_drop_string], truncate=True).to(self.model.device)
                 model_kwargs["unconditional_model_kwargs"]["capt"] = capt_uncon
 
         if self.model.noise_cond:
-            model_kwargs["cond_timesteps"] = th.as_tensor(batch_size * [int(noise_cond_ts)]).to(dist_util.dev())
+            model_kwargs["cond_timesteps"] = th.as_tensor(batch_size * [int(noise_cond_ts)]).to(self.model.device)
             if "unconditional_model_kwargs" in model_kwargs:
                 model_kwargs["unconditional_model_kwargs"]["cond_timesteps"] = model_kwargs["cond_timesteps"]
 
@@ -304,7 +304,7 @@ class SamplingModel(nn.Module):
                 low_res = low_res / 127.5 - 1.0
                 low_res = low_res.permute(0, 3, 1, 2)
 
-            all_low_res = low_res.to(dist_util.dev())
+            all_low_res = low_res.to(self.model.device)
             # print(
             #     f"batch_size: {batch_size} vs low_res kwarg shape {all_low_res.shape}"
             # )

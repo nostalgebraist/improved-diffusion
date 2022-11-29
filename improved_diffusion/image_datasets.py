@@ -136,6 +136,7 @@ def load_data(
     lowres_degradation_fn=None,
     always_resize_with_bicubic=False,
     multisize_spec='',
+    return_file_paths=False,
 ):
     """
     For a dataset, create a generator over (images, kwargs) pairs.
@@ -370,6 +371,7 @@ def load_data(
         lowres_degradation_fn=lowres_degradation_fn,
         always_resize_with_bicubic=always_resize_with_bicubic,
         multisizer=multisizer,
+        return_file_paths=return_file_paths,
     )
     if return_dataset:
         return dataset
@@ -760,6 +762,7 @@ class ImageDataset(Dataset):
                  lowres_degradation_fn=None,
                  always_resize_with_bicubic=False,
                  multisizer=None,
+                 return_file_paths=False,
                  ):
         super().__init__()
         self.resolution = resolution
@@ -804,6 +807,8 @@ class ImageDataset(Dataset):
 
         self.multisizer = multisizer
         self.multisize = multisizer is not None
+
+        self.return_file_paths = return_file_paths
 
         if (self.image_file_to_safebox is not None) and (self.pre_resize_transform is None):
             raise ValueError
@@ -946,6 +951,9 @@ class ImageDataset(Dataset):
                 out_dict['capt'] = clip.tokenize(capt, truncate=True)[0, :]
             else:
                 out_dict['capt'] = capt
+
+        if self.return_file_paths:
+            out_dict['path'] = path
 
         return np.transpose(arr, [2, 0, 1]), out_dict
 

@@ -387,11 +387,12 @@ def load_data(
                 reverse=True
             )
             print(f"sort_by_prob first image after: {dataset.local_images[0]}")
-        clip_probs_by_idxs = {
-            i: clip_probs.get(p)
-            for i, p in enumerate(dataset.local_images)
-            if p in clip_probs
-        }
+        else:
+            clip_probs_by_idxs = {
+                i: clip_probs.get(p)
+                for i, p in enumerate(dataset.local_images)
+                if p in clip_probs
+            }
         print(f"len(clip_probs_by_idxs): {len(clip_probs_by_idxs)}")
         avg_pkeep = np.mean([clip_pkeep(p, middle_pkeep=clip_prob_middle_pkeep) for p in clip_probs_by_idxs.values()])
         eff_len = avg_pkeep * len(dataset)

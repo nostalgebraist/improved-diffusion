@@ -380,11 +380,13 @@ def load_data(
     if clip_probs is not None:
         if sort_by_prob:
             deterministic = False
+            print(f"sort_by_prob first image before: {dataset.local_images[0]}")
             dataset.local_images = sorted(
                 dataset.local_images,
                 key=lambda p: clip_probs.get(p, [0,0,-1])[2],
                 reverse=True
             )
+            print(f"sort_by_prob first image after: {dataset.local_images[0]}")
         clip_probs_by_idxs = {
             i: clip_probs.get(p)
             for i, p in enumerate(dataset.local_images)

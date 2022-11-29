@@ -379,7 +379,7 @@ def load_data(
     clip_probs_by_idxs = None
     if clip_probs is not None:
         if sort_by_prob:
-            deterministic = False
+            deterministic = True
             print(f"sort_by_prob first image before: {dataset.local_images[0]}")
             dataset.local_images = sorted(
                 dataset.local_images,

@@ -137,6 +137,7 @@ def load_data(
     always_resize_with_bicubic=False,
     multisize_spec='',
     return_file_paths=False,
+    sort_by_prob=False,
 ):
     """
     For a dataset, create a generator over (images, kwargs) pairs.
@@ -377,6 +378,13 @@ def load_data(
         return dataset
     clip_probs_by_idxs = None
     if clip_probs is not None:
+        if sort_by_prob:
+            deterministic = False
+            dataset.local_images = sorted(
+                dataset.local_images,
+                key=lambda p: clip_probs.get(p, [0,0,-1])[2],
+                reverse=True
+            )
         clip_probs_by_idxs = {
             i: clip_probs.get(p)
             for i, p in enumerate(dataset.local_images)

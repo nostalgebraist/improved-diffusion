@@ -85,6 +85,7 @@ class TrainLoop:
         resize_mult=1.,
         perf_no_ddl=False,
         freeze_capt_encoder=False,
+        freeze_text_encoder=False,
         noise_cond_max_step=-1,
         channels_per_head=64,
         use_8bit_adam=False,
@@ -148,6 +149,7 @@ class TrainLoop:
             raise ValueError('only_optimize_bread no longer supported')
         self.resize_mult = resize_mult
         self.freeze_capt_encoder = freeze_capt_encoder
+        self.freeze_text_encoder = freeze_text_encoder
 
         self.use_8bit_adam = use_8bit_adam
 
@@ -192,13 +194,15 @@ class TrainLoop:
                 self.cattn_param_names.append(n)
                 cattn_params.append(p)
             elif 'text_encoder' in n:
-                # subname = 'text'
-                if 'text_encoder.model.layers.' in n:
-                    subname = 'textl.' + '.'.join(n.partition('text_encoder.model.layers.')[2].split('.')[:2])
+                if self.freeze_text_encoder:
+                    p.requires_grad_(False)
                 else:
-                    subname = 'text.' + n.partition('text_encoder.')[2].split('.')[0]
-                text_param_names[subname].append(n)
-                text_params[subname].append(p)
+                    if 'text_encoder.model.layers.' in n:
+                        subname = 'textl.' + '.'.join(n.partition('text_encoder.model.layers.')[2].split('.')[:2])
+                    else:
+                        subname = 'text.' + n.partition('text_encoder.')[2].split('.')[0]
+                    text_param_names[subname].append(n)
+                    text_params[subname].append(p)
             elif ("cross_attn" in n or "weave_attn.text_to_image_layers") and "gain" in n:
                 if 'gain_ff' in n:
                     self.ff_gain_param_names.append(n)

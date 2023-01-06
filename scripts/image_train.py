@@ -200,6 +200,7 @@ def main():
         freeze_capt_encoder=args.freeze_capt_encoder,
         channels_per_head=args.channels_per_head,
         use_8bit_adam=args.use_8bit_adam,
+        freeze_text_encoder=args.freeze_text_encoder,
     ).run_loop()
 
 
@@ -294,6 +295,7 @@ def create_argparser():
         use_streams=True,
         max_workers_dir_scan=32,
         use_8bit_adam=False,
+        freeze_text_encoder=False,
     )
     defaults.update(model_and_diffusion_defaults())
     parser = argparse.ArgumentParser()

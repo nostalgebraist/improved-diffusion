@@ -244,7 +244,7 @@ class CrossAttention(nn.Module):
         elif self.use_rezero:
             self.gain = torch.nn.Parameter(torch.zeros(1))
         else:
-            self.gain = torch.nn.Parameter(torch.as_tensor(np.log(init_gain) / gain_scale))
+            self.gain = torch.nn.Parameter(torch.as_tensor(np.log(init_gain) / gain_scale).float())
 
         self.resid = resid
 
@@ -422,10 +422,10 @@ class ImageToTextCrossAttention(nn.Module):
             if use_ff and use_ff_gain:
                 self.gain_ff = torch.nn.Parameter(torch.zeros(1))
         else:
-            self.gain = torch.nn.Parameter(torch.as_tensor(np.log(init_gain) / gain_scale))
+            self.gain = torch.nn.Parameter(torch.as_tensor(np.log(init_gain) / gain_scale).float())
             if use_ff:
                 if use_ff_gain:
-                    self.gain_ff = torch.nn.Parameter(torch.as_tensor(np.log(init_gain) / gain_scale))
+                    self.gain_ff = torch.nn.Parameter(torch.as_tensor(np.log(init_gain) / gain_scale).float())
                 else:
                     self.gain_ff = np.log(init_gain)
 

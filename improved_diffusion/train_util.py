@@ -706,14 +706,23 @@ class TrainLoop:
         self._anneal_lr()
         from collections import Counter
         gtypes = Counter()
+        ptypes = Counter()
         for n, p in self.model.named_parameters():
             if p.grad is not None:
                 gtype = 'ok'
+                ptype = 'ok'
+                if th.isnan(p).any().item():
+                    ptype = 'nan'
+                if th.isinf(p).any().item():
+                    ptype = 'inf'
                 if th.isnan(p.grad).any().item():
                     gtype = 'nan'
                 if th.isinf(p.grad).any().item():
                     gtype = 'inf'
+                ptypes[gtype] += 1
                 gtypes[gtype] += 1
+                if ptype != 'ok':
+                    print(f'{gtype} param: {n}')
                 if gtype != 'ok':
                     print(f'{gtype} grad: {n}')
         print(gtypes)

@@ -705,7 +705,7 @@ class TrainLoop:
         for n, p in self.model.named_parameters():
             if p.grad is not None:
                 dtypes[p.grad.dtype] += 1
-                if p.grad.dtype == torch.float64:
+                if p.grad.dtype == th.float64:
                     print(f'torch.float64 grad: {n}')
         print(dtypes)
         self.grad_scaler.step(self.opt)

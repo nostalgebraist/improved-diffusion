@@ -700,6 +700,14 @@ class TrainLoop:
         self.grad_scaler.unscale_(self.opt)
         self._log_grad_norm()
         self._anneal_lr()
+        from collections import Counter
+        dtypes = Counter()
+        for n, p in self.model.named_parameters():
+            if p.grad is not None:
+                dtypes[p.grad.dtype] += 1
+                if p.grad.dtype == torch.float64:
+                    print(f'torch.float64 grad: {n}')
+        print(dtypes)
         self.grad_scaler.step(self.opt)
         self.grad_scaler.update()
         verboses = [False] * (len(self.ema_rate) - 1) + [True]

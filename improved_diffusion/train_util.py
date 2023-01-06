@@ -722,9 +722,10 @@ class TrainLoop:
                 ptypes[gtype] += 1
                 gtypes[gtype] += 1
                 if ptype != 'ok':
-                    print(f'{gtype} param: {n}')
+                    print(f'{ptype} param: {n}')
                 if gtype != 'ok':
                     print(f'{gtype} grad: {n}')
+        print(ptypes)
         print(gtypes)
         self.grad_scaler.step(self.opt)
         self.grad_scaler.update()

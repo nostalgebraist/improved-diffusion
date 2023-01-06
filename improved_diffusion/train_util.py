@@ -455,7 +455,7 @@ class TrainLoop:
             ours = [v['params'] for v in self.opt.state_dict()['param_groups']]
             theirs = [v['params'] for v in state_dict['param_groups']]
 
-            if not all(len(o) == len(t) for o, t in zip(ours, theirs)):
+            if False: #not all(len(o) == len(t) for o, t in zip(ours, theirs)):
                 # loading manual mp opt in amp
                 their_exp_avg = [state_dict['state'][pg[0]]['exp_avg'] for pg in theirs]
                 their_exp_avg_sq = [state_dict['state'][pg[0]]['exp_avg_sq'] for pg in theirs]

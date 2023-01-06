@@ -329,7 +329,8 @@ class TrainLoop:
             opt_cls = bnb.optim.AdamW8bit
         else:
             opt_cls = AdamW
-        self.opt = AdamW(
+        print(f"using opt_cls {repr(opt_cls)}")
+        self.opt = opt_cls(
             param_groups,
             lr=self.lr,
             weight_decay=self.weight_decay,

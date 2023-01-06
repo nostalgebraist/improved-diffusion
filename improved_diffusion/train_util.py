@@ -704,29 +704,6 @@ class TrainLoop:
         self.grad_scaler.unscale_(self.opt)
         self._log_grad_norm()
         self._anneal_lr()
-        from collections import Counter
-        gtypes = Counter()
-        ptypes = Counter()
-        for n, p in self.model.named_parameters():
-            if p.grad is not None:
-                gtype = 'ok'
-                ptype = 'ok'
-                if th.isnan(p).any().item():
-                    ptype = 'nan'
-                if th.isinf(p).any().item():
-                    ptype = 'inf'
-                if th.isnan(p.grad).any().item():
-                    gtype = 'nan'
-                if th.isinf(p.grad).any().item():
-                    gtype = 'inf'
-                ptypes[ptype] += 1
-                gtypes[gtype] += 1
-                if ptype != 'ok':
-                    print(f'{ptype} param: {n}')
-                if gtype != 'ok':
-                    print(f'{gtype} grad: {n}')
-        print(ptypes)
-        print(gtypes)
         self.grad_scaler.step(self.opt)
         self.grad_scaler.update()
         verboses = [False] * (len(self.ema_rate) - 1) + [True]

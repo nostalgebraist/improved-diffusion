@@ -189,6 +189,7 @@ def main():
         capt_lr=args.capt_lr,
         freeze_capt_encoder=args.freeze_capt_encoder,
         channels_per_head=args.channels_per_head,
+        use_8bit_adam=args.use_8bit_adam,
     ).run_loop()
 
 
@@ -285,6 +286,7 @@ def create_argparser():
         use_streams=True,
         float32_matmul_precision="medium",
         max_workers_dir_scan=32,
+        use_8bit_adam=False,
     )
     defaults.update(sr_model_and_diffusion_defaults())
     parser = argparse.ArgumentParser()

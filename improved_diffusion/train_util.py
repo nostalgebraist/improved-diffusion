@@ -87,6 +87,7 @@ class TrainLoop:
         freeze_capt_encoder=False,
         noise_cond_max_step=-1,
         channels_per_head=64,
+        use_8bit_adam=False,
     ):
         self.model = model
         self.diffusion = diffusion
@@ -147,6 +148,8 @@ class TrainLoop:
             raise ValueError('only_optimize_bread no longer supported')
         self.resize_mult = resize_mult
         self.freeze_capt_encoder = freeze_capt_encoder
+
+        self.use_8bit_adam = use_8bit_adam
 
         self.noise_cond = self.model.noise_cond
         self.noise_cond_diffusion = None
@@ -321,6 +324,11 @@ class TrainLoop:
                 self.group_lrs,
             )
         ]
+        if self.use_8bit_adam:
+            import bitsandbytes as bnb
+            opt_cls = bnb.optim.AdamW8bit
+        else:
+            opt_cls = AdamW
         self.opt = AdamW(
             param_groups,
             lr=self.lr,

@@ -719,7 +719,7 @@ class TrainLoop:
                     gtype = 'nan'
                 if th.isinf(p.grad).any().item():
                     gtype = 'inf'
-                ptypes[gtype] += 1
+                ptypes[ptype] += 1
                 gtypes[gtype] += 1
                 if ptype != 'ok':
                     print(f'{ptype} param: {n}')

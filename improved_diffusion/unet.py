@@ -621,6 +621,7 @@ class AttentionBlock(GlideStyleBlock):
             x = x.reshape(b, c, -1)
             norm_out = self.norm(x)
         qkv = self.qkv(norm_out)
+        unrolled_shape = (b, -1, self.num_heads, qkv.shape[1]//3)
         qkv = qkv.reshape(b * self.num_heads, -1, qkv.shape[2])
 
         if self.capt_stream() is not None:
@@ -635,9 +636,9 @@ class AttentionBlock(GlideStyleBlock):
             my_attn_mask = th.cat([my_attn_mask, th.ones((qkv.shape[0], qkv.shape[2], qkv.shape[2]), dtype=bool, device=qkv.device)], dim=2)
             my_attn_mask = (~my_attn_mask).to(encoder_kv.dtype) * -10000.
 
-            h = self.attention(qkv, encoder_kv, my_attn_mask)
+            h = self.attention(qkv, encoder_kv, my_attn_mask, unrolled_shape=unrolled_shape)
         else:
-            h = self.attention(qkv)
+            h = self.attention(qkv, unrolled_shape=unrolled_shape)
         h = h.reshape(b, -1, h.shape[-1])
         h = self.proj_out(h)
         return (x + h).reshape(b, c, *spatial)
@@ -648,7 +649,8 @@ class QKVAttention(nn.Module):
     A module which performs QKV attention.
     """
 
-    def __init__(self, rotary_pos_emb=None, pos_emb_res=None,):
+    def __init__(self, rotary_pos_emb=None, pos_emb_res=None, allow_xformers=True,
+                 ):
         super().__init__()
         self.rotary_pos_emb = rotary_pos_emb
         self.pos_emb_res = pos_emb_res
@@ -664,6 +666,15 @@ class QKVAttention(nn.Module):
         else:
             self.freqs = None
 
+        self.xops = None
+        if allow_xformers:
+            try:
+                import triton.language
+                import xformers.ops
+                self.xops = xformers.ops
+            except:
+                pass
+
     def apply_rotary_pos_emb(self, q, k):
         if self.freqs is not None:
             q = rearrange(q, 'bhe c (h w) -> bhe h w c', h=self.pos_emb_res)
@@ -674,7 +685,7 @@ class QKVAttention(nn.Module):
             k = rearrange(k, 'bhe h w c -> bhe c (h w)', h=self.pos_emb_res)
         return q, k
 
-    def forward(self, qkv, encoder_kv=None, attn_mask=None):
+    def forward(self, qkv, unrolled_shape, encoder_kv=None, attn_mask=None):
         """
         Apply QKV attention.
 
@@ -688,23 +699,27 @@ class QKVAttention(nn.Module):
             ek, ev = encoder_kv.split(ch, dim=1)
             k = th.cat([ek, k], dim=-1)
             v = th.cat([ev, v], dim=-1)
-        scale = 1 / math.sqrt(math.sqrt(ch))
-        weight = th.einsum(
-            "bct,bcs->bts", q * scale, k * scale
-        )  # More stable with f16 than dividing afterwards
-        weight = weight.float()
-        if attn_mask is not None:
-            weight = weight + attn_mask
-        weight = th.softmax(weight, dim=-1).type(v.dtype)
-        # if encoder_kv is not None:
-        #     l_base = qkv.shape[2]
-        #     print(f'l_base {l_base}')
-        #     weight_on_capt = weight[:, :, l_base:].sum(dim=-1)
-        #     wmin = weight_on_capt.min().item()
-        #     wmean = weight_on_capt.mean().item()
-        #     wmax = weight_on_capt.max().item()
-        #     print(f"weight_on_capt min {wmin:.3f} | mean {wmean:.3f} | max {wmax:.3f}")
-        return th.einsum("bts,bcs->bct", weight, v)
+        if self.xops is not None:
+            q = q.reshape(*unrolled_shape)
+            k = k.reshape(*unrolled_shape)
+            v = v.reshape(*unrolled_shape)
+            if attn_mask is not None:
+                # todo - is this necessary? does this work?
+                attn_mask = attn_mask[0]
+            out = self.xops.memory_efficient_attention(
+                q, k, v, attn_bias=attn_mask
+            )
+        else:
+            scale = 1 / math.sqrt(math.sqrt(ch))
+            weight = th.einsum(
+                "bct,bcs->bts", q * scale, k * scale
+            )  # More stable with f16 than dividing afterwards
+            weight = weight.float()
+            if attn_mask is not None:
+                weight = weight + attn_mask
+            weight = th.softmax(weight, dim=-1).type(v.dtype)
+            out = th.einsum("bts,bcs->bct", weight, v)
+        return out
 
     @staticmethod
     def count_flops(model, _x, y):

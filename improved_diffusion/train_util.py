@@ -181,7 +181,7 @@ class TrainLoop:
                 if isinstance(m, AttentionBlock):
                     print(f'found attn at {n}')
                     if tune_encoder_kv_only:
-                        if hasattr(m, 'encoder_kv'):
+                        if getattr(m, 'encoder_kv', None) is not None:
                             m.encoder_kv.requires_grad_(True)
                     else:
                         m.requires_grad_(True)

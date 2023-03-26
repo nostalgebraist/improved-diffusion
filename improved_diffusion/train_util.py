@@ -26,6 +26,7 @@ from .resample import LossAwareSampler, UniformSampler, EarlyOnlySampler
 from .gaussian_diffusion import SimpleForwardDiffusion, get_named_beta_schedule
 
 from .image_datasets import tokenize
+from .unet import AttentionBlock
 
 from improved_diffusion import cuda_streams
 
@@ -89,6 +90,8 @@ class TrainLoop:
         noise_cond_max_step=-1,
         channels_per_head=64,
         use_8bit_adam=False,
+        tune_attn_only=False,
+        tune_encoder_kv_only=False,
     ):
         self.model = model
         self.diffusion = diffusion
@@ -171,6 +174,20 @@ class TrainLoop:
         self.step = 0
         self.resume_step = 0
         self.global_batch = self.batch_size # * dist.get_world_size()
+
+        if tune_attn_only or tune_encoder_kv_only:
+            for n, m in model.named_modules():
+                if isinstance(m, AttentionBlock):
+                    if tune_encoder_kv_only:
+                        m.requires_grad_(False)
+                        if hasattr(m, 'encoder_kv'):
+                            m.encoder_kv.requires_grad_(True)
+                else:
+                    m.requires_grad_(False)
+            for n, p in model.named_parameters():
+                if p.requires_grad:
+                    print(n)
+
 
         # text_params, self.text_param_names = [], []
         text_params, text_param_names = defaultdict(list), defaultdict(list)

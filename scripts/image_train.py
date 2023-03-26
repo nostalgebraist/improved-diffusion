@@ -201,6 +201,8 @@ def main():
         channels_per_head=args.channels_per_head,
         use_8bit_adam=args.use_8bit_adam,
         freeze_text_encoder=args.freeze_text_encoder,
+        tune_attn_only=args.tune_attn_only,
+        tune_encoder_kv_only=args.tune_encoder_kv_only,
     ).run_loop()
 
 
@@ -296,6 +298,8 @@ def create_argparser():
         max_workers_dir_scan=32,
         use_8bit_adam=False,
         freeze_text_encoder=False,
+        tune_attn_only=False,
+        tune_encoder_kv_only=False,
     )
     defaults.update(model_and_diffusion_defaults())
     parser = argparse.ArgumentParser()

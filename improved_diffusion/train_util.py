@@ -176,17 +176,18 @@ class TrainLoop:
         self.global_batch = self.batch_size # * dist.get_world_size()
 
         if tune_attn_only or tune_encoder_kv_only:
+            self.model.requires_grad_(False)
             for n, m in model.named_modules():
                 if isinstance(m, AttentionBlock):
+                    print(f'found attn at {n}')
                     if tune_encoder_kv_only:
                         m.requires_grad_(False)
                         if hasattr(m, 'encoder_kv'):
                             m.encoder_kv.requires_grad_(True)
-                else:
-                    m.requires_grad_(False)
+            print('training these params:')
             for n, p in model.named_parameters():
                 if p.requires_grad:
-                    print(n)
+                    print('\t' + n)
 
 
         # text_params, self.text_param_names = [], []

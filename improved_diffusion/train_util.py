@@ -181,9 +181,10 @@ class TrainLoop:
                 if isinstance(m, AttentionBlock):
                     print(f'found attn at {n}')
                     if tune_encoder_kv_only:
-                        m.requires_grad_(False)
                         if hasattr(m, 'encoder_kv'):
                             m.encoder_kv.requires_grad_(True)
+                    else:
+                        m.requires_grad_(True)
             print('training these params:')
             for n, p in model.named_parameters():
                 if p.requires_grad:

@@ -514,7 +514,7 @@ class TrainLoop:
     @cuda_streams.use_main_stream
     def run_loop(self):
         t1 = time.time()
-        print(f"run_loop start: self.step={self.step}")
+        print(f"run_loop start: self.step={self.step} self.resume_step={self.resume_step}")
         while (
             not self.lr_anneal_steps
             or self.step + self.resume_step < self.lr_anneal_steps

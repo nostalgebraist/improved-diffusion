@@ -45,7 +45,7 @@ class BetterMultiheadAttention(th.nn.MultiheadAttention):
 
     def forward(self, query, key, value,
                 attn_mask=None,
-                need_weights: bool = True):
+                need_weights: bool = False):
         if self.batch_first:
             query, key, value = [x.transpose(1, 0) for x in (query, key, value)]
 
@@ -79,7 +79,7 @@ def better_multi_head_attention_forward(
     num_heads: int,
     dropout_p: float,
     training: bool = True,
-    need_weights: bool = True,
+    need_weights: bool = False,
     attn_mask: Optional[th.Tensor] = None,
 ) -> Tuple[th.Tensor, Optional[th.Tensor]]:
     # set up shape vars

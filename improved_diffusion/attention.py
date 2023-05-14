@@ -1,7 +1,7 @@
 from typing import Optional, Tuple
 
 import torch as th
-from torch.nn.functional import _scaled_dot_product_attention
+from torch.nn.functional import scaled_dot_product_attention
 
 
 class BetterMultiheadAttention(th.nn.MultiheadAttention):
@@ -119,13 +119,10 @@ def better_multi_head_attention_forward(
     #
     # (deep breath) calculate attention and out projection
     #
-    attn_output, attn_output_weights = _scaled_dot_product_attention(q, k, v, attn_mask, dropout_p)
+    attn_output = scaled_dot_product_attention(q, k, v, attn_mask, dropout_p)
     attn_output = attn_output.transpose(0, 1).contiguous().view(tgt_len, bsz, embed_dim)
 
     if need_weights:
-        # optionally average attention weights over heads
-        attn_output_weights = attn_output_weights.view(bsz, num_heads, tgt_len, src_len)
-
-        return attn_output, attn_output_weights
+        raise ValueError("this code doesn't support this in torch 2")
     else:
         return attn_output, None

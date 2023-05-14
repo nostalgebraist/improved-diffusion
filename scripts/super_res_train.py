@@ -190,6 +190,9 @@ def main():
         freeze_capt_encoder=args.freeze_capt_encoder,
         channels_per_head=args.channels_per_head,
         use_8bit_adam=args.use_8bit_adam,
+        freeze_text_encoder=args.freeze_text_encoder,
+        tune_attn_only=args.tune_attn_only,
+        tune_encoder_kv_only=args.tune_encoder_kv_only,
     ).run_loop()
 
 
@@ -287,6 +290,9 @@ def create_argparser():
         float32_matmul_precision="medium",
         max_workers_dir_scan=32,
         use_8bit_adam=False,
+        freeze_text_encoder=False,
+        tune_attn_only=False,
+        tune_encoder_kv_only=False,
     )
     defaults.update(sr_model_and_diffusion_defaults())
     parser = argparse.ArgumentParser()
